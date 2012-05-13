@@ -3,11 +3,11 @@ m4_define(PAVER, regexp(FULL_PAVER, [\([0123456789.]+\).*], [\1]))
 
 AC_PREREQ(2.61)
 
-AC_INIT([pulseaudio-policy-enforcement],[PAVER],[janos.f.kovacs@nokia.com])
+AC_INIT([pulseaudio-genivi-mir],[PAVER],[janos.f.kovacs@nokia.com])
 
 DOC_SUPPORT_INIT()
 
-AC_CONFIG_SRCDIR([src/module-policy-enforcement.c])
+AC_CONFIG_SRCDIR([src/module-genivi-mir.c])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([foreign 1.8.5 -Wall])
 

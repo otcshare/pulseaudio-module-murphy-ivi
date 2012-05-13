@@ -25,7 +25,7 @@
 #include <pulsecore/modargs.h>
 #include <pulsecore/log.h>
 
-#include "module-policy-enforcement-symdef.h"
+#include "module-genivi-mir-symdef.h"
 #include "userdata.h"
 #include "index-hash.h"
 #include "config-file.h"
@@ -52,9 +52,10 @@ PA_MODULE_LOAD_ONCE(TRUE);
 PA_MODULE_USAGE(
     "config_file=<policy configuration file> "
     "dbus_if_name=<policy dbus interface> "
-    "dbus_my_path=<our path> "
-    "dbus_policyd_path=<policy daemon's path> "
-    "dbus_policyd_name=<policy daemon's name> "
+    "dbus_murphy_path=<policy daemon's path> "
+    "dbus_murphy_name=<policy daemon's name> "
+    "dbus_audiomgr_path=<GenIVI audio manager's path> " 
+    "dbus_audiomgr_name=<GenIVI audio manager's name> " 
     "null_sink_name=<name of the null sink> "
     "othermedia_preemption=<on|off> "
     "configdir=<configuration directory>"
@@ -63,9 +64,10 @@ PA_MODULE_USAGE(
 static const char* const valid_modargs[] = {
     "config_file",
     "dbus_if_name",
-    "dbus_my_path",
-    "dbus_policyd_path",
-    "dbus_policyd_name",
+    "dbus_murphy_path",
+    "dbus_murphy_name",
+    "dbus_audiomgr_path",
+    "dbus_audiomgr_name",
     "null_sink_name",
     "othermedia_preemption",
     "configdir",
@@ -78,9 +80,10 @@ int pa__init(pa_module *m) {
     pa_modargs      *ma = NULL;
     const char      *cfgfile;
     const char      *ifnam;
-    const char      *mypath;
-    const char      *pdpath;
-    const char      *pdnam;
+    const char      *mrppath;
+    const char      *mrpnam;
+    const char      *ampath;
+    const char      *amnam;
     const char      *nsnam;
     const char      *preempt;
     const char      *cfgdir;
@@ -94,9 +97,10 @@ int pa__init(pa_module *m) {
 
     cfgfile = pa_modargs_get_value(ma, "config_file", NULL);
     ifnam   = pa_modargs_get_value(ma, "dbus_if_name", NULL);
-    mypath  = pa_modargs_get_value(ma, "dbus_my_path", NULL);
-    pdpath  = pa_modargs_get_value(ma, "dbus_policyd_path", NULL);
-    pdnam   = pa_modargs_get_value(ma, "dbus_policyd_name", NULL);
+    mrppath = pa_modargs_get_value(ma, "dbus_murphy_path", NULL);
+    mrpnam  = pa_modargs_get_value(ma, "dbus_murphy_name", NULL);
+    ampath  = pa_modargs_get_value(ma, "dbus_audiomgr_path", NULL);
+    amnam   = pa_modargs_get_value(ma, "dbus_audiomgr_name", NULL);
     nsnam   = pa_modargs_get_value(ma, "null_sink_name", NULL);
     preempt = pa_modargs_get_value(ma, "othermedia_preemption", NULL);
     cfgdir  = pa_modargs_get_value(ma, "configdir", NULL);
@@ -118,7 +122,7 @@ int pa__init(pa_module *m) {
     u->groups   = pa_policy_groupset_new(u);
     u->classify = pa_classify_new(u);
     u->context  = pa_policy_context_new(u);
-    u->dbusif   = pa_policy_dbusif_init(u, ifnam, mypath, pdpath, pdnam);
+    u->dbusif   = pa_policy_dbusif_init(u,ifnam, mrppath,mrpnam, ampath,amnam);
 
     if (u->scl == NULL      || u->ssnk == NULL     || u->ssrc == NULL ||
         u->ssi == NULL      || u->sso == NULL      || u->scrd == NULL ||
