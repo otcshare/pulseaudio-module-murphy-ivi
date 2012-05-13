@@ -1,0 +1,6 @@
+To build rpm's go to the fedora directory and make rpms, ie.
+
+$ cd fedora
+$ make rpms
+
+The rpms supposed to appear in the fedora directory.
