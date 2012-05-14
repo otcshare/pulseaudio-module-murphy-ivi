@@ -14,6 +14,7 @@ module_genivi_mir_la_SOURCES = \
 			classify.c \
 			policy-group.c \
 			context.c \
+			audiomgr.c \
 			dbusif.c
 
 AM_CFLAGS = -g3 -O0
