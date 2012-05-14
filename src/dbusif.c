@@ -31,6 +31,11 @@
 #define AUDIOMGR_DBUS_ROUTE_NAME    "RoutingInterface"
 #define AUDIOMGR_DBUS_ROUTE_PATH    "RoutingInterface"
 
+#define PULSE_DBUS_INTERFACE        "org.genivi.pulse"
+#define PULSE_DBUS_PATH             "/org/genivi/pulse"
+#define PULSE_DBUS_NAME             "org.genivi.pulse"
+
+
 #define AUDIOMGR_CONNECT_ACK        "ackConnect"
 #define AUDIOMGR_DISCONNECT_ACK     "ackDisconnect"
 #define AUDIOMGR_SETSINKVOL_ACK     "ackSetSinkVolume"
@@ -168,6 +173,7 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
     struct pa_policy_dbusif *dbusif = NULL;
     DBusConnection          *dbusconn;
     DBusError                error;
+    unsigned int             flags;
     char                     nambuf[128];
     char                     pathbuf[128];
     char                    *amrnam;
@@ -176,6 +182,7 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
     char                     strrule[512];
     char                     admmrule[512];
     char                     admarule[512];
+    int                      result;
     
     dbusif = pa_xnew0(struct pa_policy_dbusif, 1);
     PA_LLIST_HEAD_INIT(struct pending, dbusif->pendlist);
@@ -191,6 +198,17 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
 
     dbusconn = pa_dbus_connection_get(dbusif->conn);
 
+    flags  = DBUS_NAME_FLAG_REPLACE_EXISTING | DBUS_NAME_FLAG_DO_NOT_QUEUE;
+    result = dbus_bus_request_name(dbusconn, PULSE_DBUS_NAME, flags,&error);
+
+    if (result != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER &&
+        result != DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER    ) {
+        pa_log("%s: D-Bus name request failed: %s: %s",
+               __FILE__, error.name, error.message);
+        goto fail;
+    }
+    
+    pa_log_info("%s: now owner of '%s' D-Bus name", __FILE__, PULSE_DBUS_NAME);
  
     if (!dbus_connection_add_filter(dbusconn, filter,u, NULL)) {
         pa_log("%s: failed to add filter function", __FILE__);
@@ -1013,6 +1031,55 @@ static int register_to_audiomgr(struct pa_policy_dbusif *dbusif,
     return success;
 }
 
+void pa_policy_dbusif_domain_complete(struct userdata *u, uint16_t domain_id)
+{
+    dbus_int32_t             id32 = domain_id;
+    struct pa_policy_dbusif *dbusif;
+    DBusConnection          *conn;
+    DBusMessage             *msg;
+    int                      success;
+
+    pa_assert(u);
+    pa_assert_se((dbusif = u->dbusif));
+    pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
+    
+
+    pa_log_debug("%s: completing registration for domain %u",
+                 __FILE__, domain_id);
+
+    msg = dbus_message_new_method_call(dbusif->amnam,
+                                       dbusif->amrpath,
+                                       dbusif->amrnam,
+                                       AUDIOMGR_DOMAIN_COMPLETE);
+    if (msg == NULL) {
+        pa_log("%s: Failed to create D-Bus message to '%s'",
+               __FILE__, AUDIOMGR_DOMAIN_COMPLETE);
+        success = FALSE;
+        goto getout;
+    }
+
+
+    success = dbus_message_append_args(msg,
+                                       DBUS_TYPE_INT32,  &id32,
+                                       DBUS_TYPE_INVALID);
+    if (!success) {
+        pa_log("%s: Failed to build D-Bus message to complete "
+               "domain registration", __FILE__);
+        goto getout;
+    }
+
+    if (!dbus_connection_send(conn, msg, NULL)) {
+        pa_log("%s: Failed to complete domain registration", __FILE__);
+        goto getout;
+    }
+
+    dbus_connection_flush(conn);
+
+ getout:
+    dbus_message_unref(msg);
+    return success;
+}
+
 
 static void audiomgr_register_cb(struct userdata *u,
                                  const char      *method,
@@ -1149,21 +1216,38 @@ pa_bool_t pa_policy_dbusif_register(struct userdata *u, const char *method,
 
     dbus_message_iter_init_append(msg, &mit);
 
-    if (! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->id          ) ||
-        ! MSG_APPEND  ( DBUS_TYPE_STRING , &rd->name        ) ||
-        ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->domain      ) ||
-        ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->class       ) ||
-        ! MSG_APPEND  ( DBUS_TYPE_INT16  , &rd->volume      ) ||
-        ! MSG_APPEND  ( DBUS_TYPE_BOOLEAN, &rd->visible     ) ||
-        ! CONT_OPEN   ( DBUS_TYPE_STRUCT ,  NULL            ) ||
-        ! CONT_APPEND ( DBUS_TYPE_INT16  , &rd->avail.status) ||
-        ! CONT_APPEND ( DBUS_TYPE_INT16  , &rd->avail.reason) ||
-        ! CONT_CLOSE                                          ||
-        ! MSG_APPEND  ( DBUS_TYPE_INT16  , &rd->mute        ) ||
-        ! MSG_APPEND  ( DBUS_TYPE_INT16  , &rd->mainvol     ) ||
-        ! build_sound_properties(&mit, rd)                    ||
-        ! build_connection_formats(&mit, rd)                  ||
-        ! build_sound_properties(&mit, rd)                      )
+    if ((!strcmp(method, AUDIOMGR_REGISTER_SINK) &&
+         (! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->id          ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_STRING , &rd->name        ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->domain      ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->class       ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_INT16  , &rd->volume      ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_BOOLEAN, &rd->visible     ) ||
+          ! CONT_OPEN   ( DBUS_TYPE_STRUCT ,  NULL            ) ||
+          ! CONT_APPEND ( DBUS_TYPE_INT16  , &rd->avail.status) ||
+          ! CONT_APPEND ( DBUS_TYPE_INT16  , &rd->avail.reason) ||
+          ! CONT_CLOSE                                          ||
+          ! MSG_APPEND  ( DBUS_TYPE_INT16  , &rd->mute        ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_INT16  , &rd->mainvol     ) ||
+          ! build_sound_properties(&mit, rd)                    ||
+          ! build_connection_formats(&mit, rd)                  ||
+          ! build_sound_properties(&mit, rd)                      )) ||
+        (!strcmp(method, AUDIOMGR_REGISTER_SOURCE) &&
+         (! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->id          ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->domain      ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_STRING , &rd->name        ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->class       ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->state       ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_INT16  , &rd->volume      ) ||
+          ! MSG_APPEND  ( DBUS_TYPE_BOOLEAN, &rd->visible     ) ||
+          ! CONT_OPEN   ( DBUS_TYPE_STRUCT ,  NULL            ) ||
+          ! CONT_APPEND ( DBUS_TYPE_INT16  , &rd->avail.status) ||
+          ! CONT_APPEND ( DBUS_TYPE_INT16  , &rd->avail.reason) ||
+          ! CONT_CLOSE                                          ||
+          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->interrupt   ) ||
+          ! build_sound_properties(&mit, rd)                    ||
+          ! build_connection_formats(&mit, rd)                  ||
+          ! build_sound_properties(&mit, rd)                      )))
     {        
         pa_log("%s: failed to build message for AudioManager '%s'",
                __FILE__, method);

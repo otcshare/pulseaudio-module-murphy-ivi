@@ -17,9 +17,30 @@
  * these must match their counterpart
  * in audiomanagertypes.h
  */
-#define DOMAIN_STATE_UNKNOWN     0
-#define DOMAIN_STATE_CONTROLLED  1
-#define DOMAIN_STATE_RUNDOWN     2
+/* domain status */
+#define DS_UNKNOWN        0
+#define DS_CONTROLLED     1
+#define DS_RUNDOWN        2
+
+/* interrupt state */
+#define IS_OFF            1
+#define IS_INTERRUPTED    2
+
+/* availability status */
+#define AS_AVAILABLE      1
+#define AS_UNAVAILABLE    2
+
+/* availability reason */
+#define AR_NEWMEDIA       1
+#define AR_SAMEMEDIA      2
+#define AR_NOMEDIA        3
+#define AR_TEMPERATURE    4
+#define AR_VOLTAGE        5
+#define AR_ERRORMEDIA     6
+
+/* mute state */
+#define MS_MUTED          1
+#define MS_UNMUTED        2
 
 typedef struct {
     const char *name;
@@ -34,6 +55,7 @@ struct pa_audiomgr {
 
 
 static pa_bool_t register_sink(struct userdata *);
+static pa_bool_t register_source(struct userdata *);
 
 
 struct pa_audiomgr *pa_audiomgr_init(struct userdata *u)
@@ -72,6 +94,9 @@ void pa_audiomgr_domain_registered(struct userdata *u,
         am->domain.state = state;
 
         register_sink(u);
+        register_source(u);
+
+        pa_policy_dbusif_domain_complete(u, id);
     }
 }
 
@@ -84,14 +109,33 @@ static pa_bool_t register_sink(struct userdata *u)
     rd->name = pa_xstrdup("fakeSink");
     rd->domain = am->domain.id;
     rd->class = 0x43;
-    rd->volume = 32768;
+    rd->volume = 32767;
+    rd->visible = TRUE;
+    rd->avail.status = AS_AVAILABLE;
+    rd->avail.reason = 0;
+    rd->mute = MS_UNMUTED;
+    rd->mainvol = 32767;
+
+    return pa_policy_dbusif_register(u, AUDIOMGR_REGISTER_SINK, rd);
+}
+
+static pa_bool_t register_source(struct userdata *u)
+{
+    struct pa_audiomgr *am = u->audiomgr;
+    struct am_register_data  *rd = pa_xnew0(struct am_register_data, 1);
+
+    rd->id = 0;
+    rd->name = pa_xstrdup("fakeSource");
+    rd->domain = am->domain.id;
+    rd->class = 0x43;
+    rd->volume = 32767;
     rd->visible = TRUE;
     rd->avail.status = 1;
     rd->avail.reason = 0;
-    rd->mute = 2;
-    rd->mainvol = 32768;
+    rd->mainvol = 32767;
+    rd->interrupt = IS_OFF;
 
-    return pa_policy_dbusif_register(u, AUDIOMGR_REGISTER_SINK, rd);
+    return pa_policy_dbusif_register(u, AUDIOMGR_REGISTER_SOURCE, rd);
 }
 
 

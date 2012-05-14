@@ -8,6 +8,8 @@
 #define AUDIOMGR_REGISTER_SINK      "registerSink"
 #define AUDIOMGR_REGISTER_GATEWAY   "registerGateway"
 
+#define AUDIOMGR_DOMAIN_COMPLETE    "hookDomainRegistrationComplete"
+
 
 struct pa_policy_dbusif;
 
@@ -21,6 +23,7 @@ void pa_policy_dbusif_send_device_state(struct userdata *,char *,char **,int);
 void pa_policy_dbusif_send_media_status(struct userdata *, const char *,
                                         const char *, int);
 
+void pa_policy_dbusif_domain_complete(struct userdata *, uint16_t);
 pa_bool_t pa_policy_dbusif_register(struct userdata *, const char *,
                                     struct am_register_data *);
 

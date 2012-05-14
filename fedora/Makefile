@@ -21,8 +21,8 @@ type      = current
 
 all: rpms cleanup
 
-showvar:
-	@echo "$(var) = $($(var))"
+#showvar:
+#	@echo "$(var) = $($(var))"
 
 # rule to build RPM(s) for this package
 rpms: rmtar $(SPECFILE) tarball
