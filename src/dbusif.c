@@ -149,6 +149,8 @@ static void murphy_registration_cb(struct userdata *, const char *,
 static int  register_to_murphy(struct pa_policy_dbusif *, struct userdata *);
 static int  signal_status(struct userdata *, uint32_t, uint32_t);
 
+static DBusHandlerResult audiomgr_method_handler(DBusConnection *,
+                                                 DBusMessage *, void *);
 static void audiomgr_init_cb(struct userdata *, const char *,
                              DBusMessage *, void *);
 static int register_to_audiomgr(struct pa_policy_dbusif *, struct userdata *);
@@ -169,6 +171,10 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
                                                const char      *ampath,
                                                const char      *amnam)
 {
+    static const DBusObjectPathVTable  vtable = {
+        .message_function = audiomgr_method_handler,
+    };
+
     pa_module               *m = u->module;
     struct pa_policy_dbusif *dbusif = NULL;
     DBusConnection          *dbusconn;
@@ -288,6 +294,9 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
     }
 
     pa_log_info("%s: subscribed policy signals on %s", __FILE__, ifnam);
+
+    dbus_connection_register_object_path(dbusconn, PULSE_DBUS_PATH, &vtable,u);
+
 
     dbusif->ifnam    = pa_xstrdup(ifnam);
     dbusif->mrppath  = pa_xstrdup(mrppath);
@@ -561,11 +570,6 @@ static pa_bool_t send_message_with_reply(struct userdata *u,
 }
 
 
-/**************************************************************************
- *
- * Murphy interfaces
- *
- */
 static void handle_admin_message(struct userdata *u, DBusMessage *msg)
 {
     struct pa_policy_dbusif *dbusif;
@@ -619,6 +623,11 @@ static void handle_admin_message(struct userdata *u, DBusMessage *msg)
     }
 }
 
+/**************************************************************************
+ *
+ * Murphy interfaces
+ *
+ */
 static void handle_info_message(struct userdata *u, DBusMessage *msg)
 {
     dbus_uint32_t  txid;
@@ -923,6 +932,30 @@ static int signal_status(struct userdata *u, uint32_t txid, uint32_t status)
  * Audio Manager interfaces
  *
  */
+static DBusHandlerResult audiomgr_method_handler(DBusConnection *conn,
+                                                 DBusMessage    *msg,
+                                                 void           *arg)
+{
+    struct userdata *u = (struct userdata *)arg;
+    const char      *method;
+
+    pa_assert(conn);
+    pa_assert(msg);
+    pa_assert(u);
+
+    if (dbus_message_get_type(msg) != DBUS_MESSAGE_TYPE_METHOD_CALL)
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+
+    method = dbus_message_get_member(msg);
+
+    pa_assert(method);
+
+    pa_log_debug("**** Kakukk:  '%s'", method);
+
+    return DBUS_HANDLER_RESULT_HANDLED;
+}
+
+
 static void audiomgr_init_cb(struct userdata *u,
                              const char      *method,
                              DBusMessage     *reply,
@@ -975,6 +1008,9 @@ static int register_to_audiomgr(struct pa_policy_dbusif *dbusif,
     const char      *name;
     const char      *bus_name;
     const char      *node_name;
+    const char      *dbus_name;
+    const char      *dbus_path;
+    const char      *dbus_if;
     dbus_bool_t      early;
     dbus_bool_t      complete;
     dbus_uint16_t    state;
@@ -1001,6 +1037,9 @@ static int register_to_audiomgr(struct pa_policy_dbusif *dbusif,
     early     = FALSE;
     complete  = FALSE;
     state     = 0;
+    dbus_name = PULSE_DBUS_NAME;
+    dbus_path = PULSE_DBUS_PATH;
+    dbus_if   = PULSE_DBUS_INTERFACE;
 
     success = dbus_message_append_args(msg,
                                        DBUS_TYPE_UINT16,  &domain_id,
@@ -1010,9 +1049,9 @@ static int register_to_audiomgr(struct pa_policy_dbusif *dbusif,
                                        DBUS_TYPE_BOOLEAN, &early,
                                        DBUS_TYPE_BOOLEAN, &complete,
                                        DBUS_TYPE_UINT16 , &state,
-                                       DBUS_TYPE_STRING , &name,      /* ??? */
-                                       DBUS_TYPE_STRING , &node_name, /* ??? */
-                                       DBUS_TYPE_STRING , &node_name, /* ??? */
+                                       DBUS_TYPE_STRING , &dbus_name,
+                                       DBUS_TYPE_STRING , &dbus_path,
+                                       DBUS_TYPE_STRING , &dbus_if,
                                        DBUS_TYPE_INVALID);
     if (!success) {
         pa_log("%s: Failed to build D-Bus message to register", __FILE__);
