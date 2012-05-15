@@ -42,6 +42,7 @@
 #define MS_MUTED          1
 #define MS_UNMUTED        2
 
+
 typedef struct {
     const char *name;
     uint16_t    id;
@@ -98,6 +99,32 @@ void pa_audiomgr_domain_registered(struct userdata *u,
 
         pa_policy_dbusif_domain_complete(u, id);
     }
+}
+
+void pa_audiomgr_connect(struct userdata *u, struct am_connect_data *cd)
+{
+    struct am_ack_data  ad;
+    int err = E_OK;
+
+    memset(&ad, 0, sizeof(ad));
+    ad.handle = cd->handle;
+    ad.param1 = cd->connection;
+    ad.error  = err;
+
+    pa_policy_dbusif_acknowledge(u, AUDIOMGR_CONNECT_ACK, &ad);
+}
+
+void pa_audiomgr_disconnect(struct userdata *u, struct am_connect_data *cd)
+{
+    struct am_ack_data  ad;
+    int err = E_OK;
+
+    memset(&ad, 0, sizeof(ad));
+    ad.handle = cd->handle;
+    ad.param1 = cd->connection;
+    ad.error  = err;
+
+    pa_policy_dbusif_acknowledge(u, AUDIOMGR_DISCONNECT_ACK, &ad);
 }
 
 static pa_bool_t register_sink(struct userdata *u)

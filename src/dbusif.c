@@ -36,14 +36,6 @@
 #define PULSE_DBUS_NAME             "org.genivi.pulse"
 
 
-#define AUDIOMGR_CONNECT_ACK        "ackConnect"
-#define AUDIOMGR_DISCONNECT_ACK     "ackDisconnect"
-#define AUDIOMGR_SETSINKVOL_ACK     "ackSetSinkVolume"
-#define AUDIOMGR_SETSRCVOL_ACK      "ackSetSourceVolume"
-#define AUDIOMGR_SINKVOLTICK_ACK    "ackSinkVolumeTick"
-#define AUDIOMGR_SRCVOLTICK_ACK     "ackSourceVolumeTick"
-#define AUDIOMGR_SETSINKPROP_ACK    "ackSetSinkSoundProperty"
-
 #define POLICY_DECISION             "decision"
 #define POLICY_STREAM_INFO          "stream_info"
 #define POLICY_ACTIONS              "audio_actions"
@@ -63,6 +55,8 @@
 
 typedef void (*pending_cb_t)(struct userdata *, const char *,
                              DBusMessage *, void *);
+typedef pa_bool_t (*method_t)(struct userdata *, DBusMessage *);
+
 
 struct pending {
     PA_LLIST_FIELDS(struct pending);
@@ -90,6 +84,7 @@ struct pa_policy_dbusif {
     int                 amisup;   /* is the audio manager up */
     PA_LLIST_HEAD(struct pending, pendlist);
 };
+
 
 
 
@@ -161,6 +156,8 @@ static pa_bool_t build_sound_properties(DBusMessageIter *,
                                         struct am_register_data *);
 static pa_bool_t build_connection_formats(DBusMessageIter *,
                                           struct am_register_data *);
+static pa_bool_t dbusif_connect(struct userdata *, DBusMessage *);
+static pa_bool_t dbusif_disconnect(struct userdata *, DBusMessage *);
 
 
 
@@ -923,7 +920,6 @@ static int signal_status(struct userdata *u, uint32_t txid, uint32_t status)
 
  fail:
     dbus_message_unref(msg);    /* should cope with NULL msg */
-
     return -1;
 }
 
@@ -936,23 +932,71 @@ static DBusHandlerResult audiomgr_method_handler(DBusConnection *conn,
                                                  DBusMessage    *msg,
                                                  void           *arg)
 {
-    struct userdata *u = (struct userdata *)arg;
-    const char      *method;
+    struct dispatch {
+        const char *name;
+        method_t    method;
+    };
+
+    static struct dispatch dispatch_tbl[] = {
+        { AUDIOMGR_CONNECT   , dbusif_connect    },
+        { AUDIOMGR_DISCONNECT, dbusif_disconnect },
+        {        NULL,                NULL       }
+    };
+
+    struct userdata         *u = (struct userdata *)arg;
+    struct dispatch         *d;
+    const char              *name;
+    method_t                 method;
+    uint32_t                 serial;
+    dbus_int16_t             errcod;
+    DBusMessage             *reply;
+    pa_bool_t                success;
 
     pa_assert(conn);
     pa_assert(msg);
     pa_assert(u);
 
-    if (dbus_message_get_type(msg) != DBUS_MESSAGE_TYPE_METHOD_CALL)
-        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    if (dbus_message_get_type(msg) == DBUS_MESSAGE_TYPE_METHOD_CALL) {
 
-    method = dbus_message_get_member(msg);
+        name   = dbus_message_get_member(msg);
+        serial = dbus_message_get_serial(msg);
 
-    pa_assert(method);
+        pa_assert(name);
 
-    pa_log_debug("**** Kakukk:  '%s'", method);
+        for (method = NULL, d = dispatch_tbl;  d->name;    d++) {
+            if (!strcmp(name, d->name)) {
+                method = d->method;
+                break;
+            }
+        }
 
-    return DBUS_HANDLER_RESULT_HANDLED;
+        errcod = method ? E_OK : E_NOT_POSSIBLE; 
+        reply  = dbus_message_new_method_return(msg);
+
+        // dbus_message_set_reply_serial(reply, serial);
+                
+        success = dbus_message_append_args(reply,
+                                           DBUS_TYPE_INT16, &errcod,
+                                           DBUS_TYPE_INVALID);
+        
+        if (!success || !dbus_connection_send(conn, reply, NULL))
+            pa_log("%s: failed to reply '%s'", __FILE__, name);
+        else
+            pa_log_debug("'%s' replied (%d)", name, errcod);
+
+        dbus_message_unref(reply);
+
+        if (method)
+            d->method(u, msg);
+        else
+            pa_log_info("%s: unsupported '%s' method ignored", __FILE__, name);
+                
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+
+    pa_log_debug("got some unexpected type of D-Bus message");
+
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
 
@@ -1070,13 +1114,13 @@ static int register_to_audiomgr(struct pa_policy_dbusif *dbusif,
     return success;
 }
 
-void pa_policy_dbusif_domain_complete(struct userdata *u, uint16_t domain_id)
+pa_bool_t pa_policy_dbusif_domain_complete(struct userdata *u, uint16_t domain)
 {
-    dbus_int32_t             id32 = domain_id;
+    dbus_int32_t             id32 = domain;
     struct pa_policy_dbusif *dbusif;
     DBusConnection          *conn;
     DBusMessage             *msg;
-    int                      success;
+    pa_bool_t                success;
 
     pa_assert(u);
     pa_assert_se((dbusif = u->dbusif));
@@ -1084,7 +1128,7 @@ void pa_policy_dbusif_domain_complete(struct userdata *u, uint16_t domain_id)
     
 
     pa_log_debug("%s: completing registration for domain %u",
-                 __FILE__, domain_id);
+                 __FILE__, domain);
 
     msg = dbus_message_new_method_call(dbusif->amnam,
                                        dbusif->amrpath,
@@ -1096,7 +1140,6 @@ void pa_policy_dbusif_domain_complete(struct userdata *u, uint16_t domain_id)
         success = FALSE;
         goto getout;
     }
-
 
     success = dbus_message_append_args(msg,
                                        DBUS_TYPE_INT32,  &id32,
@@ -1129,6 +1172,12 @@ static void audiomgr_register_cb(struct userdata *u,
     dbus_uint16_t    object_id;
     dbus_uint16_t    state;
     int              success;
+    const char      *objtype;
+
+    pa_assert(u);
+    pa_assert(method);
+    pa_assert(reply);
+    pa_assert(data);
 
     if (dbus_message_get_type(reply) == DBUS_MESSAGE_TYPE_ERROR) {
         success = dbus_message_get_args(reply, NULL,
@@ -1148,11 +1197,17 @@ static void audiomgr_register_cb(struct userdata *u,
                                         DBUS_TYPE_INVALID);
 
         if (!success) {
-            pa_log("got broken message from AudioManager.Registration failed");
+            pa_log("got broken message from AudioManager. "
+                   "Registration failed");
         }
         else {
-            pa_log_info("AudioManager replied to registration: objectID: %u",
-                        object_id);
+            if (!strncasecmp("register", method, 8))
+                objtype = method + 8;
+            else
+                objtype = method;
+
+            pa_log_info("AudioManager replied to registration: %sID: %u",
+                        objtype, object_id);
         }
     }
 }
@@ -1307,6 +1362,112 @@ pa_bool_t pa_policy_dbusif_register(struct userdata *u, const char *method,
     
  getout:
     dbus_message_unref(msg);
+    return success;
+}
+
+static pa_bool_t dbusif_connect(struct userdata *u, DBusMessage *msg)
+{
+    struct am_connect_data ac;
+    int                    success;
+
+    pa_assert(u);
+    pa_assert(msg);
+
+    memset(&ac, 0, sizeof(ac));
+
+    success = dbus_message_get_args(msg, NULL,
+                                    DBUS_TYPE_UINT16, &ac.handle,
+                                    DBUS_TYPE_UINT16, &ac.connection,
+                                    DBUS_TYPE_UINT16, &ac.source,
+                                    DBUS_TYPE_UINT16, &ac.sink,
+                                    DBUS_TYPE_INT16 , &ac.format,
+                                    DBUS_TYPE_INVALID);
+    if (!success) {
+        pa_log("%s: got broken connect message from AudioManager. "
+               "Ignoring it", __FILE__);
+        return FALSE;
+    }
+
+    pa_log_debug("AudioManager connect(%u|%u|%u|%u|%d)",
+                 ac.handle, ac.connection, ac.source, ac.sink, ac.format);
+
+    pa_audiomgr_connect(u, &ac);
+
+    return TRUE;
+}
+
+static pa_bool_t dbusif_disconnect(struct userdata *u, DBusMessage *msg)
+{
+    struct am_connect_data ac;
+    int                    success;
+
+    pa_assert(u);
+    pa_assert(msg);
+
+    memset(&ac, 0, sizeof(ac));
+
+    success = dbus_message_get_args(msg, NULL,
+                                    DBUS_TYPE_UINT16, &ac.handle,
+                                    DBUS_TYPE_UINT16, &ac.connection,
+                                    DBUS_TYPE_INVALID);
+    if (!success) {
+        pa_log("%s: got broken disconnect message from AudioManager. "
+               "Ignoring it",  __FILE__);
+        return FALSE;
+    }
+
+    pa_log_debug("AudioManager disconnect(%u|%u)", ac.handle, ac.connection);
+
+    pa_audiomgr_disconnect(u, &ac);
+
+    return TRUE;
+}
+
+pa_bool_t pa_policy_dbusif_acknowledge(struct userdata *u, const char *method,
+                                       struct am_ack_data *ad)
+{
+    struct pa_policy_dbusif *dbusif;
+    DBusConnection          *conn;
+    DBusMessage             *msg;
+    pa_bool_t                success;
+
+    pa_assert(u);
+    pa_assert(method);
+    pa_assert_se((dbusif = u->dbusif));
+    pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
+
+    pa_log_debug("%s: sending %s", __FILE__, method);
+
+    msg = dbus_message_new_method_call(dbusif->amnam,
+                                       dbusif->amrpath,
+                                       dbusif->amrnam,
+                                       method);
+    if (msg == NULL) {
+        pa_log("%s: Failed to create D-Bus message for '%s'",
+               __FILE__, method);
+        success = FALSE;
+        goto getout;
+    }
+
+    success = dbus_message_append_args(msg,
+                                       DBUS_TYPE_UINT16,  &ad->handle,
+                                       DBUS_TYPE_UINT16,  &ad->param1,
+                                       DBUS_TYPE_UINT16,  &ad->error,
+                                       DBUS_TYPE_INVALID);
+    if (!success) {
+        pa_log("%s: Failed to build D-Bus message message '%s'",
+               __FILE__, method);
+        goto getout;
+    }
+
+    if (!dbus_connection_send(conn, msg, NULL)) {
+        pa_log("%s: Failed to send D-Bus message '%s'", __FILE__, method);
+        goto getout;
+    }
+
+ getout:
+    dbus_message_unref(msg);
+    return success;
     return success;
 }
 
