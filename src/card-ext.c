@@ -6,6 +6,7 @@
 #include "card-ext.h"
 #include "classify.h"
 #include "context.h"
+#include "discover.h"
 
 /* this included for the sake of pa_policy_send_device_state()
    which is temporarily hosted by sink-ext.c*/
@@ -185,6 +186,8 @@ static void handle_new_card(struct userdata *u, struct pa_card *card)
         len  = pa_classify_card(u, card, 0,0, buf, sizeof(buf));
 
         pa_policy_context_register(u, pa_policy_object_card, name, card);
+
+        pa_discover_new_card(u, card);
 
         if (len <= 0)
             pa_log_debug("new card '%s' (idx=%d)", name, idx);

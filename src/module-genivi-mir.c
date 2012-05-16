@@ -41,6 +41,7 @@
 #include "module-ext.h"
 #include "audiomgr.h"
 #include "dbusif.h"
+#include "discover.h"
 
 #ifndef PA_DEFAULT_CONFIG_DIR
 #define PA_DEFAULT_CONFIG_DIR "/etc/pulse"
@@ -125,12 +126,13 @@ int pa__init(pa_module *m) {
     u->context  = pa_policy_context_new(u);
     u->dbusif   = pa_policy_dbusif_init(u,ifnam, mrppath,mrpnam, ampath,amnam);
     u->audiomgr = pa_audiomgr_init(u);
+    u->discover = pa_discover_init(u);
 
     if (u->scl == NULL      || u->ssnk == NULL     || u->ssrc == NULL ||
         u->ssi == NULL      || u->sso == NULL      || u->scrd == NULL ||
         u->smod == NULL     || u->groups == NULL   || u->nullsink == NULL ||
         u->classify == NULL || u->context == NULL  || u->dbusif == NULL  ||
-        u->audiomgr == NULL)
+        u->audiomgr == NULL || u->discover == NULL)
         goto fail;
 
     pa_policy_groupset_update_default_sink(u, PA_IDXSET_INVALID);
@@ -151,7 +153,6 @@ int pa__init(pa_module *m) {
     pa_module_ext_discover(u);
 
     pa_modargs_free(ma);
-
     
     return 0;
     

@@ -28,6 +28,7 @@ struct pa_policy_groupset;
 struct pa_classify;
 struct pa_policy_context;
 struct pa_policy_dbusif;
+struct pa_discover;
 
 struct userdata {
     pa_core                   *core;
@@ -47,6 +48,7 @@ struct userdata {
     struct pa_policy_context  *context;  /* for processing context variables */
     struct pa_policy_dbusif   *dbusif;
     struct pa_audiomgr        *audiomgr;
+    struct pa_discover        *discover;
 };
 
 
