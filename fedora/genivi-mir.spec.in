@@ -34,6 +34,8 @@ make
 %install
 rm -rf $RPM_BUILD_ROOT
 %make_install
+rm -f %{_libdir}/pulse-*/modules/module-*.la
+
     
 %clean
 rm -rf $RPM_BUILD_ROOT
