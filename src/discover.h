@@ -9,30 +9,45 @@
 struct pa_card;
 
 
-/*
- * generally in PA a routing target is a
- * card/profile + sink/port combination
- * the struct below represent such entity
- */
-#define AM_ID_INVALID  (~((uint16_t)0))
+#define PA_BIT(a)      (1UL << (a))
 
-struct pa_routing_target {
-    char *name;          /**< internal  name */
-    char *descr;         /**< UI description */
-    uint16_t id;         /**< link to audiomanager, if any */
-    struct {
-        uint32_t index;
-        char *profile;
-    } card;
-    struct {
-        uint32_t index;  /**< PA_IDXSET_INVALID if the sink is not loaded  */
-        char *name;      /**< sink name */
-        char *port;      /**< port name for the target  */
-    } sink;
+enum pa_bus_type {
+    pa_bus_unknown = 0,
+    pa_bus_pci,
+    pa_bus_usb,
+    pa_bus_bluetooth,
 };
 
+enum pa_form_factor {
+    pa_form_factor_unknown,
+    pa_internal,
+    pa_speaker,
+    pa_handset,
+    pa_tv,
+    pa_webcam,
+    pa_microphone,
+    pa_headset,
+    pa_headphone,
+    pa_hands_free,
+    pa_car,
+    pa_hifi,
+    pa_computer,
+    pa_portable
+};
+
+typedef struct pa_discover {
+    unsigned                chmin;
+    unsigned                chmax;
+    struct {
+        pa_hashmap *pahash;
+        pa_hashmap *amhash;
+    }                       nodes;    
+} pa_discover;
+
+
 struct pa_discover *pa_discover_init(struct userdata *);
-void pa_discover_new_card(struct userdata *, struct pa_card *);
+void pa_discover_add_card(struct userdata *, struct pa_card *);
+void pa_discover_remove_card(struct userdata *, pa_card *);
 
 #endif
 

@@ -13,6 +13,7 @@ module_genivi_mir_la_SOURCES = \
 			module-ext.c \
 			classify.c \
 			discover.c \
+			node.c \
 			policy-group.c \
 			context.c \
 			audiomgr.c \

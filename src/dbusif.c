@@ -947,7 +947,7 @@ static DBusHandlerResult audiomgr_method_handler(DBusConnection *conn,
     struct dispatch         *d;
     const char              *name;
     method_t                 method;
-    uint32_t                 serial;
+    //uint32_t                 serial;
     dbus_int16_t             errcod;
     DBusMessage             *reply;
     pa_bool_t                success;
@@ -958,8 +958,8 @@ static DBusHandlerResult audiomgr_method_handler(DBusConnection *conn,
 
     if (dbus_message_get_type(msg) == DBUS_MESSAGE_TYPE_METHOD_CALL) {
 
-        name   = dbus_message_get_member(msg);
-        serial = dbus_message_get_serial(msg);
+        name = dbus_message_get_member(msg);
+        // serial = dbus_message_get_serial(msg);
 
         pa_assert(name);
 

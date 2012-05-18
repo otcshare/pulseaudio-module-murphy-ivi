@@ -187,7 +187,7 @@ static void handle_new_card(struct userdata *u, struct pa_card *card)
 
         pa_policy_context_register(u, pa_policy_object_card, name, card);
 
-        pa_discover_new_card(u, card);
+        pa_discover_add_card(u, card);
 
         if (len <= 0)
             pa_log_debug("new card '%s' (idx=%d)", name, idx);
@@ -226,6 +226,8 @@ static void handle_removed_card(struct userdata *u, struct pa_card *card)
         len  = pa_classify_card(u, card, 0,0, buf, sizeof(buf));
 
         pa_policy_context_unregister(u, pa_policy_object_card, name, card,idx);
+
+        pa_discover_remove_card(u, card);
 
         if (len <= 0)
             pa_log_debug("remove card '%s' (idx=%d)", name, idx);
