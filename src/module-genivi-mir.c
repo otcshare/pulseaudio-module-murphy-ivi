@@ -124,8 +124,8 @@ int pa__init(pa_module *m) {
     u->groups   = pa_policy_groupset_new(u);
     u->classify = pa_classify_new(u);
     u->context  = pa_policy_context_new(u);
-    u->dbusif   = pa_policy_dbusif_init(u,ifnam, mrppath,mrpnam, ampath,amnam);
     u->audiomgr = pa_audiomgr_init(u);
+    u->dbusif   = pa_policy_dbusif_init(u,ifnam, mrppath,mrpnam, ampath,amnam);
     u->discover = pa_discover_init(u);
 
     if (u->scl == NULL      || u->ssnk == NULL     || u->ssrc == NULL ||
@@ -174,6 +174,7 @@ void pa__done(pa_module *m) {
     if (!(u = m->userdata))
         return;
     
+    pa_discover_done(u);
     pa_audiomgr_done(u);
     pa_policy_dbusif_done(u);
 
@@ -198,7 +199,7 @@ void pa__done(pa_module *m) {
 
 
 /*
- * For the time being the prototype is in the userdata.h which is
+ * For the time being the prototypes are in the userdata.h which is
  * not the best possible place for it
  */
 const char *pa_policy_file_path(const char *file, char *buf, size_t len)
@@ -206,6 +207,18 @@ const char *pa_policy_file_path(const char *file, char *buf, size_t len)
     snprintf(buf, len, "%s/x%s", PA_DEFAULT_CONFIG_DIR, file);
 
     return buf;
+}
+
+static uint32_t stamp;
+
+const uint32_t pa_policy_new_stamp(void)
+{
+    return ++stamp;
+}
+
+const uint32_t pa_policy_get_stamp(void)
+{
+    return stamp;
 }
 
 

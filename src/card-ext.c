@@ -16,6 +16,7 @@
 /* hooks */
 static pa_hook_result_t card_put(void *, void *, void *);
 static pa_hook_result_t card_unlink(void *, void *, void *);
+static pa_hook_result_t card_profile_changed(void *, void *, void *);
 
 static void handle_new_card(struct userdata *, struct pa_card *);
 static void handle_removed_card(struct userdata *, struct pa_card *);
@@ -28,22 +29,26 @@ struct pa_card_evsubscr *pa_card_ext_subscription(struct userdata *u)
     struct pa_card_evsubscr *subscr;
     pa_hook_slot            *put;
     pa_hook_slot            *unlink;
+    pa_hook_slot            *profchg;
 
     pa_assert(u);
     pa_assert_se((core = u->core));
 
-    hooks  = core->hooks;
+    hooks   = core->hooks;
     
-    put    = pa_hook_connect(hooks + PA_CORE_HOOK_CARD_PUT,
+    put     = pa_hook_connect(hooks + PA_CORE_HOOK_CARD_PUT,
                              PA_HOOK_LATE, card_put, (void *)u);
-    unlink = pa_hook_connect(hooks + PA_CORE_HOOK_CARD_UNLINK,
+    unlink  = pa_hook_connect(hooks + PA_CORE_HOOK_CARD_UNLINK,
                              PA_HOOK_LATE, card_unlink, (void *)u);
+    profchg = pa_hook_connect(hooks + PA_CORE_HOOK_CARD_PROFILE_CHANGED,
+                              PA_HOOK_LATE, card_profile_changed, (void *)u);
     
 
     subscr = pa_xnew0(struct pa_card_evsubscr, 1);
     
-    subscr->put    = put;
-    subscr->unlink = unlink;
+    subscr->put     = put;
+    subscr->unlink  = unlink;
+    subscr->profchg = profchg;
 
     return subscr;
 
@@ -55,6 +60,7 @@ void pa_card_ext_subscription_free(struct pa_card_evsubscr *subscr)
     if (subscr != NULL) {
         pa_hook_slot_free(subscr->put);
         pa_hook_slot_free(subscr->unlink);
+        pa_hook_slot_free(subscr->profchg);
 
         pa_xfree(subscr);
     }
@@ -69,6 +75,8 @@ void pa_card_ext_discover(struct userdata *u)
     pa_assert(u);
     pa_assert(u->core);
     pa_assert_se((idxset = u->core->cards));
+
+    pa_policy_new_stamp();
 
     while ((card = pa_idxset_iterate(idxset, &state, NULL)) != NULL)
         handle_new_card(u, card);
@@ -154,6 +162,7 @@ static pa_hook_result_t card_put(void *hook_data, void *call_data,
     struct pa_card  *card = (struct pa_card *)call_data;
     struct userdata *u    = (struct userdata *)slot_data;
 
+    pa_policy_new_stamp();
     handle_new_card(u, card);
 
     return PA_HOOK_OK;
@@ -167,6 +176,19 @@ static pa_hook_result_t card_unlink(void *hook_data, void *call_data,
     struct userdata *u    = (struct userdata *)slot_data;
 
     handle_removed_card(u, card);
+
+    return PA_HOOK_OK;
+}
+
+
+static pa_hook_result_t card_profile_changed(void *hook_data, void *call_data,
+                                             void *slot_data)
+{
+    struct pa_card  *card = (struct pa_card *)call_data;
+    struct userdata *u    = (struct userdata *)slot_data;
+
+    pa_policy_new_stamp();
+    pa_discover_profile_changed(u, card);
 
     return PA_HOOK_OK;
 }

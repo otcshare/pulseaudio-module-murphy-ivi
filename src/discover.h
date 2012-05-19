@@ -6,8 +6,8 @@
 
 #include "userdata.h"
 
-struct pa_card;
-
+typedef struct pa_card  pa_card;
+typedef struct mir_node mir_node;
 
 #define PA_BIT(a)      (1UL << (a))
 
@@ -36,18 +36,29 @@ enum pa_form_factor {
 };
 
 typedef struct pa_discover {
-    unsigned                chmin;
-    unsigned                chmax;
-    struct {
-        pa_hashmap *pahash;
-        pa_hashmap *amhash;
-    }                       nodes;    
+    /*
+     * cirtreria for filtering sinks and sources
+     */
+    unsigned    chmin;    /**< minimum of max channels */
+    unsigned    chmax;    /**< maximum of max channels */
+    pa_bool_t   selected; /**< for alsa cards: whether to consider the
+                               selected profile alone.
+                               for bluetooth cards: no effect */
+    pa_hashmap *nodes;
 } pa_discover;
 
 
 struct pa_discover *pa_discover_init(struct userdata *);
-void pa_discover_add_card(struct userdata *, struct pa_card *);
+void  pa_discover_done(struct userdata *);
+
+void pa_discover_domain_up(struct userdata *);
+void pa_discover_domain_down(struct userdata *);
+
+void pa_discover_add_card(struct userdata *, pa_card *);
 void pa_discover_remove_card(struct userdata *, pa_card *);
+void pa_discover_profile_changed(struct userdata *, pa_card *);
+
+mir_node *pa_discover_find_node(struct userdata *, const char *);
 
 #endif
 

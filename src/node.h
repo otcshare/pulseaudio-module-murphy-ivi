@@ -6,7 +6,7 @@
 #include "userdata.h"
 
 
-#define AM_ID_INVALID  (~((uint16_t)0))
+#define AM_ID_INVALID  65535
 
 typedef enum {
     mir_direction_unknown,
@@ -79,7 +79,7 @@ typedef struct {
  *          is either a sink_input or a source_output
  */
 typedef struct mir_node {
-    char           *key;      /**< hash key  */
+    char           *key;      /**< hash key for discover lookups */
     mir_direction   direction;/**< mir_input | mir_output */
     mir_implement   implement;/**< mir_device | mir_stream */
     uint32_t        channels; /**< number of channels (eg. 1=mono, 2=stereo) */
@@ -95,6 +95,7 @@ typedef struct mir_node {
     uint32_t        paidx;    /**< sink|source|sink_input|source_output index*/
     pa_node_card    pacard;   /**< pulse card related data, if any  */
     char           *paport;   /**< sink or source port if applies */
+    uint32_t        stamp;
 } mir_node;
 
 

@@ -48,8 +48,6 @@
 #define PROP_ROUTE_SOURCE_MODE      "policy.source_route.mode"
 #define PROP_ROUTE_SOURCE_HWID      "policy.source_route.hwid"
 
-#define AUDIOMGR_DOMAIN             "PULSE"
-#define AUDIOMGR_NODE               "pulsePlugin"
 
 #define STRUCT_OFFSET(s,m) ((char *)&(((s *)0)->m) - (char *)0)
 
@@ -67,7 +65,7 @@ struct pending {
     void             *data;
 };
 
-struct pa_policy_dbusif {
+typedef struct pa_policy_dbusif {
     pa_dbus_connection *conn;
     char               *ifnam;    /* signal interface */
     char               *mrppath;  /* murphy signal path */
@@ -83,7 +81,7 @@ struct pa_policy_dbusif {
     int                 mregist;  /* are we registered to murphy */
     int                 amisup;   /* is the audio manager up */
     PA_LLIST_HEAD(struct pending, pendlist);
-};
+} pa_policy_dbusif;
 
 
 
@@ -141,21 +139,24 @@ static void handle_action_message(struct userdata *, DBusMessage *);
 
 static void murphy_registration_cb(struct userdata *, const char *,
                                    DBusMessage *, void *);
-static int  register_to_murphy(struct pa_policy_dbusif *, struct userdata *);
+static pa_bool_t register_to_murphy(struct userdata *);
 static int  signal_status(struct userdata *, uint32_t, uint32_t);
 
 static DBusHandlerResult audiomgr_method_handler(DBusConnection *,
                                                  DBusMessage *, void *);
-static void audiomgr_init_cb(struct userdata *, const char *,
-                             DBusMessage *, void *);
-static int register_to_audiomgr(struct pa_policy_dbusif *, struct userdata *);
+static void audiomgr_register_domain_cb(struct userdata *, const char *,
+                                        DBusMessage *, void *);
+static pa_bool_t register_to_audiomgr(struct userdata *);
+static pa_bool_t unregister_from_audiomgr(struct userdata *);
 
-static void audiomgr_register_cb(struct userdata *, const char *,
-                                 DBusMessage *, void *);
+static void audiomgr_register_node_cb(struct userdata *, const char *,
+                                      DBusMessage *, void *);
+static void audiomgr_unregister_node_cb(struct userdata *, const char *,
+                                        DBusMessage *, void *);
 static pa_bool_t build_sound_properties(DBusMessageIter *,
-                                        struct am_register_data *);
+                                        struct am_nodereg_data *);
 static pa_bool_t build_connection_formats(DBusMessageIter *,
-                                          struct am_register_data *);
+                                          struct am_nodereg_data *);
 static pa_bool_t dbusif_connect(struct userdata *, DBusMessage *);
 static pa_bool_t dbusif_disconnect(struct userdata *, DBusMessage *);
 
@@ -309,8 +310,8 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
 
     u->dbusif = dbusif; /* Argh.. */
 
-    register_to_murphy(dbusif, u);
-    register_to_audiomgr(dbusif, u);
+    register_to_murphy(u);
+    register_to_audiomgr(u);
 
     return dbusif;
 
@@ -594,7 +595,7 @@ static void handle_admin_message(struct userdata *u, DBusMessage *msg)
             pa_log_debug("murphy is up");
 
             if (!dbusif->mregist) {
-                register_to_murphy(dbusif, u);
+                register_to_murphy(u);
             }
         }
 
@@ -609,12 +610,16 @@ static void handle_admin_message(struct userdata *u, DBusMessage *msg)
             pa_log_debug("audio manager is up");
 
             if (!dbusif->amisup) {
-                register_to_audiomgr(dbusif, u);
+                register_to_audiomgr(u);
             }
         }
 
         if (name && before && (!after || !strcmp(after, ""))) {
             pa_log_info("audio manager is gone");
+
+            if (dbusif->amisup)
+                unregister_from_audiomgr(u);
+
             dbusif->amisup = 0;
         } 
     }
@@ -819,17 +824,17 @@ static void murphy_registration_cb(struct userdata *u,
     }
 }
 
-static int register_to_murphy(struct pa_policy_dbusif *dbusif,
-                              struct userdata *u)
+static pa_bool_t register_to_murphy(struct userdata *u)
 {
     static const char *name = "pulseaudio";
 
-    DBusConnection  *conn   = pa_dbus_connection_get(dbusif->conn);
-    DBusMessage     *msg;
-    const char      *signals[4];
-    const char     **v_ARRAY;
-    int              i;
-    int              success;
+    pa_policy_dbusif *dbusif = u->dbusif;
+    DBusConnection   *conn   = pa_dbus_connection_get(dbusif->conn);
+    DBusMessage      *msg;
+    const char       *signals[4];
+    const char      **v_ARRAY;
+    int               i;
+    int               success;
 
     pa_log_info("%s: registering to murphy: name='%s' path='%s' if='%s'"
                 , __FILE__, dbusif->mrpnam, dbusif->mrppath, dbusif->ifnam);
@@ -1000,15 +1005,27 @@ static DBusHandlerResult audiomgr_method_handler(DBusConnection *conn,
 }
 
 
-static void audiomgr_init_cb(struct userdata *u,
-                             const char      *method,
-                             DBusMessage     *reply,
-                             void            *data)
+static pa_bool_t register_to_audiomgr(struct userdata *u)
 {
-    const char      *error_descr;
-    dbus_uint16_t    domain_id;
-    dbus_uint16_t    state;
-    int              success;
+    pa_audiomgr_register_domain(u);
+    return TRUE;
+}
+
+static pa_bool_t unregister_from_audiomgr(struct userdata *u)
+{
+    pa_audiomgr_unregister_domain(u, FALSE);
+    return TRUE;
+}
+
+static void audiomgr_register_domain_cb(struct userdata *u,
+                                        const char      *method,
+                                        DBusMessage     *reply,
+                                        void            *data)
+{
+    const char        *error_descr;
+    dbus_uint16_t      domain_id;
+    dbus_uint16_t      status;
+    int                success;
 
     if (dbus_message_get_type(reply) == DBUS_MESSAGE_TYPE_ERROR) {
         success = dbus_message_get_args(reply, NULL,
@@ -1024,41 +1041,41 @@ static void audiomgr_init_cb(struct userdata *u,
     else {
         success = dbus_message_get_args(reply, NULL,
                                         DBUS_TYPE_UINT16, &domain_id,
-                                        DBUS_TYPE_UINT16, &state,
+                                        DBUS_TYPE_UINT16, &status,
                                         DBUS_TYPE_INVALID);
 
         if (!success) {
             pa_log("got broken message from AudioManager.Registration failed");
         }
         else {
-            pa_log_info("AudioManager replied to registration: domainID: %u",
-                        domain_id);
+            pa_log_info("AudioManager replied to registration: "
+                        "domainID %u, status %u", domain_id, status);
 
             if (u->dbusif) {
                 u->dbusif->amisup = 1;
-                pa_audiomgr_domain_registered(u, AUDIOMGR_DOMAIN,
-                                              domain_id, state);
+                pa_audiomgr_domain_registered(u, domain_id, status, data);
             }
         }
     }
 }
 
-static int register_to_audiomgr(struct pa_policy_dbusif *dbusif,
-                                struct userdata *u)
+
+
+pa_bool_t pa_policy_dbusif_register_domain(struct userdata   *u,
+                                           am_domainreg_data *dr)
 {
-    DBusConnection  *conn   = pa_dbus_connection_get(dbusif->conn);
-    DBusMessage     *msg;
-    dbus_uint16_t    domain_id;
-    const char      *name;
-    const char      *bus_name;
-    const char      *node_name;
-    const char      *dbus_name;
-    const char      *dbus_path;
-    const char      *dbus_if;
-    dbus_bool_t      early;
-    dbus_bool_t      complete;
-    dbus_uint16_t    state;
-    int              success;
+    pa_policy_dbusif *dbusif;
+    DBusConnection   *conn;
+    DBusMessage      *msg;
+    const char       *dbus_name;
+    const char       *dbus_path;
+    const char       *dbus_if;
+    int               success;
+
+    pa_assert(u);
+    pa_assert(dr);
+    pa_assert_se((dbusif = u->dbusif));
+    pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
 
     pa_log_info("%s: registering to AudioManager: name='%s' path='%s' if='%s'"
                 , __FILE__, dbusif->amnam, dbusif->amrpath, dbusif->amrnam);
@@ -1074,25 +1091,18 @@ static int register_to_audiomgr(struct pa_policy_dbusif *dbusif,
         goto getout;
     }
 
-    domain_id = 0;
-    name      = AUDIOMGR_DOMAIN;
-    bus_name  = AUDIOMGR_NODE;
-    node_name = AUDIOMGR_NODE;
-    early     = FALSE;
-    complete  = FALSE;
-    state     = 0;
     dbus_name = PULSE_DBUS_NAME;
     dbus_path = PULSE_DBUS_PATH;
     dbus_if   = PULSE_DBUS_INTERFACE;
 
     success = dbus_message_append_args(msg,
-                                       DBUS_TYPE_UINT16,  &domain_id,
-                                       DBUS_TYPE_STRING,  &name,
-                                       DBUS_TYPE_STRING,  &node_name,
-                                       DBUS_TYPE_STRING,  &bus_name,
-                                       DBUS_TYPE_BOOLEAN, &early,
-                                       DBUS_TYPE_BOOLEAN, &complete,
-                                       DBUS_TYPE_UINT16 , &state,
+                                       DBUS_TYPE_UINT16,  &dr->domain_id,
+                                       DBUS_TYPE_STRING,  &dr->name,
+                                       DBUS_TYPE_STRING,  &dr->node_name,
+                                       DBUS_TYPE_STRING,  &dr->bus_name,
+                                       DBUS_TYPE_BOOLEAN, &dr->early,
+                                       DBUS_TYPE_BOOLEAN, &dr->complete,
+                                       DBUS_TYPE_UINT16 , &dr->state,
                                        DBUS_TYPE_STRING , &dbus_name,
                                        DBUS_TYPE_STRING , &dbus_path,
                                        DBUS_TYPE_STRING , &dbus_if,
@@ -1102,8 +1112,8 @@ static int register_to_audiomgr(struct pa_policy_dbusif *dbusif,
         goto getout;
     }
 
-    success = send_message_with_reply(u, conn, msg, audiomgr_init_cb, NULL);
-
+    success = send_message_with_reply(u, conn, msg,
+                                      audiomgr_register_domain_cb, dr);
     if (!success) {
         pa_log("%s: Failed to register", __FILE__);
         goto getout;
@@ -1127,15 +1137,15 @@ pa_bool_t pa_policy_dbusif_domain_complete(struct userdata *u, uint16_t domain)
     pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
     
 
-    pa_log_debug("%s: completing registration for domain %u",
-                 __FILE__, domain);
+    pa_log_debug("%s: domain %u AudioManager %s", __FUNCTION__,
+                 domain, AUDIOMGR_DOMAIN_COMPLETE);
 
     msg = dbus_message_new_method_call(dbusif->amnam,
                                        dbusif->amrpath,
                                        dbusif->amrnam,
                                        AUDIOMGR_DOMAIN_COMPLETE);
     if (msg == NULL) {
-        pa_log("%s: Failed to create D-Bus message to '%s'",
+        pa_log("%s: Failed to create D-Bus message for '%s'",
                __FILE__, AUDIOMGR_DOMAIN_COMPLETE);
         success = FALSE;
         goto getout;
@@ -1145,13 +1155,62 @@ pa_bool_t pa_policy_dbusif_domain_complete(struct userdata *u, uint16_t domain)
                                        DBUS_TYPE_INT32,  &id32,
                                        DBUS_TYPE_INVALID);
     if (!success) {
-        pa_log("%s: Failed to build D-Bus message to complete "
-               "domain registration", __FILE__);
+        pa_log("%s: Failed to build D-Bus message for '%s'",
+               __FILE__, AUDIOMGR_DOMAIN_COMPLETE);
         goto getout;
     }
 
     if (!dbus_connection_send(conn, msg, NULL)) {
-        pa_log("%s: Failed to complete domain registration", __FILE__);
+        pa_log("%s: Failed to send '%s'", __FILE__, AUDIOMGR_DOMAIN_COMPLETE);
+        goto getout;
+    }
+
+    dbus_connection_flush(conn);
+
+ getout:
+    dbus_message_unref(msg);
+    return success;
+}
+
+pa_bool_t pa_policy_dbusif_unregister_domain(struct userdata *u,
+                                             uint16_t domain)
+{
+    pa_policy_dbusif *dbusif;
+    DBusConnection   *conn;
+    DBusMessage      *msg;
+    pa_bool_t         success;
+
+    pa_assert(u);
+    pa_assert_se((dbusif = u->dbusif));
+    pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
+
+    pa_log_info("%s: deregistreing domain %u from AudioManager",
+                __FILE__, domain);
+
+    msg = dbus_message_new_method_call(dbusif->amnam,
+                                       dbusif->amrpath,
+                                       dbusif->amrnam,
+                                       AUDIOMGR_DEREGISTER_DOMAIN);
+    if (msg == NULL) {
+        pa_log("%s: Failed to create D-Bus message for '%s'",
+               __FILE__, AUDIOMGR_DEREGISTER_DOMAIN);
+        success = FALSE;
+        goto getout;
+    }
+
+    dbus_message_set_no_reply(msg, TRUE);
+
+    success = dbus_message_append_args(msg,
+                                       DBUS_TYPE_UINT16,  &domain,
+                                       DBUS_TYPE_INVALID);
+    if (!success) {
+        pa_log("%s: Failed to build D-Bus message for '%s'",
+               __FILE__, AUDIOMGR_DEREGISTER_DOMAIN);
+        goto getout;
+    }
+
+    if (!dbus_connection_send(conn, msg, NULL)) {
+        pa_log("%s: Failed to send '%s'", __FILE__,AUDIOMGR_DEREGISTER_DOMAIN);
         goto getout;
     }
 
@@ -1163,14 +1222,14 @@ pa_bool_t pa_policy_dbusif_domain_complete(struct userdata *u, uint16_t domain)
 }
 
 
-static void audiomgr_register_cb(struct userdata *u,
-                                 const char      *method,
-                                 DBusMessage     *reply,
-                                 void            *data)
+static void audiomgr_register_node_cb(struct userdata *u,
+                                      const char      *method,
+                                      DBusMessage     *reply,
+                                      void            *data)
 {
     const char      *error_descr;
     dbus_uint16_t    object_id;
-    dbus_uint16_t    state;
+    dbus_uint16_t    status;
     int              success;
     const char      *objtype;
 
@@ -1193,12 +1252,11 @@ static void audiomgr_register_cb(struct userdata *u,
     else {
         success = dbus_message_get_args(reply, NULL,
                                         DBUS_TYPE_UINT16, &object_id,
-                                        DBUS_TYPE_UINT16, &state,
+                                        DBUS_TYPE_UINT16, &status,
                                         DBUS_TYPE_INVALID);
 
         if (!success) {
-            pa_log("got broken message from AudioManager. "
-                   "Registration failed");
+            pa_log("got broken message from AudioManager.Registration failed");
         }
         else {
             if (!strncasecmp("register", method, 8))
@@ -1208,12 +1266,14 @@ static void audiomgr_register_cb(struct userdata *u,
 
             pa_log_info("AudioManager replied to registration: %sID: %u",
                         objtype, object_id);
+
+            pa_audiomgr_node_registered(u, object_id, status, data);
         }
     }
 }
 
 static pa_bool_t build_sound_properties(DBusMessageIter *mit,
-                                        struct am_register_data *rd)
+                                        struct am_nodereg_data *rd)
 {
     static int16_t zero;
 
@@ -1248,7 +1308,7 @@ static pa_bool_t build_sound_properties(DBusMessageIter *mit,
 }
 
 static pa_bool_t build_connection_formats(DBusMessageIter *mit,
-                                          struct am_register_data *rd)
+                                          struct am_nodereg_data *rd)
 {
     DBusMessageIter ait;
     int i;
@@ -1275,15 +1335,16 @@ static pa_bool_t build_connection_formats(DBusMessageIter *mit,
     return TRUE;
 }
 
-pa_bool_t pa_policy_dbusif_register(struct userdata *u, const char *method,
-                                    struct am_register_data *rd)
+pa_bool_t pa_policy_dbusif_register_node(struct userdata *u,
+                                         const char *method,
+                                         am_nodereg_data *rd)
 {
     struct pa_policy_dbusif *dbusif;
     DBusConnection          *conn;
     DBusMessage             *msg;
     DBusMessageIter          mit;
     DBusMessageIter          cit;
-    pa_bool_t                success = TRUE;
+    pa_bool_t                success = FALSE;
 
     pa_assert(u);
     pa_assert(method);
@@ -1291,8 +1352,7 @@ pa_bool_t pa_policy_dbusif_register(struct userdata *u, const char *method,
     pa_assert_se((dbusif = u->dbusif));
     pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
 
-    pa_log_debug("%s: registering sink '%s' to AudioManager",
-                 __FUNCTION__, rd->name);
+    pa_log_debug("%s: %s '%s' to AudioManager", __FUNCTION__, method,rd->name);
 
     msg = dbus_message_new_method_call(dbusif->amnam, dbusif->amrpath,
                                        dbusif->amrnam, method);
@@ -1354,7 +1414,99 @@ pa_bool_t pa_policy_dbusif_register(struct userdata *u, const char *method,
 #undef MSG_APPEND
 
 
-    success = send_message_with_reply(u, conn, msg, audiomgr_register_cb, rd);
+    success = send_message_with_reply(u, conn, msg,
+                                      audiomgr_register_node_cb, rd);
+    if (!success) {
+        pa_log("%s: Failed to %s", __FILE__, method);
+        goto getout;
+    }
+    
+ getout:
+    dbus_message_unref(msg);
+    return success;
+}
+
+static void audiomgr_unregister_node_cb(struct userdata *u,
+                                        const char      *method,
+                                        DBusMessage     *reply,
+                                        void            *data)
+{
+    const char      *error_descr;
+    dbus_uint16_t    object_id;
+    dbus_uint16_t    status;
+    int              success;
+    const char      *objtype;
+
+    pa_assert(u);
+    pa_assert(method);
+    pa_assert(reply);
+    pa_assert(data);
+
+    if (dbus_message_get_type(reply) == DBUS_MESSAGE_TYPE_ERROR) {
+        success = dbus_message_get_args(reply, NULL,
+                                        DBUS_TYPE_STRING, &error_descr,
+                                        DBUS_TYPE_INVALID);
+
+        if (!success)
+            error_descr = dbus_message_get_error_name(reply);
+
+        pa_log_info("%s: AudioManager deregistration failed: %s",
+                    __FILE__, error_descr);
+    }
+    else {
+        success = dbus_message_get_args(reply, NULL,
+                                        DBUS_TYPE_UINT16, &status,
+                                        DBUS_TYPE_INVALID);
+
+        if (!success) {
+            pa_log("got broken message from AudioManager. "
+                   "Deregistration failed");
+        }
+        else {
+            if (!strncasecmp("deregister", method, 10))
+                objtype = method + 10;
+            else
+                objtype = method;
+
+            pa_log_info("AudioManager replied to %s deregistration: %u",
+                        objtype, object_id);
+
+            pa_audiomgr_node_unregistered(u, object_id, data);
+        }
+    }
+}
+
+pa_bool_t pa_policy_dbusif_unregister_node(struct userdata *u,
+                                           const char *method,
+                                           am_nodeunreg_data *ud)
+{
+    struct pa_policy_dbusif *dbusif;
+    DBusConnection          *conn;
+    DBusMessage             *msg;
+    pa_bool_t                success = FALSE;
+
+    pa_assert(u);
+    pa_assert(method);
+    pa_assert(ud);
+    pa_assert_se((dbusif = u->dbusif));
+    pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
+
+    pa_log_debug("%s: %s '%s' to AudioManager", __FUNCTION__, method,ud->name);
+
+    msg = dbus_message_new_method_call(dbusif->amnam, dbusif->amrpath,
+                                       dbusif->amrnam, method);
+    
+    if (msg == NULL) {
+        pa_log("%s: Failed to create D-BUS message to '%s'", __FILE__, method);
+        goto getout;
+    }
+
+    success = dbus_message_append_args(msg,
+                                       DBUS_TYPE_INT16, &ud->id,
+                                       DBUS_TYPE_INVALID);
+
+    success = send_message_with_reply(u, conn, msg,
+                                      audiomgr_unregister_node_cb,ud);
     if (!success) {
         pa_log("%s: Failed to %s", __FILE__, method);
         goto getout;
@@ -1467,7 +1619,6 @@ pa_bool_t pa_policy_dbusif_acknowledge(struct userdata *u, const char *method,
 
  getout:
     dbus_message_unref(msg);
-    return success;
     return success;
 }
 

@@ -36,6 +36,7 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     node->amid      = data->amid;
     node->paname    = pa_xstrdup(data->paname);
     node->paidx     = data->paidx;
+    node->stamp     = data->stamp;
     
     if (node->implement == mir_device) {
         node->pacard.index   = data->pacard.index;
@@ -95,6 +96,7 @@ int mir_node_print(mir_node *node, char *buf, int len)
     PRINT("   pacard.profile: '%s'",  node->pacard.profile ?
                                       node->pacard.profile : "");
     PRINT("   paport        : '%s'",  node->paport ? node->paport : "");
+    PRINT("   stamp         : %u"  ,  node->stamp);
 
 #undef PRINT
 

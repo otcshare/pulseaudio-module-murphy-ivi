@@ -57,6 +57,8 @@ struct userdata {
  */
 const char *pa_policy_file_path(const char *file, char *buf, size_t len);
 
+const uint32_t pa_policy_new_stamp(void);
+const uint32_t pa_policy_get_stamp(void);
 
 #endif
 

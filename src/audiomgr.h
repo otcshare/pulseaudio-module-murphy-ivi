@@ -3,16 +3,6 @@
 
 #include "userdata.h"
 
-#define AUDIOMGR_CONNECT            "asyncConnect"
-#define AUDIOMGR_DISCONNECT         "asyncDisconnect"
-
-#define AUDIOMGR_CONNECT_ACK        "ackConnect"
-#define AUDIOMGR_DISCONNECT_ACK     "ackDisconnect"
-#define AUDIOMGR_SETSINKVOL_ACK     "ackSetSinkVolume"
-#define AUDIOMGR_SETSRCVOL_ACK      "ackSetSourceVolume"
-#define AUDIOMGR_SINKVOLTICK_ACK    "ackSinkVolumeTick"
-#define AUDIOMGR_SRCVOLTICK_ACK     "ackSourceVolumeTick"
-#define AUDIOMGR_SETSINKPROP_ACK    "ackSetSinkSoundProperty"
 
 /* error codes */
 #define E_OK              0
@@ -28,9 +18,22 @@
 #define E_WRONG_FORMAT    10
 
 
-struct pa_audiomgr;
+typedef struct pa_audiomgr pa_audiomgr;
+typedef struct mir_node    mir_node;
 
-struct am_register_data {
+typedef struct am_domainreg_data {
+    uint16_t       domain_id;
+    const char    *name;      /**< domain name in audio manager  */
+    const char    *bus_name;  /**< audio manager's internal bus name
+                                   (not to confuse this with D-Bus name)  */
+    const char    *node_name; /**< node name on audio manager's internal bus */
+    pa_bool_t      early;
+    pa_bool_t      complete;
+    uint16_t       state;
+} am_domainreg_data;
+
+typedef struct am_nodereg_data {
+    const char  *key;        /* for node lookup's */
     uint16_t     id;
     const char  *name;
     uint16_t     domain;
@@ -45,30 +48,50 @@ struct am_register_data {
     uint16_t     mute;
     uint16_t     mainvol;
     uint16_t     interrupt;  /* 1=off, 2=interrupted */
-};
+} am_nodereg_data;
 
-struct am_connect_data {
+typedef struct am_nodeunreg_data {
+    uint16_t     id;
+    const char  *name;
+} am_nodeunreg_data;
+
+
+typedef struct am_connect_data {
     uint16_t     handle;
     uint16_t     connection;
     uint16_t     source;
     uint16_t     sink;
     int16_t      format;
-};
+} am_connect_data;
 
-struct am_ack_data {
+typedef struct am_ack_data {
     uint32_t      handle;
     uint16_t      param1;
     uint16_t      param2;
     uint16_t      error;
-};
+} am_ack_data;
 
 
-struct pa_audiomgr *pa_audiomgr_init(struct userdata *);
+pa_audiomgr *pa_audiomgr_init(struct userdata *);
 void pa_audiomgr_done(struct userdata *);
-void pa_audiomgr_domain_registered(struct userdata *, const char *,
-                                   uint16_t, uint16_t);
-void pa_audiomgr_connect(struct userdata *, struct am_connect_data *);
-void pa_audiomgr_disconnect(struct userdata *, struct am_connect_data *);
+
+void pa_audiomgr_register_domain(struct userdata *);
+void pa_audiomgr_domain_registered(struct userdata *,  uint16_t, uint16_t,
+                                   am_domainreg_data *);
+
+void pa_audiomgr_unregister_domain(struct userdata *, pa_bool_t);
+
+
+void pa_audiomgr_register_node(struct userdata *, mir_node *);
+void pa_audiomgr_node_registered(struct userdata *, uint16_t, uint16_t,
+                                 am_nodereg_data *);
+
+void pa_audiomgr_unregister_node(struct userdata *, mir_node *);
+void pa_audiomgr_node_unregistered(struct userdata *, uint16_t,
+                                   am_nodeunreg_data *);
+
+void pa_audiomgr_connect(struct userdata *, am_connect_data *);
+void pa_audiomgr_disconnect(struct userdata *, am_connect_data *);
 
 
 #endif

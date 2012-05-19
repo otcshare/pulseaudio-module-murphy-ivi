@@ -17,16 +17,17 @@
 #include "discover.h"
 #include "node.h"
 #include "card-ext.h"
+#include "audiomgr.h"
 
 #define MAX_CARD_TARGET   4
 #define MAX_NAME_LENGTH   256
 
 
-static void add_alsa_card(struct userdata *, pa_card *);
-static void add_bluetooth_card(struct userdata *, pa_card *);
+static void handle_alsa_card(struct userdata *, pa_card *);
+static void handle_bluetooth_card(struct userdata *, pa_card *);
 
-static void handle_add_udev_loaded_card(struct userdata *, pa_card *,
-                                        mir_node *, char *);
+static void handle_udev_loaded_card(struct userdata *, pa_card *,
+                                    mir_node *, char *);
 static void handle_card_ports(struct userdata *, mir_node *,
                               pa_card *, pa_card_profile *);
 
@@ -48,9 +49,36 @@ struct pa_discover *pa_discover_init(struct userdata *u)
 
     dsc->chmin = 1;
     dsc->chmax = 2;
-    dsc->nodes.pahash = pa_hashmap_new(pa_idxset_string_hash_func,
-                                       pa_idxset_string_compare_func);
+    dsc->selected = TRUE;
+
+    dsc->nodes = pa_hashmap_new(pa_idxset_string_hash_func,
+                                pa_idxset_string_compare_func);
     return dsc;
+}
+
+void pa_discover_done(struct userdata *u)
+{
+}
+
+void pa_discover_domain_up(struct userdata *u)
+{
+    pa_discover *discover;
+    mir_node    *node;
+    void        *state;
+
+    pa_assert(u);
+    pa_assert_se((discover = u->discover));
+
+    PA_HASHMAP_FOREACH(node, discover->nodes, state) {
+        node->amid = AM_ID_INVALID;
+
+        if (node->visible && node->available)
+            pa_audiomgr_register_node(u, node);
+    }
+}
+
+void pa_discover_domain_down(struct userdata *u)
+{
 }
 
 void pa_discover_add_card(struct userdata *u, pa_card *card)
@@ -61,17 +89,17 @@ void pa_discover_add_card(struct userdata *u, pa_card *card)
     pa_assert(card);
 
     if ((bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS)) == NULL) {
-        pa_log_debug("ignoring card '%s' due to lack of %s property",
+        pa_log_debug("ignoring card '%s' due to lack of '%s' property",
                      pa_card_ext_get_name(card), PA_PROP_DEVICE_BUS);
         return;
     }
 
     if (pa_streq(bus, "pci") || pa_streq(bus, "usb")) {
-        add_alsa_card(u, card);
+        handle_alsa_card(u, card);
         return;
     }
     else if (pa_streq(bus, "bluetooth")) {
-        add_bluetooth_card(u, card);
+        handle_bluetooth_card(u, card);
         return;
     }
 
@@ -89,7 +117,7 @@ void pa_discover_remove_card(struct userdata *u, pa_card *card)
     pa_assert(card);
     pa_assert_se((discover = u->discover));
 
-    PA_HASHMAP_FOREACH(node, discover->nodes.pahash, state) {
+    PA_HASHMAP_FOREACH(node, discover->nodes, state) {
         if (node->implement == mir_device &&
             node->pacard.index == card->index)
         {
@@ -98,21 +126,86 @@ void pa_discover_remove_card(struct userdata *u, pa_card *card)
     }
 }
 
-static void add_alsa_card(struct userdata *u, pa_card *card)
+void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 {
-    pa_discover     *discover;
+    pa_discover *discover;
+    const char  *bus;
+    pa_bool_t    pci;
+    pa_bool_t    usb;
+    pa_bool_t    bluetooth;
+    uint32_t     stamp;
+    mir_node    *node;
+    void        *state;
+    
+    pa_assert(u);
+    pa_assert(card);
+    pa_assert_se((discover = u->discover));
+
+
+    if ((bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS)) == NULL) {
+        pa_log_debug("ignoring profile change on card '%s' due to lack of '%s'"
+                     "property",pa_card_ext_get_name(card),PA_PROP_DEVICE_BUS);
+        return;
+    }
+
+    pci = pa_streq(bus, "pci");
+    usb = pa_streq(bus, "usb");
+    bluetooth = pa_streq(bus, "bluetooth");
+
+    if (!pci && !usb && !bluetooth) {
+        pa_log_debug("ignoring profile change on card '%s' due to unsupported "
+                     "bus type '%s'", pa_card_ext_get_name(card), bus);
+    }
+
+    if (bluetooth) {
+        pa_log_debug("bluetooth profile changed to '%s' on card '%s'",
+                     card->active_profile->name, card->name);
+    }
+    else {
+        pa_log_debug("alsa profile changed to '%s' on card '%s'",
+                     card->active_profile->name, card->name);
+
+        stamp = pa_policy_get_stamp();
+ 
+        handle_alsa_card(u, card);
+
+        PA_HASHMAP_FOREACH(node, discover->nodes, state) {
+            if (node->implement == mir_device &&
+                node->pacard.index == card->index &&
+                node->stamp < stamp)
+            {
+                destroy_node(u, node);
+            }
+        }
+    }
+
+}
+
+mir_node *pa_discover_find_node(struct userdata *u, const char *key)
+{
+    pa_discover *discover;
+
+    pa_assert(u);
+    pa_assert(key);
+    pa_assert_se((discover = u->discover));
+
+    return pa_hashmap_get(discover->nodes, key);
+}
+
+
+static void handle_alsa_card(struct userdata *u, pa_card *card)
+{
     mir_node         data;
     const char      *udd;
     char            *cnam;
     char            *cid;
-
-    pa_assert_se((discover = u->discover));
 
     memset(&data, 0, sizeof(data));
     data.visible = TRUE;
     data.amid = AM_ID_INVALID;
     data.implement = mir_device;
     data.paidx = PA_IDXSET_INVALID;
+    data.stamp = pa_policy_get_stamp();
 
     cnam = pa_card_ext_get_name(card);
     udd  = pa_proplist_gets(card->proplist, "module-udev-detect.discovered");
@@ -121,18 +214,19 @@ static void add_alsa_card(struct userdata *u, pa_card *card)
         /* udev loaded alsa card */
         if (!strncmp(cnam, "alsa_card.", 10)) {
             cid = cnam + 10;
-            handle_add_udev_loaded_card(u, card, &data, cid);
+            handle_udev_loaded_card(u, card, &data, cid);
             return;
         }
     }
     else {
-        /* manually loaded pci or usb card */
+        /* statically loaded pci or usb card */
     }
 
     pa_log_debug("ignoring unrecognized pci card '%s'", cnam);
 }
 
-static void add_bluetooth_card(struct userdata *u, pa_card *card)
+
+static void handle_bluetooth_card(struct userdata *u, pa_card *card)
 {
     pa_discover     *discover;
     pa_card_profile *prof;
@@ -164,6 +258,7 @@ static void add_bluetooth_card(struct userdata *u, pa_card *card)
     data.amname = amname;
     data.amdescr = (char *)cdescr;
     data.pacard.index = card->index;
+    data.stamp = pa_policy_get_stamp();
 
     cnam = pa_card_ext_get_name(card);
 
@@ -171,7 +266,7 @@ static void add_bluetooth_card(struct userdata *u, pa_card *card)
         cid = cnam + 11;
 
         PA_HASHMAP_FOREACH(prof, card->profiles, state) {
-            data.available = (prof == card->active_profile);
+            data.available = TRUE;
             data.pacard.profile = prof->name;
 
             if (prof->n_sinks > 0) {
@@ -199,8 +294,9 @@ static void add_bluetooth_card(struct userdata *u, pa_card *card)
     }
 }
 
-static void handle_add_udev_loaded_card(struct userdata *u, pa_card *card,
-                                        mir_node *data, char *cardid)
+
+static void handle_udev_loaded_card(struct userdata *u, pa_card *card,
+                                    mir_node *data, char *cardid)
 {
     pa_discover      *discover;
     pa_card_profile  *prof;
@@ -232,17 +328,21 @@ static void handle_add_udev_loaded_card(struct userdata *u, pa_card *card,
     active = card->active_profile;
 
     PA_HASHMAP_FOREACH(prof, card->profiles, state) {
-        if (active && prof != active)
+        /* filtering: deal with sepected profiles if requested so */
+        if (discover->selected && (!active || (active && prof != active)))
             continue;
 
+        /* filtering: skip the 'off' profiles */
         if (!prof->n_sinks && !prof->n_sources)
             continue;
 
+        /* filtering: consider sinks with suitable amount channels */
         if (prof->n_sinks && 
             (prof->max_sink_channels < discover->chmin ||
              prof->max_sink_channels  > discover->chmax  ))
             continue;
         
+        /* filtering: consider sources with suitable amount channels */
         if (prof->n_sources &&
             (prof->max_source_channels <  discover->chmin ||
              prof->max_source_channels >  discover->chmax   ))
@@ -304,7 +404,7 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
                 snprintf(key, sizeof(key), "%s@%s", data->paname, port->name);
 
                 data->key       = key;
-                data->available = (port->available == PA_PORT_AVAILABLE_YES);
+                data->available = (port->available != PA_PORT_AVAILABLE_NO);
                 data->type      = 0;
                 data->amname    = amname;
                 data->paport    = port->name;
@@ -313,7 +413,11 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
 
                 node = create_node(u, data, &created);
 
-                /* if constrain != NULL add the node to it */
+                if (created)
+                    ; /* if constrain != NULL add the node to it */
+                else {
+                    node->stamp = data->stamp;
+                }
             }
         }
     }
@@ -321,8 +425,13 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
     if (!have_ports) {
         data->key = data->paname;
         data->available = TRUE;
+
         classify_node_by_card(data, card, prof, NULL);
-        create_node(u, data, NULL);
+
+        node = create_node(u, data, &created);
+
+        if (!created)
+            node->stamp = data->stamp;
     }
 
     data->amname = amname;
@@ -344,16 +453,18 @@ static mir_node *create_node(struct userdata *u, mir_node *data,
     pa_assert(data->paname);
     pa_assert_se((discover = u->discover));
     
-    if ((node = pa_hashmap_get(discover->nodes.pahash, data->key)))
+    if ((node = pa_hashmap_get(discover->nodes, data->key)))
         created = FALSE;
     else {
         created = TRUE;
 
         node = mir_node_create(u, data);
-        pa_hashmap_put(discover->nodes.pahash, node->key, node);
+        pa_hashmap_put(discover->nodes, node->key, node);
 
         mir_node_print(node, buf, sizeof(buf));
         pa_log_debug("new node:\n%s", buf);
+
+        pa_audiomgr_register_node(u, node);
     }
 
     if (created_ret)
@@ -371,25 +482,25 @@ static void destroy_node(struct userdata *u, mir_node *node)
     pa_assert_se((discover = u->discover));
 
     if (node) {
-        removed = pa_hashmap_remove(discover->nodes.pahash, node->key);
+        removed = pa_hashmap_remove(discover->nodes, node->key);
 
         if (node != removed) {
-            if (removed) {
+            if (removed)
                 pa_log("%s: confused with data structures: key mismatch. "
                        " attempted to destroy '%s'; actually destroyed '%s'",
                        __FILE__, node->key, removed->key);
-            }
-            else {
+            else
                 pa_log("%s: confused with data structures: node '%s' "
-                       "is not in the has table", __FILE__, node->key);
-            }
+                       "is not in the hash table", __FILE__, node->key);
             return;
         }
+
+        pa_log_debug("destroying node: %s / '%s'", node->key, node->amname);
+
+        pa_audiomgr_unregister_node(u, node);
+
+        mir_node_destroy(u, node);
     }
-
-    pa_log_debug("destroying node: %s / '%s'", node->key, node->amname);
-
-    mir_node_destroy(u, node);
 }
 
 
@@ -600,7 +711,7 @@ static void guess_node_type_and_name(mir_node *data, const char *pnam,
         data->type = mir_microphone;
         data->amname = (char *)pdesc;
     }
-    else if (data->direction == mir_output && strcasestr(pnam, "analog-output"))
+    else if (data->direction == mir_output && strcasestr(pnam,"analog-output"))
         data->type = mir_speakers;
     else if (data->direction == mir_input && strcasestr(pnam, "analog-input"))
         data->type = mir_jack;
