@@ -7,6 +7,8 @@
 char *pa_utils_get_card_name(pa_card *);
 char *pa_utils_get_sink_name(pa_sink *);
 char *pa_utils_get_source_name(pa_source *);
+char *pa_utils_get_sink_input_name(pa_sink_input *);
+char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *);
 
 
 const char *pa_utils_file_path(const char *, char *, size_t);

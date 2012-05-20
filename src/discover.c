@@ -40,10 +40,17 @@ static void parse_profile_name(pa_card_profile *,
 static char *node_key_from_card(struct userdata *, mir_direction,
                                 void *, char *, size_t);
 
+static void set_stream_routing_properties(pa_proplist *, mir_node_type,
+                                          pa_sink *);
+static mir_node_type get_stream_routing_class(pa_proplist *);
+
+
 
 static void classify_node_by_card(mir_node *, pa_card *,
                                   pa_card_profile *, pa_device_port *);
-static void guess_node_type_and_name(mir_node *, const char *, const char *);
+static void guess_device_node_type_and_name(mir_node *, const char *,
+                                            const char *);
+static mir_node_type guess_stream_node_type(pa_proplist *);
 
 
 static void pa_hashmap_node_free(void *node, void *u)
@@ -224,6 +231,9 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink)
         node->paidx = sink->index;
         pa_hashmap_put(discover->nodes.byptr, sink, node);
     }
+    else {
+        pa_log_info("currently we do not support statically loaded sinks");
+    }
 }
 
 
@@ -242,7 +252,7 @@ void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
     if (!(node = pa_hashmap_get(discover->nodes.byptr, sink)))
         pa_log_debug("can't find node for sink (name '%s')", name);
     else {
-        pa_log_debug("node found. Reseting sink data");
+        pa_log_debug("node found for '%s'. Reseting sink data", name);
         node->paidx = PA_IDXSET_INVALID;
         pa_hashmap_remove(discover->nodes.byptr, sink);
     }
@@ -294,6 +304,132 @@ void pa_discover_remove_source(struct userdata *u, pa_source *source)
         pa_log_debug("node found. Reseting source data");
         node->paidx = PA_IDXSET_INVALID;
         pa_hashmap_remove(discover->nodes.byptr, source);
+    }
+}
+
+
+void pa_discover_preroute_sink_input(struct userdata *u,
+                                     pa_sink_input_new_data *data)
+{
+    pa_proplist   *pl;
+    pa_discover   *discover;
+    mir_node_type  type;
+    
+    pa_assert(u);
+    pa_assert(data);
+    pa_assert_se((discover = u->discover));
+    pa_assert_se((pl = data->proplist));
+
+    type = guess_stream_node_type(pl);
+
+    set_stream_routing_properties(pl, type, data->sink);
+
+    pa_log_debug("### %p", data->sink);
+}
+
+
+void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
+{
+    pa_proplist    *pl;
+    pa_discover    *discover;
+    mir_node        data;
+    mir_node       *node;
+    mir_node       *sinknod;
+    char           *name;
+    mir_node_type   type;
+    char            key[256];
+    pa_bool_t       created;
+
+    pa_assert(u);
+    pa_assert(sinp);
+    pa_assert_se((discover = u->discover));
+    pa_assert_se((pl = sinp->proplist));
+
+    name = pa_utils_get_sink_input_name(sinp);
+    type = get_stream_routing_class(pl);
+
+    pa_log_debug("dealing with new stream '%s'", name);
+
+    if (type == mir_node_type_unknown) {
+        if ((type = guess_stream_node_type(pl)) == mir_node_type_unknown) {
+            pa_log_debug("cant find stream class for '%s'. "
+                         "Leaving it alone", name);
+            return;
+        }
+
+        set_stream_routing_properties(pl, type, NULL);
+
+        /* make some post-routing here */
+    }
+
+    /* we need to add this to main hashmap as that is used for loop
+       through on all nodes. */
+    snprintf(key, sizeof(key), "stream_input.%d", sinp->index);
+
+    memset(&data, 0, sizeof(data));
+    data.key       = key;
+    data.direction = mir_input;
+    data.implement = mir_stream;
+    data.channels  = sinp->channel_map.channels;
+    data.type      = type;
+    data.visible   = true;
+    data.available = true;
+    data.amname    = name;
+    data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
+    data.amid      = AM_ID_INVALID;
+    data.paname    = name;
+    data.paidx     = sinp->index;
+
+    node = create_node(u, &data, &created);
+
+    pa_assert(node);
+
+    if (!created) {
+        pa_log("%s: confused with stream. '%s' did exists",
+               __FILE__, node->amname);
+    }
+    else {
+        pa_hashmap_put(discover->nodes.byptr, sinp, node);
+
+        if (!(sinknod = pa_hashmap_get(discover->nodes.byptr, sinp->sink)))
+            pa_log_debug("can't figure out where this stream is routed");
+        else {
+            pa_log_debug("register route '%s' => '%s'",
+                         node->amname, sinknod->amname);
+            /* FIXME: and actually do it ... */
+        }
+    }
+}
+
+
+void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
+{
+    pa_discover    *discover;
+    mir_node       *node;
+    mir_node       *sinknod;
+    char           *name;
+
+    pa_assert(u);
+    pa_assert(sinp);
+    pa_assert_se((discover = u->discover));
+
+    name = pa_utils_get_sink_input_name(sinp);
+
+    if (!(node = pa_hashmap_remove(discover->nodes.byptr, sinp)))
+        pa_log_debug("can't find node for sink-input (name '%s')", name);
+    else {
+        pa_log_debug("node found for '%s'. After clearing the route "
+                     "it will be destroyed", name);
+
+        if (!(sinknod = pa_hashmap_get(discover->nodes.byptr, sinp->sink)))
+            pa_log_debug("can't figure out where this stream is routed");
+        else {
+            pa_log_debug("clear route '%s' => '%s'",
+                         node->amname, sinknod->amname);
+            /* FIXME: and actually do it ... */
+        }
+
+        destroy_node(u, node);
     }
 }
 
@@ -579,16 +715,16 @@ static mir_node *create_node(struct userdata *u, mir_node *data,
         created = FALSE;
     else {
         created = TRUE;
-
+        
         node = mir_node_create(u, data);
         pa_hashmap_put(discover->nodes.byname, node->key, node);
-
+        
         mir_node_print(node, buf, sizeof(buf));
         pa_log_debug("new node:\n%s", buf);
-
+        
         pa_audiomgr_register_node(u, node);
     }
-
+    
     if (created_ret)
         *created_ret = created;
     
@@ -618,14 +754,12 @@ static void destroy_node(struct userdata *u, mir_node *node)
         }
 
         pa_log_debug("destroying node: %s / '%s'", node->key, node->amname);
-
+        
         pa_audiomgr_unregister_node(u, node);
-
+        
         mir_node_destroy(u, node);
-    }
+    }    
 }
-
-
 
 static char *get_name(char **string_ptr, int offs)
 {
@@ -692,15 +826,16 @@ static void parse_profile_name(pa_card_profile *prof,
 static char *node_key_from_card(struct userdata *u, mir_direction direction,
                                 void *data, char *buf, size_t len)
 {
-    pa_card        *card;
-    pa_device_port *port;
-    const char     *bus;
-    pa_bool_t       pci;
-    pa_bool_t       usb;
-    pa_bool_t       bluetooth;
-    char           *type;
-    char           *name;
-    char           *key;
+    pa_card         *card;
+    pa_card_profile *profile;
+    pa_device_port  *port;
+    const char      *bus;
+    pa_bool_t        pci;
+    pa_bool_t        usb;
+    pa_bool_t        bluetooth;
+    char            *type;
+    char            *name;
+    char            *key;
 
     pa_assert(u);
     pa_assert(data);
@@ -723,6 +858,8 @@ static char *node_key_from_card(struct userdata *u, mir_direction direction,
 
     if (!card)
         return NULL;
+        
+    pa_assert_se((profile = card->active_profile));
 
     if (!(bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS))) {
         pa_log_debug("ignoring %s '%s' due to lack of '%s' property "
@@ -740,8 +877,10 @@ static char *node_key_from_card(struct userdata *u, mir_direction direction,
         return NULL;
     }
     
-    if (bluetooth)
-        key = name;
+    if (bluetooth) {
+        key = buf;
+        snprintf(buf, len, "%s@%s", name, profile->name);
+    }
     else {
         if (!port)
             key = name;
@@ -752,6 +891,53 @@ static char *node_key_from_card(struct userdata *u, mir_direction direction,
     }
 
     return key;
+}
+
+static void set_stream_routing_properties(pa_proplist   *pl,
+                                          mir_node_type  styp,
+                                          pa_sink       *sink)
+{
+    const char    *clnam;
+    const char    *method;
+    char           clid[32];
+
+    pa_assert(pl);
+    pa_assert(styp);
+    
+    snprintf(clid, sizeof(clid), "%d", styp);
+    clnam  = mir_node_type_str(styp);
+    method = sink ? PA_ROUTING_EXPLICIT : PA_ROUTING_DEFAULT;
+
+    if (pa_proplist_sets(pl, PA_PROP_ROUTING_CLASS_NAME, clnam ) < 0 ||
+        pa_proplist_sets(pl, PA_PROP_ROUTING_CLASS_ID  , clid  ) < 0 ||
+        pa_proplist_sets(pl, PA_PROP_ROUTING_METHOD    , method) < 0  )
+    {
+        pa_log("failed to set properties on sink-input. "
+               "some routing function might malfunction later on");
+    }
+}
+
+static mir_node_type get_stream_routing_class(pa_proplist *pl)
+{
+    const char    *clid;
+    mir_node_type  type;
+    char          *e;
+
+    pa_assert(pl);
+
+    if ((clid = pa_proplist_gets(pl, PA_PROP_ROUTING_CLASS_ID))) {
+        type = strtol(clid, &e, 10);
+
+        if (!*e) {
+            if (type >= mir_application_class_begin &&
+                type <  mir_application_class_end)
+            {
+                return type;
+            }
+        }                
+    }
+
+    return mir_node_type_unknown;
 }
 
 
@@ -770,8 +956,10 @@ static void classify_node_by_card(mir_node *data, pa_card *card,
     if (form) {
         if (!strcasecmp(form, "internal")) {
             data->location = mir_external;
-            if (port && !strcasecmp(bus, "pci"))
-                guess_node_type_and_name(data, port->name, port->description);
+            if (port && !strcasecmp(bus, "pci")) {
+                guess_device_node_type_and_name(data, port->name,
+                                                port->description);
+            }
         }
         else if (!strcasecmp(form, "speaker") || !strcasecmp(form, "car")) {
             if (data->direction == mir_output) {
@@ -820,8 +1008,10 @@ static void classify_node_by_card(mir_node *data, pa_card *card,
         }
     }
     else {
-        if (port && !strcasecmp(bus, "pci"))
-            guess_node_type_and_name(data, port->name, port->description);
+        if (port && !strcasecmp(bus, "pci")) {
+            guess_device_node_type_and_name(data, port->name,
+                                            port->description);
+        }
     }
 
     if (!data->amname[0]) {
@@ -872,8 +1062,9 @@ static void classify_node_by_card(mir_node *data, pa_card *card,
 
 
 /* data->direction must be set */
-static void guess_node_type_and_name(mir_node *data, const char *pnam,
-                                     const char *pdesc)
+static void guess_device_node_type_and_name(mir_node *data,
+                                            const char *pnam,
+                                            const char *pdesc)
 {
     if (data->direction == mir_output && strcasestr(pnam, "headphone")) {
         data->type = mir_wired_headphone;
@@ -908,6 +1099,69 @@ static void guess_node_type_and_name(mir_node *data, const char *pnam,
     }
 }
 
+static mir_node_type guess_stream_node_type(pa_proplist *pl)
+{
+    typedef struct {
+        char *id;
+        mir_node_type type;
+    } map_t;
+
+    static map_t role_map[] = {
+        {"video"    , mir_player },
+        {"music"    , mir_player },
+        {"game"     , mir_game   },
+        {"event"    , mir_event  },
+        {"phone"    , mir_player },
+        {"animation", mir_browser},
+        {"test"     , mir_player },
+        {NULL, mir_node_type_unknown}
+    };
+
+    static map_t bin_map[] = {
+        {"rhytmbox"    , mir_player },
+        {"firefox"     , mir_browser},
+        {"chrome"      , mir_browser},
+        {"sound-juicer", mir_player },
+        {NULL, mir_node_type_unknown}
+    };
+
+
+    mir_node_type  rtype, btype;
+    const char    *role;
+    const char    *bin;
+    map_t         *m;
+
+    pa_assert(pl);
+
+    rtype = btype = mir_node_type_unknown;
+
+    role = pa_proplist_gets(pl, PA_PROP_MEDIA_ROLE);
+    bin  = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_BINARY);
+
+    if (role) {
+        for (m = role_map;  m->id;  m++) {
+            if (pa_streq(role, m->id))
+                break;
+        }
+        rtype = m->type;
+    }
+
+    if (rtype != mir_node_type_unknown && rtype != mir_player)
+        return rtype;
+
+    if (bin) {
+        for (m = bin_map;  m->id;  m++) {
+            if (pa_streq(bin, m->id))
+                break;
+        }
+        btype = m->type;
+    }
+
+    if (btype == mir_node_type_unknown)
+        return rtype;
+
+    return btype;
+}
 
                                   
 /*

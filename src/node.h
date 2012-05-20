@@ -28,15 +28,21 @@ typedef enum {
 
 typedef enum {
     mir_node_type_unknown = 0,
+
     /* application classes */
-    mir_radio,
+    mir_application_class_begin,
+    mir_radio = mir_application_class_begin,
     mir_player,
     mir_navigator,
     mir_game,
     mir_browser,
     mir_phone,
+    mir_event,
+    mir_application_class_end,
+
     /* device types */
-    mir_null = 128,
+    mir_device_class_begin = 128,
+    mir_null = mir_device_class_begin,
     mir_speakers,
     mir_front_speakers,
     mir_rear_speakers,
@@ -50,6 +56,8 @@ typedef enum {
     mir_usb_headphone,
     mir_bluetooth_sco,
     mir_bluetooth_a2dp,
+    mir_device_class_end,
+
     /* extensions */
     mir_user_defined_start = 256
 } mir_node_type;

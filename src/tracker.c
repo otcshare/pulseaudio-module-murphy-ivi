@@ -21,14 +21,20 @@ static pa_hook_result_t source_unlink(void *, void *, void *);
 static pa_hook_result_t source_port_changed(void *, void *, void *);
 static pa_hook_result_t source_port_available_changed(void *, void *, void *);
 
+static pa_hook_result_t sink_input_new(void *, void *, void *);
+static pa_hook_result_t sink_input_put(void *, void *, void *);
+static pa_hook_result_t sink_input_unlink(void *, void *, void *);
+
+
 pa_tracker *pa_tracker_init(struct userdata *u)
 {
-    pa_core         *core;
-    pa_hook         *hooks;
-    pa_tracker      *tracker;
-    pa_card_hooks   *card;
-    pa_sink_hooks   *sink;
-    pa_source_hooks *source;
+    pa_core             *core;
+    pa_hook             *hooks;
+    pa_tracker          *tracker;
+    pa_card_hooks       *card;
+    pa_sink_hooks       *sink;
+    pa_source_hooks     *source;
+    pa_sink_input_hooks *sinp;
 
     pa_assert(u);
     pa_assert_se((core = u->core));
@@ -38,6 +44,7 @@ pa_tracker *pa_tracker_init(struct userdata *u)
     card   = &tracker->card;
     sink   = &tracker->sink;
     source = &tracker->source;
+    sinp   = &tracker->sink_input;
 
     /* card */
     card->put     = pa_hook_connect(
@@ -86,16 +93,30 @@ pa_tracker *pa_tracker_init(struct userdata *u)
                             hooks + PA_CORE_HOOK_PORT_AVAILABLE_CHANGED,
                             PA_HOOK_LATE, source_port_available_changed, u
                         );
+    /* sink-input */
+    sinp->neew   = pa_hook_connect(
+                       hooks + PA_CORE_HOOK_SINK_INPUT_NEW,
+                       PA_HOOK_EARLY, sink_input_new, u
+                   );
+    sinp->put    = pa_hook_connect(
+                       hooks + PA_CORE_HOOK_SINK_INPUT_PUT,
+                       PA_HOOK_LATE, sink_input_put, u
+                   );
+    sinp->unlink = pa_hook_connect(
+                       hooks + PA_CORE_HOOK_SINK_INPUT_UNLINK,
+                       PA_HOOK_LATE, sink_input_unlink, u
+                   );
     
     return tracker;
 }
 
 void pa_tracker_done(struct userdata *u)
 {
-    pa_tracker      *tracker;
-    pa_card_hooks   *card;
-    pa_sink_hooks   *sink;
-    pa_source_hooks *source;
+    pa_tracker          *tracker;
+    pa_card_hooks       *card;
+    pa_sink_hooks       *sink;
+    pa_source_hooks     *source;
+    pa_sink_input_hooks *sinp;
 
     pa_assert(u);
     pa_assert_se((tracker = u->tracker));
@@ -117,17 +138,22 @@ void pa_tracker_done(struct userdata *u)
     pa_hook_slot_free(source->portchg);
     pa_hook_slot_free(source->portavail);
     
+    sinp = &tracker->sink_input;
+    pa_hook_slot_free(sinp->neew);
+    pa_hook_slot_free(sinp->put);
+    pa_hook_slot_free(sinp->unlink);
 
     pa_xfree(tracker);
 }
 
 void pa_tracker_synchronize(struct userdata *u)
 {
-    pa_core   *core;
-    pa_card   *card;
-    pa_sink   *sink;
-    pa_source *source;
-    uint32_t   index;
+    pa_core       *core;
+    pa_card       *card;
+    pa_sink       *sink;
+    pa_source     *source;
+    pa_sink_input *sinp;
+    uint32_t       index;
 
     pa_assert(u);
     pa_assert_se((core = u->core));
@@ -144,6 +170,10 @@ void pa_tracker_synchronize(struct userdata *u)
 
     PA_IDXSET_FOREACH(source, core->sources, index) {
         pa_discover_add_source(u, source);
+    }
+
+    PA_IDXSET_FOREACH(sinp, core->sink_inputs, index) {
+        pa_discover_add_sink_input(u, sinp);
     }
 
 }
@@ -313,6 +343,57 @@ static pa_hook_result_t source_port_available_changed(void *hook_data,
 
     pa_assert(u);
     pa_assert(source);
+
+    return PA_HOOK_OK;
+}
+
+
+
+static pa_hook_result_t sink_input_new(void *hook_data,
+                                       void *call_data,
+                                       void *slot_data)
+{
+    pa_sink_input_new_data *data = (pa_sink_input_new_data *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(data);
+
+    pa_utils_new_stamp();
+    pa_discover_preroute_sink_input(u, data);
+
+    return PA_HOOK_OK;
+}
+
+static pa_hook_result_t sink_input_put(void *hook_data,
+                                       void *call_data,
+                                       void *slot_data)
+{
+    pa_sink_input *sinp = (pa_sink_input *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(sinp);
+
+    pa_utils_new_stamp();
+    pa_discover_add_sink_input(u, sinp);
+
+
+    return PA_HOOK_OK;
+}
+
+
+static pa_hook_result_t sink_input_unlink(void *hook_data,
+                                          void *call_data,
+                                          void *slot_data)
+{
+    struct pa_sink_input *sinp = (pa_sink_input *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(sinp);
+
+    pa_discover_remove_sink_input(u, sinp);
 
     return PA_HOOK_OK;
 }

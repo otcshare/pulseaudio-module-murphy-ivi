@@ -144,6 +144,7 @@ const char *mir_node_type_str(mir_node_type type)
     case mir_game:                return "Game";
     case mir_browser:             return "Browser";
     case mir_phone:               return "Phone";
+    case mir_event:               return "Event";
     case mir_speakers:            return "Speakers";
     case mir_microphone:          return "Microphone";
     case mir_jack:                return "Line";

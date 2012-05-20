@@ -11,6 +11,7 @@ typedef struct mir_node mir_node;
 
 #define PA_BIT(a)      (1UL << (a))
 
+#if 0
 enum pa_bus_type {
     pa_bus_unknown = 0,
     pa_bus_pci,
@@ -34,10 +35,11 @@ enum pa_form_factor {
     pa_computer,
     pa_portable
 };
+#endif
 
 typedef struct pa_discover {
     /*
-     * cirtreria for filtering sinks and sources
+     * cirteria for filtering sinks and sources
      */
     unsigned        chmin;    /**< minimum of max channels */
     unsigned        chmax;    /**< maximum of max channels */
@@ -66,6 +68,12 @@ void pa_discover_remove_sink(struct userdata *, pa_sink *);
 
 void pa_discover_add_source(struct userdata *, pa_source *);
 void pa_discover_remove_source(struct userdata *, pa_source *);
+
+void pa_discover_preroute_sink_input(struct userdata *,
+                                     pa_sink_input_new_data *);
+void pa_discover_add_sink_input(struct userdata *, pa_sink_input *);
+void pa_discover_remove_sink_input(struct userdata *, pa_sink_input *);
+
 
 mir_node *pa_discover_find_node(struct userdata *, const char *);
 
