@@ -41,9 +41,11 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *, const char *,
                                                const char *, const char *);
 void pa_policy_dbusif_done(struct userdata *);
 
+#if 0
 void pa_policy_dbusif_send_device_state(struct userdata *,char *,char **,int);
 void pa_policy_dbusif_send_media_status(struct userdata *, const char *,
                                         const char *, int);
+#endif
 
 /* audiomgr stuff */
 pa_bool_t pa_policy_dbusif_register_domain(struct userdata *,

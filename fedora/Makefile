@@ -38,9 +38,9 @@ rpms: rmtar $(SPECFILE) tarball
 
 
 cleanup:
-	rm -fr $(TMPDIR) && \
-	rm -f $(SPECFILE)
-	rm -f $(TARBALL)
+#	rm -fr $(TMPDIR) && \
+#	rm -f $(SPECFILE)
+#	rm -f $(TARBALL)
 
 # rules to patch the SPEC file and build a source tarball
 $(SPECFILE): $(SPECFILE).in

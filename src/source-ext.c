@@ -15,6 +15,7 @@
 #include "context.h"
 #include "policy-group.h"
 #include "dbusif.h"
+#include "discover.h"
 
 /* this included for the sake of pa_policy_send_device_state()
    which is temporarily hosted by sink-ext.c*/
@@ -214,6 +215,8 @@ static void handle_new_source(struct userdata *u, struct pa_source *source)
 
             pa_policy_context_register(u,pa_policy_object_source,name,source);
 
+            pa_discover_add_source(u, source);
+
             if (ret < 0) {
                 pa_log("failed to set property '%s' on source '%s'",
                        PA_PROP_POLICY_DEVTYPELIST, name);
@@ -250,6 +253,8 @@ static void handle_removed_source(struct userdata *u, struct pa_source *source)
 
         pa_policy_context_unregister(u, pa_policy_object_source,
                                      name, source, idx);
+
+        pa_discover_remove_source(u, source);
 
         if (len <= 0)
             pa_log_debug("remove source '%s' (idx=%d)", name, idx);

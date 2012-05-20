@@ -303,11 +303,9 @@ void pa_audiomgr_unregister_node(struct userdata *u, mir_node *node)
 }
 
 void pa_audiomgr_node_unregistered(struct userdata   *u,
-                                   uint16_t           id,
                                    am_nodeunreg_data *ud)
 {
     (void)u;
-    (void)id;
 
     /* can't do too much here anyways,
        since the node is gone already */

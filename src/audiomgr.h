@@ -87,8 +87,7 @@ void pa_audiomgr_node_registered(struct userdata *, uint16_t, uint16_t,
                                  am_nodereg_data *);
 
 void pa_audiomgr_unregister_node(struct userdata *, mir_node *);
-void pa_audiomgr_node_unregistered(struct userdata *, uint16_t,
-                                   am_nodeunreg_data *);
+void pa_audiomgr_node_unregistered(struct userdata *, am_nodeunreg_data *);
 
 void pa_audiomgr_connect(struct userdata *, am_connect_data *);
 void pa_audiomgr_disconnect(struct userdata *, am_connect_data *);

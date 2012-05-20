@@ -117,12 +117,10 @@ static void handle_module_events(pa_core *c, pa_subscription_event_type_t t,
 
 static void handle_new_module(struct userdata *u, struct pa_module *module)
 {
-    char     *name;
-    uint32_t  idx;
+    char *name;
 
     if (module && u) {
         name = pa_module_ext_get_name(module);
-        idx  = module->index;
 
         pa_policy_context_register(u, pa_policy_object_module, name, module);
     }

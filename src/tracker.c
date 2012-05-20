@@ -1,0 +1,328 @@
+#include <pulsecore/pulsecore-config.h>
+
+#include <pulse/def.h>
+#include <pulsecore/card.h>
+
+#include "tracker.h"
+#include "utils.h"
+#include "discover.h"
+
+static pa_hook_result_t card_put(void *, void *, void *);
+static pa_hook_result_t card_unlink(void *, void *, void *);
+static pa_hook_result_t card_profile_changed(void *, void *, void *);
+
+static pa_hook_result_t sink_put(void *, void *, void *);
+static pa_hook_result_t sink_unlink(void *, void *, void *);
+static pa_hook_result_t sink_port_changed(void *, void *, void *);
+static pa_hook_result_t sink_port_available_changed(void *, void *, void *);
+
+static pa_hook_result_t source_put(void *, void *, void *);
+static pa_hook_result_t source_unlink(void *, void *, void *);
+static pa_hook_result_t source_port_changed(void *, void *, void *);
+static pa_hook_result_t source_port_available_changed(void *, void *, void *);
+
+pa_tracker *pa_tracker_init(struct userdata *u)
+{
+    pa_core         *core;
+    pa_hook         *hooks;
+    pa_tracker      *tracker;
+    pa_card_hooks   *card;
+    pa_sink_hooks   *sink;
+    pa_source_hooks *source;
+
+    pa_assert(u);
+    pa_assert_se((core = u->core));
+    pa_assert_se((hooks = core->hooks));
+
+    tracker = pa_xnew0(pa_tracker, 1);
+    card   = &tracker->card;
+    sink   = &tracker->sink;
+    source = &tracker->source;
+
+    /* card */
+    card->put     = pa_hook_connect(
+                        hooks + PA_CORE_HOOK_CARD_PUT,
+                        PA_HOOK_LATE, card_put, u
+                    );
+    card->unlink  = pa_hook_connect(
+                        hooks + PA_CORE_HOOK_CARD_UNLINK,
+                        PA_HOOK_LATE, card_unlink, u
+                    );
+    card->profchg = pa_hook_connect(
+                        hooks + PA_CORE_HOOK_CARD_PROFILE_CHANGED,
+                        PA_HOOK_LATE, card_profile_changed, u
+                    );
+    /* sink */
+    sink->put       = pa_hook_connect(
+                          hooks + PA_CORE_HOOK_SINK_PUT,
+                          PA_HOOK_LATE, sink_put, u
+                      );
+    sink->unlink    = pa_hook_connect(
+                          hooks + PA_CORE_HOOK_SINK_UNLINK,
+                          PA_HOOK_LATE, sink_unlink, u
+                      );
+    sink->portchg   = pa_hook_connect(
+                          hooks + PA_CORE_HOOK_SINK_PORT_CHANGED,
+                          PA_HOOK_LATE, sink_port_changed, u
+                      );
+    sink->portavail = pa_hook_connect(
+                          hooks + PA_CORE_HOOK_PORT_AVAILABLE_CHANGED,
+                          PA_HOOK_LATE, sink_port_available_changed, u
+                      );    
+    /* source */
+    source->put       = pa_hook_connect(
+                            hooks + PA_CORE_HOOK_SOURCE_PUT,
+                            PA_HOOK_LATE, source_put, u
+                        );
+    source->unlink    = pa_hook_connect(
+                            hooks + PA_CORE_HOOK_SOURCE_UNLINK,
+                            PA_HOOK_LATE, source_unlink, u
+                        );
+    source->portchg   = pa_hook_connect(
+                            hooks + PA_CORE_HOOK_SOURCE_PORT_CHANGED,
+                            PA_HOOK_LATE, source_port_changed, u
+                        );
+    source->portavail = pa_hook_connect(
+                            hooks + PA_CORE_HOOK_PORT_AVAILABLE_CHANGED,
+                            PA_HOOK_LATE, source_port_available_changed, u
+                        );
+    
+    return tracker;
+}
+
+void pa_tracker_done(struct userdata *u)
+{
+    pa_tracker      *tracker;
+    pa_card_hooks   *card;
+    pa_sink_hooks   *sink;
+    pa_source_hooks *source;
+
+    pa_assert(u);
+    pa_assert_se((tracker = u->tracker));
+
+    card = &tracker->card;
+    pa_hook_slot_free(card->put);
+    pa_hook_slot_free(card->unlink);
+    pa_hook_slot_free(card->profchg);
+
+    sink = &tracker->sink;
+    pa_hook_slot_free(sink->put);
+    pa_hook_slot_free(sink->unlink);
+    pa_hook_slot_free(sink->portchg);
+    pa_hook_slot_free(sink->portavail);
+
+    source = &tracker->source;
+    pa_hook_slot_free(source->put);
+    pa_hook_slot_free(source->unlink);
+    pa_hook_slot_free(source->portchg);
+    pa_hook_slot_free(source->portavail);
+    
+
+    pa_xfree(tracker);
+}
+
+void pa_tracker_synchronize(struct userdata *u)
+{
+    pa_core   *core;
+    pa_card   *card;
+    pa_sink   *sink;
+    pa_source *source;
+    uint32_t   index;
+
+    pa_assert(u);
+    pa_assert_se((core = u->core));
+
+    pa_utils_new_stamp();
+
+    PA_IDXSET_FOREACH(card, core->cards, index) {
+        pa_discover_add_card(u, card);
+    }
+
+    PA_IDXSET_FOREACH(sink, core->sinks, index) {
+        pa_discover_add_sink(u, sink);
+    }
+
+    PA_IDXSET_FOREACH(source, core->sources, index) {
+        pa_discover_add_source(u, source);
+    }
+
+}
+
+
+static pa_hook_result_t card_put(void *hook_data,
+                                 void *call_data,
+                                 void *slot_data)
+{
+    pa_card *card = (pa_card *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(card);
+
+    pa_utils_new_stamp();
+    pa_discover_add_card(u, card);
+
+    return PA_HOOK_OK;
+}
+
+static pa_hook_result_t card_unlink(void *hook_data,
+                                    void *call_data,
+                                    void *slot_data)
+{
+    pa_card  *card = (pa_card *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(card);
+
+    pa_discover_remove_card(u, card);
+
+    return PA_HOOK_OK;
+}
+
+
+static pa_hook_result_t card_profile_changed(void *hook_data,
+                                             void *call_data,
+                                             void *slot_data)
+{
+    pa_card  *card = (pa_card *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(card);
+
+    pa_utils_new_stamp();
+    pa_discover_profile_changed(u, card);
+
+    return PA_HOOK_OK;
+}
+
+
+static pa_hook_result_t sink_put(void *hook_data,
+                                 void *call_data,
+                                 void *slot_data)
+{
+    pa_sink *sink = (pa_sink *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(sink);
+
+    pa_utils_new_stamp();
+    pa_discover_add_sink(u, sink);
+
+    return PA_HOOK_OK;
+}
+
+
+static pa_hook_result_t sink_unlink(void *hook_data,
+                                    void *call_data,
+                                    void *slot_data)
+{
+    pa_sink *sink = (pa_sink *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(sink);
+
+    pa_discover_remove_sink(u, sink);
+
+    return PA_HOOK_OK;
+}
+
+
+static pa_hook_result_t sink_port_changed(void *hook_data,
+                                          void *call_data,
+                                          void *slot_data)
+{
+    pa_sink *sink = (pa_sink *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(sink);
+
+    return PA_HOOK_OK;
+}
+
+static pa_hook_result_t sink_port_available_changed(void *hook_data,
+                                                    void *call_data,
+                                                    void *slot_data)
+{
+    pa_sink *sink = (pa_sink *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(sink);
+
+    return PA_HOOK_OK;
+}
+
+
+static pa_hook_result_t source_put(void *hook_data,
+                                   void *call_data,
+                                   void *slot_data)
+{
+    pa_source *source = (pa_source *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(source);
+
+    pa_utils_new_stamp();
+    pa_discover_add_source(u, source);
+
+    return PA_HOOK_OK;
+}
+
+
+static pa_hook_result_t source_unlink(void *hook_data,
+                                      void *call_data,
+                                      void *slot_data)
+{
+    pa_source *source = (pa_source *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(source);
+
+    pa_discover_remove_source(u, source);
+
+    return PA_HOOK_OK;
+}
+
+
+static pa_hook_result_t source_port_changed(void *hook_data,
+                                            void *call_data,
+                                            void *slot_data)
+{
+    pa_source *source = (pa_source *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(source);
+
+    return PA_HOOK_OK;
+}
+
+static pa_hook_result_t source_port_available_changed(void *hook_data,
+                                                      void *call_data,
+                                                      void *slot_data)
+{
+    pa_source *source = (pa_source *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(source);
+
+    return PA_HOOK_OK;
+}
+
+
+/*
+ * Local Variables:
+ * c-basic-offset: 4
+ * indent-tabs-mode: nil
+ * End:
+ *
+ */
+

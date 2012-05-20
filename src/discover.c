@@ -16,8 +16,8 @@
 
 #include "discover.h"
 #include "node.h"
-#include "card-ext.h"
 #include "audiomgr.h"
+#include "utils.h"
 
 #define MAX_CARD_TARGET   4
 #define MAX_NAME_LENGTH   256
@@ -37,27 +37,45 @@ static void destroy_node(struct userdata *, mir_node *);
 static void parse_profile_name(pa_card_profile *,
                                char **, char **, char *, int);
 
+static char *node_key_from_card(struct userdata *, mir_direction,
+                                void *, char *, size_t);
+
+
 static void classify_node_by_card(mir_node *, pa_card *,
                                   pa_card_profile *, pa_device_port *);
 static void guess_node_type_and_name(mir_node *, const char *, const char *);
 
 
+static void pa_hashmap_node_free(void *node, void *u)
+{
+    mir_node_destroy(u, node);
+}
+
 
 struct pa_discover *pa_discover_init(struct userdata *u)
 {
-    pa_discover *dsc = pa_xnew0(pa_discover, 1);
+    pa_discover *discover = pa_xnew0(pa_discover, 1);
 
-    dsc->chmin = 1;
-    dsc->chmax = 2;
-    dsc->selected = TRUE;
+    discover->chmin = 1;
+    discover->chmax = 2;
+    discover->selected = TRUE;
 
-    dsc->nodes = pa_hashmap_new(pa_idxset_string_hash_func,
-                                pa_idxset_string_compare_func);
-    return dsc;
+    discover->nodes.byname = pa_hashmap_new(pa_idxset_string_hash_func,
+                                            pa_idxset_string_compare_func);
+    discover->nodes.byptr  = pa_hashmap_new(pa_idxset_trivial_hash_func,
+                                            pa_idxset_trivial_compare_func);
+    return discover;
 }
 
 void pa_discover_done(struct userdata *u)
 {
+    pa_discover *discover;
+
+    if (u && (discover = u->discover)) {
+        pa_hashmap_free(discover->nodes.byname, pa_hashmap_node_free,u);
+        pa_hashmap_free(discover->nodes.byptr, NULL,NULL);
+        pa_xfree(discover);
+    }
 }
 
 void pa_discover_domain_up(struct userdata *u)
@@ -69,7 +87,7 @@ void pa_discover_domain_up(struct userdata *u)
     pa_assert(u);
     pa_assert_se((discover = u->discover));
 
-    PA_HASHMAP_FOREACH(node, discover->nodes, state) {
+    PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
         node->amid = AM_ID_INVALID;
 
         if (node->visible && node->available)
@@ -88,9 +106,9 @@ void pa_discover_add_card(struct userdata *u, pa_card *card)
     pa_assert(u);
     pa_assert(card);
 
-    if ((bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS)) == NULL) {
+    if (!(bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS))) {
         pa_log_debug("ignoring card '%s' due to lack of '%s' property",
-                     pa_card_ext_get_name(card), PA_PROP_DEVICE_BUS);
+                     pa_utils_get_card_name(card), PA_PROP_DEVICE_BUS);
         return;
     }
 
@@ -104,7 +122,7 @@ void pa_discover_add_card(struct userdata *u, pa_card *card)
     }
 
     pa_log_debug("ignoring card '%s' due to unsupported bus type '%s'",
-                 pa_card_ext_get_name(card), bus);
+                 pa_utils_get_card_name(card), bus);
 }
 
 void pa_discover_remove_card(struct userdata *u, pa_card *card)
@@ -117,7 +135,7 @@ void pa_discover_remove_card(struct userdata *u, pa_card *card)
     pa_assert(card);
     pa_assert_se((discover = u->discover));
 
-    PA_HASHMAP_FOREACH(node, discover->nodes, state) {
+    PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
         if (node->implement == mir_device &&
             node->pacard.index == card->index)
         {
@@ -144,7 +162,8 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 
     if ((bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS)) == NULL) {
         pa_log_debug("ignoring profile change on card '%s' due to lack of '%s'"
-                     "property",pa_card_ext_get_name(card),PA_PROP_DEVICE_BUS);
+                     "property", pa_utils_get_card_name(card),
+                     PA_PROP_DEVICE_BUS);
         return;
     }
 
@@ -154,7 +173,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 
     if (!pci && !usb && !bluetooth) {
         pa_log_debug("ignoring profile change on card '%s' due to unsupported "
-                     "bus type '%s'", pa_card_ext_get_name(card), bus);
+                     "bus type '%s'", pa_utils_get_card_name(card), bus);
     }
 
     if (bluetooth) {
@@ -165,11 +184,11 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
         pa_log_debug("alsa profile changed to '%s' on card '%s'",
                      card->active_profile->name, card->name);
 
-        stamp = pa_policy_get_stamp();
+        stamp = pa_utils_get_stamp();
  
         handle_alsa_card(u, card);
 
-        PA_HASHMAP_FOREACH(node, discover->nodes, state) {
+        PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
             if (node->implement == mir_device &&
                 node->pacard.index == card->index &&
                 node->stamp < stamp)
@@ -181,15 +200,118 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 
 }
 
+void pa_discover_add_sink(struct userdata *u, pa_sink *sink)
+{
+    pa_discover    *discover;
+    mir_node       *node;
+    pa_card        *card;
+    char           *key;
+    char            buf[256];
+
+    pa_assert(u);
+    pa_assert(sink);
+    pa_assert_se((discover = u->discover));
+
+    if ((card = sink->card)) {
+        if (!(key = node_key_from_card(u, mir_output, sink, buf, sizeof(buf))))
+            return;
+        if (!(node = pa_discover_find_node(u, key))) {
+            pa_log_debug("can't find node for sink (key '%s')", key);
+            return;
+        }
+        pa_log_debug("node for '%s' found. Updating with sink data",
+                     node->paname);
+        node->paidx = sink->index;
+        pa_hashmap_put(discover->nodes.byptr, sink, node);
+    }
+}
+
+
+void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
+{
+    pa_discover    *discover;
+    mir_node       *node;
+    char           *name;
+
+    pa_assert(u);
+    pa_assert(sink);
+    pa_assert_se((discover = u->discover));
+
+    name = pa_utils_get_sink_name(sink);
+
+    if (!(node = pa_hashmap_get(discover->nodes.byptr, sink)))
+        pa_log_debug("can't find node for sink (name '%s')", name);
+    else {
+        pa_log_debug("node found. Reseting sink data");
+        node->paidx = PA_IDXSET_INVALID;
+        pa_hashmap_remove(discover->nodes.byptr, sink);
+    }
+}
+
+
+void pa_discover_add_source(struct userdata *u, pa_source *source)
+{
+    pa_discover    *discover;
+    mir_node       *node;
+    pa_card        *card;
+    char           *key;
+    char            buf[256];
+
+    pa_assert(u);
+    pa_assert(source);
+    pa_assert_se((discover = u->discover));
+
+    if ((card = source->card)) {
+        if (!(key = node_key_from_card(u, mir_output,source, buf,sizeof(buf))))
+            return;
+        if (!(node = pa_discover_find_node(u, key))) {
+            pa_log_debug("can't find node for source (key '%s')", key);
+            return;
+        }
+        pa_log_debug("node for '%s' found. Updating with source data",
+                     node->amname);
+        node->paidx = source->index;
+        pa_hashmap_put(discover->nodes.byptr, source, node);
+    }
+}
+
+
+void pa_discover_remove_source(struct userdata *u, pa_source *source)
+{
+    pa_discover    *discover;
+    mir_node       *node;
+    char           *name;
+
+    pa_assert(u);
+    pa_assert(source);
+    pa_assert_se((discover = u->discover));
+
+    name = pa_utils_get_source_name(source);
+
+    if (!(node = pa_hashmap_get(discover->nodes.byptr, source)))
+        pa_log_debug("can't find node for source (name '%s')", name);
+    else {
+        pa_log_debug("node found. Reseting source data");
+        node->paidx = PA_IDXSET_INVALID;
+        pa_hashmap_remove(discover->nodes.byptr, source);
+    }
+}
+
+
 mir_node *pa_discover_find_node(struct userdata *u, const char *key)
 {
     pa_discover *discover;
+    mir_node    *node;
 
     pa_assert(u);
-    pa_assert(key);
     pa_assert_se((discover = u->discover));
 
-    return pa_hashmap_get(discover->nodes, key);
+    if (key)
+        node = pa_hashmap_get(discover->nodes.byname, key);
+    else
+        node = NULL;
+
+    return node;
 }
 
 
@@ -205,9 +327,9 @@ static void handle_alsa_card(struct userdata *u, pa_card *card)
     data.amid = AM_ID_INVALID;
     data.implement = mir_device;
     data.paidx = PA_IDXSET_INVALID;
-    data.stamp = pa_policy_get_stamp();
+    data.stamp = pa_utils_get_stamp();
 
-    cnam = pa_card_ext_get_name(card);
+    cnam = pa_utils_get_card_name(card);
     udd  = pa_proplist_gets(card->proplist, "module-udev-detect.discovered");
 
     if (udd && pa_streq(udd, "1")) {
@@ -258,9 +380,9 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     data.amname = amname;
     data.amdescr = (char *)cdescr;
     data.pacard.index = card->index;
-    data.stamp = pa_policy_get_stamp();
+    data.stamp = pa_utils_get_stamp();
 
-    cnam = pa_card_ext_get_name(card);
+    cnam = pa_utils_get_card_name(card);
 
     if (!strncmp(cnam, "bluez_card.", 11)) { 
         cid = cnam + 11;
@@ -453,13 +575,13 @@ static mir_node *create_node(struct userdata *u, mir_node *data,
     pa_assert(data->paname);
     pa_assert_se((discover = u->discover));
     
-    if ((node = pa_hashmap_get(discover->nodes, data->key)))
+    if ((node = pa_hashmap_get(discover->nodes.byname, data->key)))
         created = FALSE;
     else {
         created = TRUE;
 
         node = mir_node_create(u, data);
-        pa_hashmap_put(discover->nodes, node->key, node);
+        pa_hashmap_put(discover->nodes.byname, node->key, node);
 
         mir_node_print(node, buf, sizeof(buf));
         pa_log_debug("new node:\n%s", buf);
@@ -482,7 +604,7 @@ static void destroy_node(struct userdata *u, mir_node *node)
     pa_assert_se((discover = u->discover));
 
     if (node) {
-        removed = pa_hashmap_remove(discover->nodes, node->key);
+        removed = pa_hashmap_remove(discover->nodes.byname, node->key);
 
         if (node != removed) {
             if (removed)
@@ -564,6 +686,72 @@ static void parse_profile_name(pa_card_profile *prof,
             return;
         }
     } while (*p);
+}
+
+
+static char *node_key_from_card(struct userdata *u, mir_direction direction,
+                                void *data, char *buf, size_t len)
+{
+    pa_card        *card;
+    pa_device_port *port;
+    const char     *bus;
+    pa_bool_t       pci;
+    pa_bool_t       usb;
+    pa_bool_t       bluetooth;
+    char           *type;
+    char           *name;
+    char           *key;
+
+    pa_assert(u);
+    pa_assert(data);
+    pa_assert(direction == mir_input || direction == mir_output);
+
+    if (direction == mir_input) {
+        pa_sink *sink = data;
+        type  = "sink";
+        name  = pa_utils_get_sink_name(sink);
+        card  = sink->card;
+        port  = sink->active_port;
+    }
+    else {
+        pa_source *source = data;
+        type = "source";
+        name = pa_utils_get_source_name(source);
+        card = source->card;
+        port = source->active_port;
+    }
+
+    if (!card)
+        return NULL;
+
+    if (!(bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS))) {
+        pa_log_debug("ignoring %s '%s' due to lack of '%s' property "
+                     "on its card", type, name, PA_PROP_DEVICE_BUS);
+        return NULL;
+    }
+    
+    pci = pa_streq(bus, "pci");
+    usb = pa_streq(bus, "usb");
+    bluetooth = pa_streq(bus, "bluetooth");
+    
+    if (!pci && !usb && !bluetooth) {
+        pa_log_debug("ignoring %s '%s' due to unsupported bus type '%s' "
+                     "of its card", type, name, bus);
+        return NULL;
+    }
+    
+    if (bluetooth)
+        key = name;
+    else {
+        if (!port)
+            key = name;
+        else {
+            key = buf;
+            snprintf(buf, len, "%s@%s", name, port->name);
+        }
+    }
+
+    return key;
 }
 
 

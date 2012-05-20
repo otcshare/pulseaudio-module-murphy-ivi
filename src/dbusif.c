@@ -134,13 +134,17 @@ static pa_bool_t send_message_with_reply(struct userdata *,
 static DBusHandlerResult filter(DBusConnection *, DBusMessage *, void *);
 
 static void handle_admin_message(struct userdata *, DBusMessage *);
+#if 0
 static void handle_info_message(struct userdata *, DBusMessage *);
 static void handle_action_message(struct userdata *, DBusMessage *);
+#endif
 
 static void murphy_registration_cb(struct userdata *, const char *,
                                    DBusMessage *, void *);
 static pa_bool_t register_to_murphy(struct userdata *);
+#if 0
 static int  signal_status(struct userdata *, uint32_t, uint32_t);
+#endif
 
 static DBusHandlerResult audiomgr_method_handler(DBusConnection *,
                                                  DBusMessage *, void *);
@@ -373,6 +377,180 @@ void pa_policy_dbusif_done(struct userdata *u)
     }
 }
 
+
+static DBusHandlerResult filter(DBusConnection *conn, DBusMessage *msg,
+                                void *arg)
+{
+    struct userdata  *u = arg;
+
+    if (dbus_message_is_signal(msg, ADMIN_DBUS_INTERFACE,
+                               ADMIN_NAME_OWNER_CHANGED))
+    {
+        handle_admin_message(u, msg);
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    }
+
+
+#if 0
+    if (dbus_message_is_signal(msg, POLICY_DBUS_INTERFACE,POLICY_STREAM_INFO)){
+        handle_info_message(u, msg);
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+
+    if (dbus_message_is_signal(msg, POLICY_DBUS_INTERFACE, POLICY_ACTIONS)) {
+        handle_action_message(u, msg);
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+#endif
+
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+}
+
+
+static void handle_admin_message(struct userdata *u, DBusMessage *msg)
+{
+    struct pa_policy_dbusif *dbusif;
+    char                    *name;
+    char                    *before;
+    char                    *after;
+    int                      success;
+
+    pa_assert(u);
+    pa_assert_se((dbusif = u->dbusif));
+
+    success = dbus_message_get_args(msg, NULL,
+                                    DBUS_TYPE_STRING, &name,
+                                    DBUS_TYPE_STRING, &before,
+                                    DBUS_TYPE_STRING, &after,
+                                    DBUS_TYPE_INVALID);
+
+    if (!success || !name) {
+        pa_log("Received malformed '%s' message", ADMIN_NAME_OWNER_CHANGED);
+        return;
+    }
+
+    if (!strcmp(name, dbusif->mrpnam)) {
+        if (after && strcmp(after, "")) {
+            pa_log_debug("murphy is up");
+
+            if (!dbusif->mregist) {
+                register_to_murphy(u);
+            }
+        }
+
+        if (name && before && (!after || !strcmp(after, ""))) {
+            pa_log_info("murphy is gone");
+            dbusif->mregist = 0;
+        } 
+    } else
+
+    if (!strcmp(name, dbusif->amnam)) {
+        if (after && strcmp(after, "")) {
+            pa_log_debug("audio manager is up");
+
+            if (!dbusif->amisup) {
+                register_to_audiomgr(u);
+            }
+        }
+
+        if (name && before && (!after || !strcmp(after, ""))) {
+            pa_log_info("audio manager is gone");
+
+            if (dbusif->amisup)
+                unregister_from_audiomgr(u);
+
+            dbusif->amisup = 0;
+        } 
+    }
+}
+
+
+static void reply_cb(DBusPendingCall *pend, void *data)
+{
+    struct pending          *pdata = (struct pending *)data;
+    struct userdata         *u;
+    struct pa_policy_dbusif *dbusif;
+    DBusMessage             *reply;
+
+    pa_assert(pdata);
+    pa_assert(pdata->call == pend);
+    pa_assert_se((u = pdata->u));
+    pa_assert_se((dbusif = u->dbusif));
+
+    PA_LLIST_REMOVE(struct pending, dbusif->pendlist, pdata);
+
+    if ((reply = dbus_pending_call_steal_reply(pend)) == NULL) {
+        pa_log("%s: Murphy pending call '%s' failed: invalid argument",
+               __FILE__, pdata->method);
+    }
+    else {
+        pdata->cb(u, pdata->method, reply, pdata->data);
+        dbus_message_unref(reply);
+    }
+
+    pa_xfree((void *)pdata->method);
+    pa_xfree((void *)pdata);
+}
+
+static pa_bool_t send_message_with_reply(struct userdata *u,
+                                         DBusConnection  *conn,
+                                         DBusMessage     *msg,
+                                         pending_cb_t     cb,
+                                         void            *data)
+{
+    struct pa_policy_dbusif  *dbusif;
+    struct pending           *pdata = NULL;
+    const char               *method;
+    DBusPendingCall          *pend;
+
+    pa_assert(u);
+    pa_assert(conn);
+    pa_assert(msg);
+    pa_assert(cb);
+    pa_assert_se((dbusif = u->dbusif));
+
+    if ((method = dbus_message_get_member(msg)) == NULL)
+        goto failed;
+
+    pdata = pa_xnew0(struct pending, 1);
+    pdata->u      = u;
+    pdata->method = pa_xstrdup(method);
+    pdata->cb     = cb;
+    pdata->data   = data;
+
+    PA_LLIST_PREPEND(struct pending, dbusif->pendlist, pdata);
+
+    if (!dbus_connection_send_with_reply(conn, msg, &pend, -1)) {
+        pa_log("%s: Failed to %s", __FILE__, method);
+        goto failed;
+    }
+
+    pdata->call = pend;
+
+    if (!dbus_pending_call_set_notify(pend, reply_cb,pdata, NULL)) {
+        pa_log("%s: Can't set notification for %s", __FILE__, method);
+        goto failed;
+    }
+
+
+    return TRUE;
+
+ failed:
+    if (pdata) {
+        PA_LLIST_REMOVE(struct pending, dbusif->pendlist, pdata);
+        pa_xfree((void *)pdata->method);
+        pa_xfree((void *)pdata);
+    }
+    return FALSE;
+}
+
+
+/**************************************************************************
+ *
+ * Murphy interfaces
+ *
+ */
+#if 0
 void pa_policy_dbusif_send_device_state(struct userdata *u, char *state,
                                         char **types, int ntype)
 {
@@ -460,176 +638,9 @@ void pa_policy_dbusif_send_media_status(struct userdata *u, const char *media,
         dbus_message_unref(msg);
     }
 }
+#endif
 
-static DBusHandlerResult filter(DBusConnection *conn, DBusMessage *msg,
-                                void *arg)
-{
-    struct userdata  *u = arg;
-
-    if (dbus_message_is_signal(msg, ADMIN_DBUS_INTERFACE,
-                               ADMIN_NAME_OWNER_CHANGED))
-    {
-        handle_admin_message(u, msg);
-        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-    }
-
-
-    if (dbus_message_is_signal(msg, POLICY_DBUS_INTERFACE,POLICY_STREAM_INFO)){
-        handle_info_message(u, msg);
-        return DBUS_HANDLER_RESULT_HANDLED;
-    }
-
-    if (dbus_message_is_signal(msg, POLICY_DBUS_INTERFACE, POLICY_ACTIONS)) {
-        handle_action_message(u, msg);
-        return DBUS_HANDLER_RESULT_HANDLED;
-    }
-
-    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-}
-
-
-static void reply_cb(DBusPendingCall *pend, void *data)
-{
-    struct pending          *pdata = (struct pending *)data;
-    struct userdata         *u;
-    struct pa_policy_dbusif *dbusif;
-    DBusMessage             *reply;
-
-    pa_assert(pdata);
-    pa_assert(pdata->call == pend);
-    pa_assert_se((u = pdata->u));
-    pa_assert_se((dbusif = u->dbusif));
-
-    PA_LLIST_REMOVE(struct pending, dbusif->pendlist, pdata);
-
-    if ((reply = dbus_pending_call_steal_reply(pend)) == NULL) {
-        pa_log("%s: Murphy pending call '%s' failed: invalid argument",
-               __FILE__, pdata->method);
-    }
-    else {
-        pdata->cb(u, pdata->method, reply, pdata->data);
-        dbus_message_unref(reply);
-    }
-
-    pa_xfree((void *)pdata->method);
-    pa_xfree((void *)pdata);
-}
-
-static pa_bool_t send_message_with_reply(struct userdata *u,
-                                         DBusConnection  *conn,
-                                         DBusMessage     *msg,
-                                         pending_cb_t     cb,
-                                         void            *data)
-{
-    struct pa_policy_dbusif  *dbusif;
-    struct pending           *pdata = NULL;
-    const char               *method;
-    DBusPendingCall          *pend;
-
-    pa_assert(u);
-    pa_assert(conn);
-    pa_assert(msg);
-    pa_assert(cb);
-    pa_assert_se((dbusif = u->dbusif));
-
-    if ((method = dbus_message_get_member(msg)) == NULL)
-        goto failed;
-
-    pdata = pa_xnew0(struct pending, 1);
-    pdata->u      = u;
-    pdata->method = pa_xstrdup(method);
-    pdata->cb     = cb;
-    pdata->data   = data;
-
-    PA_LLIST_PREPEND(struct pending, dbusif->pendlist, pdata);
-
-    if (!dbus_connection_send_with_reply(conn, msg, &pend, -1)) {
-        pa_log("%s: Failed to %s", __FILE__, method);
-        goto failed;
-    }
-
-    pdata->call = pend;
-
-    if (!dbus_pending_call_set_notify(pend, reply_cb,pdata, NULL)) {
-        pa_log("%s: Can't set notification for %s", __FILE__, method);
-        goto failed;
-    }
-
-
-    return TRUE;
-
- failed:
-    if (pdata) {
-        PA_LLIST_REMOVE(struct pending, dbusif->pendlist, pdata);
-        pa_xfree((void *)pdata->method);
-        pa_xfree((void *)pdata);
-    }
-    return FALSE;
-}
-
-
-static void handle_admin_message(struct userdata *u, DBusMessage *msg)
-{
-    struct pa_policy_dbusif *dbusif;
-    char                    *name;
-    char                    *before;
-    char                    *after;
-    int                      success;
-
-    pa_assert(u);
-    pa_assert_se((dbusif = u->dbusif));
-
-    success = dbus_message_get_args(msg, NULL,
-                                    DBUS_TYPE_STRING, &name,
-                                    DBUS_TYPE_STRING, &before,
-                                    DBUS_TYPE_STRING, &after,
-                                    DBUS_TYPE_INVALID);
-
-    if (!success || !name) {
-        pa_log("Received malformed '%s' message", ADMIN_NAME_OWNER_CHANGED);
-        return;
-    }
-
-    if (!strcmp(name, dbusif->mrpnam)) {
-        if (after && strcmp(after, "")) {
-            pa_log_debug("murphy is up");
-
-            if (!dbusif->mregist) {
-                register_to_murphy(u);
-            }
-        }
-
-        if (name && before && (!after || !strcmp(after, ""))) {
-            pa_log_info("murphy is gone");
-            dbusif->mregist = 0;
-        } 
-    } else
-
-    if (!strcmp(name, dbusif->amnam)) {
-        if (after && strcmp(after, "")) {
-            pa_log_debug("audio manager is up");
-
-            if (!dbusif->amisup) {
-                register_to_audiomgr(u);
-            }
-        }
-
-        if (name && before && (!after || !strcmp(after, ""))) {
-            pa_log_info("audio manager is gone");
-
-            if (dbusif->amisup)
-                unregister_from_audiomgr(u);
-
-            dbusif->amisup = 0;
-        } 
-    }
-}
-
-/**************************************************************************
- *
- * Murphy interfaces
- *
- */
+#if 0
 static void handle_info_message(struct userdata *u, DBusMessage *msg)
 {
     dbus_uint32_t  txid;
@@ -793,6 +804,7 @@ static void handle_action_message(struct userdata *u, DBusMessage *msg)
  send_signal:
     signal_status(u, txid, success);
 }
+#endif
 
 static void murphy_registration_cb(struct userdata *u,
                                    const char      *method,
@@ -872,6 +884,7 @@ static pa_bool_t register_to_murphy(struct userdata *u)
 }
 
 
+#if 0
 static int signal_status(struct userdata *u, uint32_t txid, uint32_t status)
 {
     struct pa_policy_dbusif *dbusif = u->dbusif;
@@ -927,6 +940,8 @@ static int signal_status(struct userdata *u, uint32_t txid, uint32_t status)
     dbus_message_unref(msg);    /* should cope with NULL msg */
     return -1;
 }
+#endif
+
 
 /**************************************************************************
  *
@@ -1432,7 +1447,6 @@ static void audiomgr_unregister_node_cb(struct userdata *u,
                                         void            *data)
 {
     const char      *error_descr;
-    dbus_uint16_t    object_id;
     dbus_uint16_t    status;
     int              success;
     const char      *objtype;
@@ -1469,9 +1483,9 @@ static void audiomgr_unregister_node_cb(struct userdata *u,
                 objtype = method;
 
             pa_log_info("AudioManager replied to %s deregistration: %u",
-                        objtype, object_id);
+                        objtype, status);
 
-            pa_audiomgr_node_unregistered(u, object_id, data);
+            pa_audiomgr_node_unregistered(u, data);
         }
     }
 }

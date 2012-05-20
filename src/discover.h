@@ -39,12 +39,15 @@ typedef struct pa_discover {
     /*
      * cirtreria for filtering sinks and sources
      */
-    unsigned    chmin;    /**< minimum of max channels */
-    unsigned    chmax;    /**< maximum of max channels */
-    pa_bool_t   selected; /**< for alsa cards: whether to consider the
-                               selected profile alone.
-                               for bluetooth cards: no effect */
-    pa_hashmap *nodes;
+    unsigned        chmin;    /**< minimum of max channels */
+    unsigned        chmax;    /**< maximum of max channels */
+    pa_bool_t       selected; /**< for alsa cards: whether to consider the
+                                   selected profile alone.
+                                   for bluetooth cards: no effect */
+    struct {
+        pa_hashmap *byname;
+        pa_hashmap *byptr;
+    }               nodes;
 } pa_discover;
 
 
@@ -57,6 +60,12 @@ void pa_discover_domain_down(struct userdata *);
 void pa_discover_add_card(struct userdata *, pa_card *);
 void pa_discover_remove_card(struct userdata *, pa_card *);
 void pa_discover_profile_changed(struct userdata *, pa_card *);
+
+void pa_discover_add_sink(struct userdata *, pa_sink *);
+void pa_discover_remove_sink(struct userdata *, pa_sink *);
+
+void pa_discover_add_source(struct userdata *, pa_source *);
+void pa_discover_remove_source(struct userdata *, pa_source *);
 
 mir_node *pa_discover_find_node(struct userdata *, const char *);
 

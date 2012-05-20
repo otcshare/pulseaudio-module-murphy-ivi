@@ -18,6 +18,7 @@
 #include "sink-ext.h"
 #include "classify.h"
 #include "context.h"
+#include "discover.h"
 
 /* hooks */
 static pa_hook_result_t sink_input_neew(void *, void *, void *);
@@ -368,6 +369,7 @@ static void handle_removed_sink_input(struct userdata      *u,
         pa_policy_context_unregister(u, pa_policy_object_sink_input,
                                      snam, sinp, sinp->index);
         pa_policy_group_remove_sink_input(u, sinp->index);
+
 
         if ((ext = pa_index_hash_remove(u->hsi, idx)) == NULL)
             pa_log("no extension found for sink-input '%s' (idx=%u)",snam,idx);

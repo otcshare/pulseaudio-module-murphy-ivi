@@ -16,6 +16,7 @@
 #include "context.h"
 #include "policy-group.h"
 #include "dbusif.h"
+#include "discover.h"
 
 /* hooks */
 static pa_hook_result_t sink_put(void *, void *, void *);
@@ -326,6 +327,8 @@ static void handle_new_sink(struct userdata *u, struct pa_sink *sink)
         }
 
         pa_policy_context_register(u, pa_policy_object_sink, name, sink);
+
+        pa_discover_add_sink(u, sink);
 
         if (len <= 0) {
             if (!is_null_sink)
