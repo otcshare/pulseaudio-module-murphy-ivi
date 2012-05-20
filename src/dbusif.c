@@ -8,12 +8,6 @@
 
 #include "userdata.h"
 #include "dbusif.h"
-#include "classify.h"
-#include "context.h"
-#include "policy-group.h"
-#include "sink-ext.h"
-#include "source-ext.h"
-#include "card-ext.h"
 #include "audiomgr.h"
 
 #define ADMIN_DBUS_MANAGER          "org.freedesktop.DBus"
