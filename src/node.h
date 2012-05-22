@@ -96,6 +96,7 @@ typedef struct mir_node {
     mir_node_type   type;     /**< mir_speakers | mir_headset | ...  */
     pa_bool_t       visible;  /**< internal or can appear on UI  */
     pa_bool_t       available;/**< eg. is the headset connected?  */
+    pa_bool_t       ignore;   /**< do not consider it while routing  */
     char           *amname;   /**< audiomanager name */
     char           *amdescr;  /**< UI description */
     uint16_t        amid;     /**< handle to audiomanager, if any */

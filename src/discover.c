@@ -157,14 +157,15 @@ void pa_discover_remove_card(struct userdata *u, pa_card *card)
 
 void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 {
-    pa_discover *discover;
-    const char  *bus;
-    pa_bool_t    pci;
-    pa_bool_t    usb;
-    pa_bool_t    bluetooth;
-    uint32_t     stamp;
-    mir_node    *node;
-    void        *state;
+    pa_card_profile *prof;
+    pa_discover     *discover;
+    const char      *bus;
+    pa_bool_t        pci;
+    pa_bool_t        usb;
+    pa_bool_t        bluetooth;
+    uint32_t         stamp;
+    mir_node        *node;
+    void            *state;
     
     pa_assert(u);
     pa_assert(card);
@@ -188,8 +189,21 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
     }
 
     if (bluetooth) {
+        pa_assert_se((prof = card->active_profile));
+
         pa_log_debug("bluetooth profile changed to '%s' on card '%s'",
-                     card->active_profile->name, card->name);
+                     prof->name, card->name);
+        
+        if (!prof->n_sinks && !prof->n_sources) {
+            /* switched of but not unloaded yet */
+            PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
+                if (node->implement == mir_device &&
+                    node->pacard.index == card->index)
+                {
+                    node->available = FALSE;
+                }
+            }
+        }
     }
     else {
         pa_log_debug("alsa profile changed to '%s' on card '%s'",
@@ -217,6 +231,7 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
     mir_node       *node;
     pa_card        *card;
     char           *key;
+    mir_node_type   type;
     char            buf[256];
 
     pa_assert(u);
@@ -235,14 +250,14 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         node->paidx = sink->index;
         pa_hashmap_put(discover->nodes.byptr, sink, node);
 
+        type = node->type;
+
         if (route) {
-            if (node->type == mir_bluetooth_a2dp ||
-                node->type == mir_bluetooth_sco)
-            {
-                schedule_deferred_routing(u);
-            }
-            else {
+            if (type != mir_bluetooth_a2dp && type != mir_bluetooth_sco)
                 mir_router_make_routing(u);
+            else {
+                if (!u->state.profile)
+                    schedule_deferred_routing(u);
             }
         }
     }
@@ -257,6 +272,7 @@ void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
     pa_discover    *discover;
     mir_node       *node;
     char           *name;
+    mir_node_type   type;
 
     pa_assert(u);
     pa_assert(sink);
@@ -270,6 +286,20 @@ void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
         pa_log_debug("node found for '%s'. Reseting sink data", name);
         node->paidx = PA_IDXSET_INVALID;
         pa_hashmap_remove(discover->nodes.byptr, sink);
+
+        type = node->type;
+
+        if (sink->card) {
+            if (type != mir_bluetooth_a2dp && type != mir_bluetooth_sco)
+                node->available = FALSE;
+            else {
+                if (!u->state.profile)
+                    schedule_deferred_routing(u);
+            }
+        }
+        else {
+            pa_log_info("currently we do not support statically loaded sinks");
+        }
     }
 }
 
@@ -881,6 +911,7 @@ static char *node_key_from_card(struct userdata *u, mir_direction direction,
     pa_bool_t        bluetooth;
     char            *type;
     char            *name;
+    const char      *profile_name;
     char            *key;
 
     pa_assert(u);
@@ -907,6 +938,13 @@ static char *node_key_from_card(struct userdata *u, mir_direction direction,
         
     pa_assert_se((profile = card->active_profile));
 
+    if (u->state.profile)
+        profile_name = u->state.profile;
+    else
+        profile_name = profile->name;
+        
+    profile_name = u->state.profile ? u->state.profile : profile->name;
+
     if (!(bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS))) {
         pa_log_debug("ignoring %s '%s' due to lack of '%s' property "
                      "on its card", type, name, PA_PROP_DEVICE_BUS);
@@ -925,7 +963,7 @@ static char *node_key_from_card(struct userdata *u, mir_direction direction,
     
     if (bluetooth) {
         key = buf;
-        snprintf(buf, len, "%s@%s", name, profile->name);
+        snprintf(buf, len, "%s@%s", name, profile_name);
     }
     else {
         if (!port)

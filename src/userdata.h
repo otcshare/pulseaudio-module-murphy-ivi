@@ -19,6 +19,14 @@ typedef struct pa_discover       pa_discover;
 typedef struct pa_router         pa_router;
 typedef struct pa_mir_config     pa_mir_config;
 
+typedef struct {
+    char *profile;    /**< During profile change it contains the new profile
+                           name. Otherwise it is NULL. When sink tracking
+                           hooks called the card's active_profile still
+                           points to the old profile */
+} pa_mir_state;
+
+
 struct userdata {
     pa_core           *core;
     pa_module         *module;
@@ -29,6 +37,7 @@ struct userdata {
     pa_tracker        *tracker;
     pa_router         *router;
     pa_mir_config     *config;
+    pa_mir_state       state;
 };
 
 #endif

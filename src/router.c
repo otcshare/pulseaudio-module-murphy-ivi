@@ -456,6 +456,11 @@ static mir_node *route_stream(struct userdata *u, mir_node *source)
             continue;
         }
         
+        if (sink->ignore) {
+            pa_log_debug("   '%s' should be ignored", sink->amname);
+            continue;
+        }
+
         if (!sink->available) {
             pa_log_debug("   '%s' not available", sink->amname);
             continue;

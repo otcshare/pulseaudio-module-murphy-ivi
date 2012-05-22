@@ -275,8 +275,6 @@ static pa_hook_result_t sink_unlink(void *hook_data,
 
     pa_discover_remove_sink(u, sink);
 
-    mir_router_make_routing(u);
-
     return PA_HOOK_OK;
 }
 

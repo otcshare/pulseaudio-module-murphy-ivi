@@ -44,7 +44,18 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
         if (!pa_streq(to->pacard.profile, prof->name)) {
             pa_log_debug("changing profile '%s' => '%s'",
                          prof->name, to->pacard.profile);
+
+            if (u->state.profile) {
+                pa_log("nested profile setting is not allowed. won't change "
+                       "'%s' => '%s'", prof->name, to->pacard.profile);
+                return FALSE;
+            }
+
+            u->state.profile = to->pacard.profile;
+
             pa_card_set_profile(card, to->pacard.profile, FALSE);
+
+            u->state.profile = NULL;            
         }
     }
 
