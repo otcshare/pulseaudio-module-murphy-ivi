@@ -6,6 +6,7 @@
 #include "tracker.h"
 #include "utils.h"
 #include "discover.h"
+#include "router.h"
 
 static pa_hook_result_t card_put(void *, void *, void *);
 static pa_hook_result_t card_unlink(void *, void *, void *);
@@ -118,32 +119,34 @@ void pa_tracker_done(struct userdata *u)
     pa_source_hooks     *source;
     pa_sink_input_hooks *sinp;
 
-    pa_assert(u);
-    pa_assert_se((tracker = u->tracker));
+    if (u && (tracker = u->tracker)) {
 
-    card = &tracker->card;
-    pa_hook_slot_free(card->put);
-    pa_hook_slot_free(card->unlink);
-    pa_hook_slot_free(card->profchg);
+        card = &tracker->card;
+        pa_hook_slot_free(card->put);
+        pa_hook_slot_free(card->unlink);
+        pa_hook_slot_free(card->profchg);
+        
+        sink = &tracker->sink;
+        pa_hook_slot_free(sink->put);
+        pa_hook_slot_free(sink->unlink);
+        pa_hook_slot_free(sink->portchg);
+        pa_hook_slot_free(sink->portavail);
+        
+        source = &tracker->source;
+        pa_hook_slot_free(source->put);
+        pa_hook_slot_free(source->unlink);
+        pa_hook_slot_free(source->portchg);
+        pa_hook_slot_free(source->portavail);
+        
+        sinp = &tracker->sink_input;
+        pa_hook_slot_free(sinp->neew);
+        pa_hook_slot_free(sinp->put);
+        pa_hook_slot_free(sinp->unlink);
 
-    sink = &tracker->sink;
-    pa_hook_slot_free(sink->put);
-    pa_hook_slot_free(sink->unlink);
-    pa_hook_slot_free(sink->portchg);
-    pa_hook_slot_free(sink->portavail);
-
-    source = &tracker->source;
-    pa_hook_slot_free(source->put);
-    pa_hook_slot_free(source->unlink);
-    pa_hook_slot_free(source->portchg);
-    pa_hook_slot_free(source->portavail);
-    
-    sinp = &tracker->sink_input;
-    pa_hook_slot_free(sinp->neew);
-    pa_hook_slot_free(sinp->put);
-    pa_hook_slot_free(sinp->unlink);
-
-    pa_xfree(tracker);
+        pa_xfree(tracker);
+        
+        u->tracker = NULL;
+    }
 }
 
 void pa_tracker_synchronize(struct userdata *u)
@@ -165,7 +168,7 @@ void pa_tracker_synchronize(struct userdata *u)
     }
 
     PA_IDXSET_FOREACH(sink, core->sinks, index) {
-        pa_discover_add_sink(u, sink);
+        pa_discover_add_sink(u, sink, FALSE);
     }
 
     PA_IDXSET_FOREACH(source, core->sources, index) {
@@ -176,6 +179,7 @@ void pa_tracker_synchronize(struct userdata *u)
         pa_discover_add_sink_input(u, sinp);
     }
 
+    mir_router_make_routing(u);
 }
 
 
@@ -201,11 +205,17 @@ static pa_hook_result_t card_unlink(void *hook_data,
 {
     pa_card  *card = (pa_card *)call_data;
     struct userdata *u = (struct userdata *)slot_data;
+    char buf[4096];
 
     pa_assert(u);
     pa_assert(card);
 
     pa_discover_remove_card(u, card);
+
+    mir_router_print_rtgroups(u, buf, sizeof(buf));
+    pa_log_debug("%s", buf);
+
+    mir_router_make_routing(u);
 
     return PA_HOOK_OK;
 }
@@ -234,12 +244,20 @@ static pa_hook_result_t sink_put(void *hook_data,
 {
     pa_sink *sink = (pa_sink *)call_data;
     struct userdata *u = (struct userdata *)slot_data;
+    char buf[4096];
 
     pa_assert(u);
     pa_assert(sink);
 
     pa_utils_new_stamp();
-    pa_discover_add_sink(u, sink);
+    pa_discover_add_sink(u, sink, TRUE);
+
+    /*
+    mir_router_print_rtgroups(u, buf, sizeof(buf));
+    pa_log_debug("%s", buf);
+
+    mir_router_make_routing(u);
+    */
 
     return PA_HOOK_OK;
 }
@@ -256,6 +274,8 @@ static pa_hook_result_t sink_unlink(void *hook_data,
     pa_assert(sink);
 
     pa_discover_remove_sink(u, sink);
+
+    mir_router_make_routing(u);
 
     return PA_HOOK_OK;
 }
@@ -377,7 +397,6 @@ static pa_hook_result_t sink_input_put(void *hook_data,
 
     pa_utils_new_stamp();
     pa_discover_add_sink_input(u, sinp);
-
 
     return PA_HOOK_OK;
 }

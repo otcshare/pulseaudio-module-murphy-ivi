@@ -82,7 +82,13 @@ static char *sink_input_name(pa_proplist *pl)
 
 const char *pa_utils_file_path(const char *file, char *buf, size_t len)
 {
-    snprintf(buf, len, "%s/x%s", DEFAULT_CONFIG_DIR, file);
+    /*
+    pa_assert(file);
+    pa_assert(buf);
+    pa_assert(len > 0);
+    */
+
+    snprintf(buf, len, "%s/%s", DEFAULT_CONFIG_DIR, file);
 
     return buf;
 }

@@ -63,7 +63,7 @@ void pa_discover_add_card(struct userdata *, pa_card *);
 void pa_discover_remove_card(struct userdata *, pa_card *);
 void pa_discover_profile_changed(struct userdata *, pa_card *);
 
-void pa_discover_add_sink(struct userdata *, pa_sink *);
+void pa_discover_add_sink(struct userdata *, pa_sink *, pa_bool_t);
 void pa_discover_remove_sink(struct userdata *, pa_sink *);
 
 void pa_discover_add_source(struct userdata *, pa_source *);

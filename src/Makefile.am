@@ -5,11 +5,12 @@ module_genivi_mir_la_SOURCES = \
 			tracker.c \
 			node.c \
 			discover.c \
+			router.c \
+			switch.c \
 			audiomgr.c \
 			dbusif.c \
+			config.c \
 			utils.c
-
-AM_CFLAGS = -g3 -O0
 
 module_genivi_mir_la_LDFLAGS = -module -avoid-version -Wl,--no-undefined
 module_genivi_mir_la_LIBADD = $(AM_LIBADD) $(DBUS_LIBS) $(LIBPULSE_LIBS) $(PULSEDEVEL_LIBS)

@@ -1,0 +1,23 @@
+#ifndef foomirswitchfoo
+#define foomirswitchfoo
+
+#include <sys/types.h>
+
+#include "userdata.h"
+
+typedef struct mir_node mir_node;
+
+pa_bool_t mir_switch_setup_link(struct userdata *, mir_node *, mir_node *,
+                                pa_bool_t);
+
+
+#endif  /* foomirswitchfoo */
+
+
+/*
+ * Local Variables:
+ * c-basic-offset: 4
+ * indent-tabs-mode: nil
+ * End:
+ *
+ */

@@ -9,6 +9,7 @@
 
 #include "node.h"
 #include "discover.h"
+#include "router.h"
 
 
 mir_node *mir_node_create(struct userdata *u, mir_node *data)
@@ -37,6 +38,7 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     node->paname    = pa_xstrdup(data->paname);
     node->paidx     = data->paidx;
     node->stamp     = data->stamp;
+    MIR_DLIST_INIT(node->rtentries);
     
     if (node->implement == mir_device) {
         node->pacard.index   = data->pacard.index;
@@ -45,6 +47,8 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
         if (data->paport)
             node->paport = pa_xstrdup(data->paport);
     }
+
+    mir_router_register_node(u, node);
     
     return node;
 }
@@ -54,6 +58,7 @@ void mir_node_destroy(struct userdata *u, mir_node *node)
     pa_assert(u);
 
     if (node) {
+        mir_router_unregister_node(u, node);
 
         pa_xfree(node->key);
         pa_xfree(node->amname);

@@ -90,6 +90,7 @@ void pa_audiomgr_done(struct userdata *u)
         pa_hashmap_free(am->nodes, NULL,NULL);
         pa_xfree((void *)am->domain.name);
         pa_xfree(am);
+        u->audiomgr = NULL;
     }
 }
 

@@ -4,7 +4,7 @@
 #include <sys/types.h>
 
 #include "userdata.h"
-
+#include "list.h"
 
 #define AM_ID_INVALID  65535
 
@@ -26,7 +26,7 @@ typedef enum {
     mir_external
 } mir_location;
 
-typedef enum {
+typedef enum mir_node_type {
     mir_node_type_unknown = 0,
 
     /* application classes */
@@ -103,6 +103,10 @@ typedef struct mir_node {
     uint32_t        paidx;    /**< sink|source|sink_input|source_output index*/
     pa_node_card    pacard;   /**< pulse card related data, if any  */
     char           *paport;   /**< sink or source port if applies */
+    mir_dlist       rtentries;/**< for devices: listhead of nodchain,
+                                   for streams: priority link (head is in
+                                                               pa_router )
+                              */
     uint32_t        stamp;
 } mir_node;
 

@@ -27,10 +27,16 @@
 
 #include "module-genivi-mir-symdef.h"
 #include "userdata.h"
+#include "tracker.h"
+#include "discover.h"
+#include "router.h"
 #include "audiomgr.h"
 #include "dbusif.h"
-#include "discover.h"
-#include "tracker.h"
+#include "config.h"
+
+#ifndef DEFAULT_CONFIG_FILE
+#define DEFAULT_CONFIG_FILE "genivi-mir.conf"
+#endif
 
 
 PA_MODULE_AUTHOR("Janos Kovacs");
@@ -72,6 +78,8 @@ int pa__init(pa_module *m) {
     const char      *ampath;
     const char      *amnam;
     const char      *nsnam;
+    const char      *cfgpath;
+    char             buf[4096];
     
     pa_assert(m);
     
@@ -81,7 +89,7 @@ int pa__init(pa_module *m) {
     }
 
     cfgdir  = pa_modargs_get_value(ma, "config_dir", NULL);
-    cfgfile = pa_modargs_get_value(ma, "config_file", NULL);
+    cfgfile = pa_modargs_get_value(ma, "config_file", DEFAULT_CONFIG_FILE);
     ifnam   = pa_modargs_get_value(ma, "dbus_if_name", NULL);
     mrppath = pa_modargs_get_value(ma, "dbus_murphy_path", NULL);
     mrpnam  = pa_modargs_get_value(ma, "dbus_murphy_name", NULL);
@@ -97,6 +105,8 @@ int pa__init(pa_module *m) {
     u->dbusif   = pa_policy_dbusif_init(u,ifnam, mrppath,mrpnam, ampath,amnam);
     u->discover = pa_discover_init(u);
     u->tracker  = pa_tracker_init(u);
+    u->router   = pa_router_init(u);
+    u->config   = pa_mir_config_init(u);
 
     if (/*u->nullsink == NULL ||*/ u->dbusif == NULL  ||
         u->audiomgr == NULL || u->discover == NULL)
@@ -104,7 +114,14 @@ int pa__init(pa_module *m) {
 
     m->userdata = u;
 
+    //cfgpath = pa_utils_file_path(cfgfile, buf, sizeof(buf));
+    cfgpath = cfgfile;
+    pa_mir_config_parse_file(u, cfgpath);
+
     pa_tracker_synchronize(u);
+
+    mir_router_print_rtgroups(u, buf, sizeof(buf));
+    pa_log_debug("%s", buf);
     
     pa_modargs_free(ma);
     
@@ -129,8 +146,10 @@ void pa__done(pa_module *m) {
     
         pa_tracker_done(u);
         pa_discover_done(u);
+        pa_router_done(u);
         pa_audiomgr_done(u);
         pa_policy_dbusif_done(u);
+        pa_mir_config_done(u);
 
         //pa_sink_ext_null_sink_free(u->nullsink);
 

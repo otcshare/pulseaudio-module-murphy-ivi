@@ -17,6 +17,7 @@
 #include "discover.h"
 #include "node.h"
 #include "audiomgr.h"
+#include "router.h"
 #include "utils.h"
 
 #define MAX_CARD_TARGET   4
@@ -52,6 +53,8 @@ static void guess_device_node_type_and_name(mir_node *, const char *,
                                             const char *);
 static mir_node_type guess_stream_node_type(pa_proplist *);
 
+static void schedule_deferred_routing(struct userdata *);
+
 
 static void pa_hashmap_node_free(void *node, void *u)
 {
@@ -82,6 +85,7 @@ void pa_discover_done(struct userdata *u)
         pa_hashmap_free(discover->nodes.byname, pa_hashmap_node_free,u);
         pa_hashmap_free(discover->nodes.byptr, NULL,NULL);
         pa_xfree(discover);
+        u->discover = NULL;
     }
 }
 
@@ -207,7 +211,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 
 }
 
-void pa_discover_add_sink(struct userdata *u, pa_sink *sink)
+void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
 {
     pa_discover    *discover;
     mir_node       *node;
@@ -226,10 +230,21 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink)
             pa_log_debug("can't find node for sink (key '%s')", key);
             return;
         }
-        pa_log_debug("node for '%s' found. Updating with sink data",
-                     node->paname);
+        pa_log_debug("node for '%s' found (key %s). Updating with sink data",
+                     node->paname, node->key);
         node->paidx = sink->index;
         pa_hashmap_put(discover->nodes.byptr, sink, node);
+
+        if (route) {
+            if (node->type == mir_bluetooth_a2dp ||
+                node->type == mir_bluetooth_sco)
+            {
+                schedule_deferred_routing(u);
+            }
+            else {
+                mir_router_make_routing(u);
+            }
+        }
     }
     else {
         pa_log_info("currently we do not support statically loaded sinks");
@@ -311,12 +326,17 @@ void pa_discover_remove_source(struct userdata *u, pa_source *source)
 void pa_discover_preroute_sink_input(struct userdata *u,
                                      pa_sink_input_new_data *data)
 {
+    pa_core       *core;
     pa_proplist   *pl;
     pa_discover   *discover;
     mir_node_type  type;
+    mir_node       fake;
+    mir_node      *target;
+    pa_sink       *sink;
     
     pa_assert(u);
     pa_assert(data);
+    pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = data->proplist));
 
@@ -324,7 +344,33 @@ void pa_discover_preroute_sink_input(struct userdata *u,
 
     set_stream_routing_properties(pl, type, data->sink);
 
-    pa_log_debug("### %p", data->sink);
+    if (!data->sink) {
+        memset(&fake, 0, sizeof(fake));
+        fake.direction = mir_input;
+        fake.implement = mir_stream;
+        fake.channels  = data->channel_map.channels;
+        fake.type      = type;
+        fake.visible   = TRUE;
+        fake.available = TRUE;
+        fake.amname    = "<preroute>";
+
+        target = mir_router_make_prerouting(u, &fake);
+
+        if (!target)
+            pa_log("there is no default route for the new stream");
+        else if (target->paidx == PA_IDXSET_INVALID)
+            pa_log("can't route to the default '%s': no sink", target->amname);
+        else {
+            if ((sink = pa_idxset_get_by_index(core->sinks, target->paidx))) {
+                if (!pa_sink_input_new_data_set_sink(data, sink, FALSE))
+                    pa_log("can't set sink %d for new sink-input",sink->index);
+            }
+            else {
+                pa_log("can't route to the default '%s': sink lookup failed",
+                       target->amname);
+            }
+        }
+    }
 }
 
 
@@ -1161,6 +1207,34 @@ static mir_node_type guess_stream_node_type(pa_proplist *pl)
         return rtype;
 
     return btype;
+}
+
+
+static void deferred_routing_cb(pa_mainloop_api *m, void *d)
+{
+    struct userdata *u = d;
+
+    (void)m;
+
+    pa_assert(u);
+
+    pa_log_debug("deferred routing starts");
+
+    mir_router_make_routing(u);
+}
+
+
+static void schedule_deferred_routing(struct userdata *u)
+{
+    pa_core *core;
+    pa_mainloop_api *a;
+
+    pa_assert(u);
+    pa_assert_se((core = u->core));
+
+    pa_log_debug("scheduling deferred routing");
+
+    pa_mainloop_api_once(core->mainloop, deferred_routing_cb, u);
 }
 
                                   

@@ -16,6 +16,8 @@ typedef struct pa_tracker        pa_tracker;
 typedef struct pa_audiomgr       pa_audiomgr;
 typedef struct pa_policy_dbusif  pa_policy_dbusif;
 typedef struct pa_discover       pa_discover;
+typedef struct pa_router         pa_router;
+typedef struct pa_mir_config     pa_mir_config;
 
 struct userdata {
     pa_core           *core;
@@ -25,6 +27,8 @@ struct userdata {
     pa_policy_dbusif  *dbusif;
     pa_discover       *discover;
     pa_tracker        *tracker;
+    pa_router         *router;
+    pa_mir_config     *config;
 };
 
 #endif

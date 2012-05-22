@@ -366,8 +366,9 @@ static void pa_policy_free_dbusif(struct pa_policy_dbusif *dbusif,
 
 void pa_policy_dbusif_done(struct userdata *u)
 {
-    if (u) {
+    if (u && u->dbusif) {
         pa_policy_free_dbusif(u->dbusif, u);
+        u->dbusif = NULL;
     }
 }
 
