@@ -29,13 +29,6 @@
 #define AUDIOMGR_SETSINKPROP_ACK    "ackSetSinkSoundProperty"
 
 
-typedef struct pa_policy_dbusif   pa_policy_dbusif;
-
-typedef struct am_domainreg_data  am_domainreg_data;
-typedef struct am_nodereg_data    am_nodereg_data;
-typedef struct am_nodeunreg_data  am_nodeunreg_data;
-typedef struct am_ack_data        am_ack_data;
-
 struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *, const char *,
                                                const char *, const char *,
                                                const char *, const char *);

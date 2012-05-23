@@ -960,12 +960,14 @@ static char *node_key_from_card(struct userdata *u, mir_direction direction,
         
     pa_assert_se((profile = card->active_profile));
 
-    if (u->state.profile)
-        profile_name = u->state.profile;
-    else
+    if (!u->state.profile)
         profile_name = profile->name;
+    else {
+        pa_log_debug("state.profile is not null. '%s' supresses '%s'",
+                     u->state.profile, profile->name);
+        profile_name = u->state.profile;
+    }
         
-    profile_name = u->state.profile ? u->state.profile : profile->name;
 
     if (!(bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS))) {
         pa_log_debug("ignoring %s '%s' due to lack of '%s' property "

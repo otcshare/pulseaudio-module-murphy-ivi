@@ -8,25 +8,25 @@
 
 #define AM_ID_INVALID  65535
 
-typedef enum {
+enum mir_direction {
     mir_direction_unknown,
     mir_input,
     mir_output
-} mir_direction;
+};
 
-typedef enum {
+enum mir_implement {
     mir_implementation_unknown = 0,
     mir_device,
     mir_stream
-} mir_implement;
+};
 
-typedef enum {
+enum mir_location {
     mir_location_unknown = 0,
     mir_internal,
     mir_external
-} mir_location;
+};
 
-typedef enum mir_node_type {
+enum mir_node_type {
     mir_node_type_unknown = 0,
 
     /* application classes */
@@ -60,19 +60,18 @@ typedef enum mir_node_type {
 
     /* extensions */
     mir_user_defined_start = 256
-} mir_node_type;
+};
 
-typedef enum {
+enum mir_privacy {
     mir_privacy_unknown = 0,
     mir_public,
     mir_private
-} mir_privacy;
+};
 
-
-typedef struct {
+struct pa_node_card {
     uint32_t  index;
     char     *profile;
-} pa_node_card;
+};
 
 
 /**
@@ -86,7 +85,7 @@ typedef struct {
  * @li      node is a pulseaudio stream. Such node in pulseaudio
  *          is either a sink_input or a source_output
  */
-typedef struct mir_node {
+struct mir_node {
     char           *key;      /**< hash key for discover lookups */
     mir_direction   direction;/**< mir_input | mir_output */
     mir_implement   implement;/**< mir_device | mir_stream */
@@ -109,7 +108,7 @@ typedef struct mir_node {
                                                                pa_router )
                               */
     uint32_t        stamp;
-} mir_node;
+};
 
 
 mir_node *mir_node_create(struct userdata *, mir_node *);

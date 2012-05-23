@@ -18,10 +18,8 @@
 #define E_WRONG_FORMAT    10
 
 
-typedef struct pa_audiomgr pa_audiomgr;
-typedef struct mir_node    mir_node;
 
-typedef struct am_domainreg_data {
+struct am_domainreg_data {
     uint16_t       domain_id;
     const char    *name;      /**< domain name in audio manager  */
     const char    *bus_name;  /**< audio manager's internal bus name
@@ -30,9 +28,9 @@ typedef struct am_domainreg_data {
     pa_bool_t      early;
     pa_bool_t      complete;
     uint16_t       state;
-} am_domainreg_data;
+};
 
-typedef struct am_nodereg_data {
+struct am_nodereg_data {
     const char  *key;        /* for node lookup's */
     uint16_t     id;
     const char  *name;
@@ -48,12 +46,12 @@ typedef struct am_nodereg_data {
     uint16_t     mute;
     uint16_t     mainvol;
     uint16_t     interrupt;  /* 1=off, 2=interrupted */
-} am_nodereg_data;
+};
 
-typedef struct am_nodeunreg_data {
+struct am_nodeunreg_data {
     uint16_t     id;
     const char  *name;
-} am_nodeunreg_data;
+};
 
 
 typedef struct am_connect_data {
@@ -64,12 +62,12 @@ typedef struct am_connect_data {
     int16_t      format;
 } am_connect_data;
 
-typedef struct am_ack_data {
+struct am_ack_data {
     uint32_t      handle;
     uint16_t      param1;
     uint16_t      param2;
     uint16_t      error;
-} am_ack_data;
+};
 
 
 pa_audiomgr *pa_audiomgr_init(struct userdata *);

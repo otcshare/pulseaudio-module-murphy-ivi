@@ -6,38 +6,34 @@
 #include "userdata.h"
 #include "list.h"
 
-typedef enum mir_node_type  mir_node_type;
-typedef struct mir_node     mir_node;
-typedef struct mir_rtgroup  mir_rtgroup;
-
 typedef pa_bool_t (*mir_rtgroup_accept_t)(struct userdata *, mir_rtgroup *,
                                           mir_node *);
 typedef int       (*mir_rtgroup_compare_t)(struct userdata *u,
                                            mir_node *, mir_node *);
 
-typedef struct pa_router {
+struct pa_router {
     pa_hashmap   *rtgroups;
     int           maplen;       /**< length of the class- and priormap */
     mir_rtgroup **classmap;     /**< to map device node types to rtgroups  */
     int          *priormap;     /**< stream node priorities */
     mir_dlist     nodlist;      /**< priorized list of the nodes  */
-} pa_router;
+};
 
 
-typedef struct mir_rtentry {
+struct mir_rtentry {
     mir_dlist    link;        /**< rtgroup chain */
     mir_dlist    nodchain;    /**< node chain */
     mir_node    *node;        /**< pointer to the owning node */
     bool         blocked;     /**< weather this routing entry is active */
     uint32_t     stamp;
-} mir_rtentry;
+};
 
-typedef struct mir_rtgroup {
+struct mir_rtgroup {
     char                 *name;     /**< name of the rtgroup  */
     mir_dlist             entries;  /**< listhead of ordered rtentries */
     mir_rtgroup_accept_t  accept;   /**< wheter to accept a node or not */
     mir_rtgroup_compare_t compare;  /**< comparision function for ordering */
-} mir_rtgroup;
+};
 
 
 pa_router *pa_router_init(struct userdata *);

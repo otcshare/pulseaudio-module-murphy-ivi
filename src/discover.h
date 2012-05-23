@@ -6,8 +6,6 @@
 
 #include "userdata.h"
 
-typedef struct pa_card  pa_card;
-typedef struct mir_node mir_node;
 
 #define PA_BIT(a)      (1UL << (a))
 
@@ -37,7 +35,7 @@ enum pa_form_factor {
 };
 #endif
 
-typedef struct pa_discover {
+struct pa_discover {
     /*
      * cirteria for filtering sinks and sources
      */
@@ -50,7 +48,7 @@ typedef struct pa_discover {
         pa_hashmap *byname;
         pa_hashmap *byptr;
     }               nodes;
-} pa_discover;
+};
 
 
 struct pa_discover *pa_discover_init(struct userdata *);

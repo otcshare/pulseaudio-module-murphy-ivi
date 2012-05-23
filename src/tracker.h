@@ -4,39 +4,39 @@
 #include "userdata.h"
 
 
-typedef struct pa_card_hooks {
+struct pa_card_hooks {
     pa_hook_slot    *put;
     pa_hook_slot    *unlink;
     pa_hook_slot    *profchg;
-} pa_card_hooks;
+};
 
-typedef struct pa_sink_hooks {
+struct pa_sink_hooks {
     pa_hook_slot    *put;
     pa_hook_slot    *unlink;
     pa_hook_slot    *portchg;
     pa_hook_slot    *portavail;
-} pa_sink_hooks;
+};
 
-typedef struct pa_source_hooks {
+struct pa_source_hooks {
     pa_hook_slot    *put;
     pa_hook_slot    *unlink;
     pa_hook_slot    *portchg;
     pa_hook_slot    *portavail;
-} pa_source_hooks;
+};
 
-typedef struct pa_sink_input_hooks {
+struct pa_sink_input_hooks {
     pa_hook_slot    *neew;
     pa_hook_slot    *put;
     pa_hook_slot    *unlink;
-} pa_sink_input_hooks;
+};
 
 
-typedef struct pa_tracker {
+struct pa_tracker {
     pa_card_hooks       card;
     pa_sink_hooks       sink;
     pa_source_hooks     source;
     pa_sink_input_hooks sink_input;
-} pa_tracker;
+};
 
 pa_tracker *pa_tracker_init(struct userdata *);
 void pa_tracker_done(struct userdata *);
