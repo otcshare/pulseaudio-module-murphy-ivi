@@ -326,6 +326,33 @@ pa_bool_t mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
     return accept;
 }
 
+
+pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
+                                  mir_node *node)
+{
+    mir_node_type class;
+
+    pa_assert(u);
+    pa_assert(rtg);
+    pa_assert(node);
+
+    class = node->type;
+
+    if (class >= mir_device_class_begin &&  class < mir_device_class_end) {
+        if (class != mir_bluetooth_a2dp  &&
+            class != mir_usb_headphone   &&
+            class != mir_wired_headphone &&
+            class != mir_hdmi            &&
+            class != mir_spdif             )
+        {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+
 int mir_router_default_compare(struct userdata *u, mir_node *n1, mir_node *n2)
 {
     uint32_t p1, p2;
@@ -345,6 +372,27 @@ int mir_router_default_compare(struct userdata *u, mir_node *n1, mir_node *n2)
 
     p1 = (p1 << 8) + ((n1->type - mir_device_class_begin) & 0xff);
     p2 = (p2 << 8) + ((n2->type - mir_device_class_begin) & 0xff);
+
+    return uint32_cmp(p1,p2);
+}
+
+
+int mir_router_phone_compare(struct userdata *u, mir_node *n1, mir_node *n2)
+{
+    uint32_t p1, p2;
+
+    (void)u;
+
+    pa_assert(n1);
+    pa_assert(n2);
+
+    if (n1->type == mir_null)
+        return -1;
+    if (n2->type == mir_null)
+        return 1;
+
+    p1 = (n1->privacy << 8) + ((n1->type - mir_device_class_begin) & 0xff);
+    p2 = (n2->privacy << 8) + ((n2->type - mir_device_class_begin) & 0xff);
 
     return uint32_cmp(p1,p2);
 }

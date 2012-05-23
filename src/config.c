@@ -21,6 +21,7 @@ typedef struct {
 
 rtgroup_def  rtgroups[] = {
     {"default", mir_router_default_accept, mir_router_default_compare},
+    {"phone"  , mir_router_phone_accept  , mir_router_phone_compare  },
     {   NULL  ,            NULL          ,              NULL         }
 };
 

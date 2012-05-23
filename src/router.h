@@ -56,7 +56,11 @@ int mir_router_print_rtgroups(struct userdata *, char *, int);
 
 pa_bool_t mir_router_default_accept(struct userdata *, mir_rtgroup *,
                                     mir_node *);
+pa_bool_t mir_router_phone_accept(struct userdata *, mir_rtgroup *,
+                                  mir_node *);
+
 int mir_router_default_compare(struct userdata *, mir_node *, mir_node *);
+int mir_router_phone_compare(struct userdata *, mir_node *, mir_node *);
 
 
 #endif  /* foomirrouterfoo */
