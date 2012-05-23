@@ -59,7 +59,7 @@ struct pending {
     void             *data;
 };
 
-typedef struct pa_policy_dbusif {
+struct pa_policy_dbusif {
     pa_dbus_connection *conn;
     char               *ifnam;    /* signal interface */
     char               *mrppath;  /* murphy signal path */
@@ -75,7 +75,7 @@ typedef struct pa_policy_dbusif {
     int                 mregist;  /* are we registered to murphy */
     int                 amisup;   /* is the audio manager up */
     PA_LLIST_HEAD(struct pending, pendlist);
-} pa_policy_dbusif;
+};
 
 
 

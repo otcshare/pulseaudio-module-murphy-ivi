@@ -27,11 +27,11 @@
 
 #define DEFAULT_NULL_SINK_NAME "null.mir"
 
-typedef struct pa_null_sink {
+struct pa_null_sink {
     char      *name;
     uint32_t   module_index;
     uint32_t   sink_index;
-} pa_null_sink;
+};
 
 
 static uint32_t stamp;
