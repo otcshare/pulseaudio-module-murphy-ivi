@@ -4,6 +4,13 @@
 #include <stdbool.h>
 #include <pulsecore/core.h>
 
+typedef struct pa_sink pa_sink;
+
+pa_null_sink *pa_utils_create_null_sink(struct userdata *, const char *);
+void pa_utils_destroy_null_sink(struct userdata *);
+pa_sink *pa_utils_get_null_sink(struct userdata *);
+
+
 char *pa_utils_get_card_name(pa_card *);
 char *pa_utils_get_sink_name(pa_sink *);
 char *pa_utils_get_source_name(pa_source *);

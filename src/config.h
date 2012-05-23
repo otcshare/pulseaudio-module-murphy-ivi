@@ -10,6 +10,7 @@ typedef struct pa_mir_config {
 pa_mir_config *pa_mir_config_init(struct userdata *);
 void pa_mir_config_done(struct userdata *);
 
+pa_bool_t pa_mir_config_parse_file(struct userdata *, const char *);
 
 
 #endif /* foomirconfigfoo */

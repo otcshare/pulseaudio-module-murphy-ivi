@@ -280,7 +280,8 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
 }
 
 
-void mir_router_make_routing(struct userdata *u) {
+void mir_router_make_routing(struct userdata *u)
+{
     static pa_bool_t ongoing_routing;
 
     pa_router     *router;

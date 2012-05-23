@@ -54,6 +54,8 @@ void mir_router_register_node(struct userdata *, mir_node *);
 void mir_router_unregister_node(struct userdata *, mir_node *);
 
 mir_node *mir_router_make_prerouting(struct userdata *, mir_node *);
+void mir_router_make_routing(struct userdata *);
+
 int mir_router_print_rtgroups(struct userdata *, char *, int);
 
 pa_bool_t mir_router_default_accept(struct userdata *, mir_rtgroup *,

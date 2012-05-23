@@ -33,6 +33,7 @@
 #include "audiomgr.h"
 #include "dbusif.h"
 #include "config.h"
+#include "utils.h"
 
 #ifndef DEFAULT_CONFIG_FILE
 #define DEFAULT_CONFIG_FILE "genivi-mir.conf"
@@ -100,7 +101,7 @@ int pa__init(pa_module *m) {
     u = pa_xnew0(struct userdata, 1);
     u->core     = m->core;
     u->module   = m;
-    //u->nullsink = pa_sink_ext_init_null_sink(nsnam);
+    u->nullsink = pa_utils_create_null_sink(u, nsnam);
     u->audiomgr = pa_audiomgr_init(u);
     u->dbusif   = pa_policy_dbusif_init(u,ifnam, mrppath,mrpnam, ampath,amnam);
     u->discover = pa_discover_init(u);
@@ -151,7 +152,7 @@ void pa__done(pa_module *m) {
         pa_policy_dbusif_done(u);
         pa_mir_config_done(u);
 
-        //pa_sink_ext_null_sink_free(u->nullsink);
+        pa_utils_destroy_null_sink(u);
 
         pa_xfree(u);
     }

@@ -232,6 +232,7 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
     pa_card        *card;
     char           *key;
     mir_node_type   type;
+    mir_node        data;
     char            buf[256];
 
     pa_assert(u);
@@ -262,7 +263,28 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         }
     }
     else {
-        pa_log_info("currently we do not support statically loaded sinks");
+        memset(&data, 0, sizeof(data));
+        data.key = pa_xstrdup(sink->name);
+        data.direction = mir_output;
+        data.implement = mir_device;
+        data.channels  = sink->channel_map.channels;
+
+        if (sink == pa_utils_get_null_sink(u)) {
+            data.visible = FALSE;
+            data.available = TRUE;
+            data.type = mir_null;
+            data.amname = pa_xstrdup("Silent");
+            data.amid = AM_ID_INVALID;
+            data.paname = pa_xstrdup(sink->name);
+            data.paidx = sink->index;
+        }
+        else {
+            pa_xfree(data.key); /* for now */
+            pa_log_info("currently we do not support statically loaded sinks");
+            return;
+        }
+
+        create_node(u, &data, NULL);
     }
 }
 
