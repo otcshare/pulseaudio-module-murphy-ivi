@@ -40,7 +40,7 @@ typedef struct am_domainreg_data     am_domainreg_data;
 typedef struct am_nodereg_data       am_nodereg_data;
 typedef struct am_nodeunreg_data     am_nodeunreg_data;
 typedef struct am_ack_data           am_ack_data;
-
+typedef struct am_connect_data       am_connect_data;
 
 
 

@@ -56,10 +56,10 @@ typedef struct {
 } domain_t;
 
 
-typedef struct pa_audiomgr {
+struct pa_audiomgr {
     domain_t      domain;
     pa_hashmap   *nodes;
-} pa_audiomgr;
+};
 
 
 static void *hash_key(mir_direction, uint16_t);

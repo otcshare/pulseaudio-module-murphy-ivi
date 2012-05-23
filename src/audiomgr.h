@@ -54,13 +54,13 @@ struct am_nodeunreg_data {
 };
 
 
-typedef struct am_connect_data {
+struct am_connect_data {
     uint16_t     handle;
     uint16_t     connection;
     uint16_t     source;
     uint16_t     sink;
     int16_t      format;
-} am_connect_data;
+};
 
 struct am_ack_data {
     uint32_t      handle;
