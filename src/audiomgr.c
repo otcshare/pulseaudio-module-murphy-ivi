@@ -13,6 +13,8 @@
 #include "audiomgr.h"
 #include "node.h"
 #include "discover.h"
+#include "router.h"
+#include "switch.h"             /* later we should talk just the router */
 #include "dbusif.h"
 
 #define AUDIOMGR_DOMAIN   "PULSE"
@@ -69,6 +71,8 @@ struct pa_audiomgr *pa_audiomgr_init(struct userdata *u)
 {
     /* pa_module *m = u->module; */
     pa_audiomgr *am;
+
+    pa_assert(u);
     
     am = pa_xnew0(pa_audiomgr, 1);
 
@@ -318,8 +322,29 @@ void pa_audiomgr_node_unregistered(struct userdata   *u,
 
 void pa_audiomgr_connect(struct userdata *u, am_connect_data *cd)
 {
-    struct am_ack_data  ad;
-    int err = E_OK;
+    pa_audiomgr *am;
+    am_ack_data  ad;
+    mir_node    *from = NULL;
+    mir_node    *to   = NULL;
+    int          err  = E_OK;
+
+    pa_assert(u);
+    pa_assert(cd);
+    pa_assert_se((am = u->audiomgr));
+
+    /* temporary hack: instead of switching we should setup an explicit route*/
+    if ((from = pa_hashmap_get(am->nodes, hash_key(mir_input, cd->source))) &&
+        (to   = pa_hashmap_get(am->nodes, hash_key(mir_output, cd->sink))))
+    {
+        pa_log_debug("routing '%s' => '%s'", from->amname, to->amname);
+        if (!mir_switch_setup_link(u, from, to, FALSE))
+            err = E_NOT_POSSIBLE;
+    }
+    else {
+        pa_log_debug("failed to connect: can't find node for %s %u",
+                     from ? "sink" : "source", from ? cd->sink : cd->source);
+        err = E_NON_EXISTENT;
+    }
 
     memset(&ad, 0, sizeof(ad));
     ad.handle = cd->handle;
@@ -331,8 +356,14 @@ void pa_audiomgr_connect(struct userdata *u, am_connect_data *cd)
 
 void pa_audiomgr_disconnect(struct userdata *u, am_connect_data *cd)
 {
-    struct am_ack_data  ad;
+    am_ack_data  ad;
     int err = E_OK;
+
+    pa_assert(u);
+    pa_assert(cd);
+
+    /* temporary hack: instead this we should delete an explicit route */
+    mir_router_make_routing(u);
 
     memset(&ad, 0, sizeof(ad));
     ad.handle = cd->handle;
