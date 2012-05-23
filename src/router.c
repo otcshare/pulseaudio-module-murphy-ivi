@@ -5,6 +5,9 @@
 
 #include <pulsecore/pulsecore-config.h>
 
+#include <pulse/proplist.h>
+#include <pulsecore/module.h>
+
 #include "router.h"
 #include "node.h"
 #include "switch.h"
@@ -12,6 +15,8 @@
 
 static void rtgroup_destroy(struct userdata *, mir_rtgroup *);
 static int rtgroup_print(mir_rtgroup *, char *, int);
+static void rtgroup_update_module_property(struct userdata *, mir_rtgroup *);
+
 
 static void add_rtentry(struct userdata *, mir_rtgroup *, mir_node *);
 static void remove_rtentry(struct userdata *, mir_rtentry *);
@@ -378,6 +383,22 @@ static int rtgroup_print(mir_rtgroup *rtg, char *buf, int len)
     return p - buf;
 }
 
+static void rtgroup_update_module_property(struct userdata *u,mir_rtgroup *rtg)
+{
+    pa_module *module;
+    char       key[64];
+    char       value[512];
+
+    pa_assert(u);
+    pa_assert(rtg);
+    pa_assert_se((module = u->module));
+
+    snprintf(key, sizeof(key), PA_PROP_ROUTING_TABLE ".%s", rtg->name);
+    rtgroup_print(rtg, value, sizeof(value));
+
+    pa_proplist_sets(module->proplist, key, value+1); /* skip ' '@beginning */
+}
+
 static void add_rtentry(struct userdata *u, mir_rtgroup *rtg, mir_node *node)
 {
     pa_router *router;
@@ -409,6 +430,7 @@ static void add_rtentry(struct userdata *u, mir_rtgroup *rtg, mir_node *node)
     MIR_DLIST_APPEND(mir_rtentry, link, rte, &rtg->entries);
 
  added:
+    rtgroup_update_module_property(u, rtg);
     pa_log_debug("node '%s' added to routing group '%s'",
                  node->amname, rtg->name);
 }
