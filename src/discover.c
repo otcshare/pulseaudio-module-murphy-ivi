@@ -23,6 +23,11 @@
 #define MAX_CARD_TARGET   4
 #define MAX_NAME_LENGTH   256
 
+typedef struct {
+    struct userdata *u;
+    uint32_t index;
+} card_check_t;
+
 
 static void handle_alsa_card(struct userdata *, pa_card *);
 static void handle_bluetooth_card(struct userdata *, pa_card *);
@@ -54,6 +59,7 @@ static void guess_device_node_type_and_name(mir_node *, const char *,
 static mir_node_type guess_stream_node_type(pa_proplist *);
 
 static void schedule_deferred_routing(struct userdata *);
+static void schedule_card_check(struct userdata *, pa_card *);
 
 
 static void pa_hashmap_node_free(void *node, void *u)
@@ -594,6 +600,7 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     char             paname[MAX_NAME_LENGTH+1];
     char             amname[MAX_NAME_LENGTH+1];
     char             key[MAX_NAME_LENGTH+1];
+    
 
     pa_assert_se((discover = u->discover));
 
@@ -647,6 +654,15 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
                 create_node(u, &data, NULL);
             }
         }
+
+        if (!(prof = card->active_profile))
+            pa_log("card '%s' has no active profile", card->name);
+        else {
+            pa_log_debug("card '%s' default profile '%s'",
+                         card->name, prof->name);
+        }
+
+        schedule_card_check(u, card);
     }
 }
 
@@ -1297,6 +1313,76 @@ static void schedule_deferred_routing(struct userdata *u)
     pa_log_debug("scheduling deferred routing");
 
     pa_mainloop_api_once(core->mainloop, deferred_routing_cb, u);
+}
+
+
+static void card_check_cb(pa_mainloop_api *m, void *d)
+{
+    card_check_t *cc = d;
+    struct userdata *u;
+    pa_core *core;
+    pa_card *card;
+    pa_sink *sink;
+    pa_source *source;
+    pa_discover *discover;
+    int n_sink, n_source;
+    uint32_t idx;
+
+    (void)m;
+
+    pa_assert(cc);
+    pa_assert((u = cc->u));
+    pa_assert((core = u->core));
+
+    pa_log_debug("card check starts");
+
+    if (!(card = pa_idxset_get_by_index(core->cards, cc->index)))
+        pa_log_debug("card %u is gone", cc->index);
+    else {
+        n_sink = n_source = 0;
+
+        PA_IDXSET_FOREACH(sink, core->sinks, idx) {
+            if ((sink->card) && sink->card->index == card->index)
+                n_sink++;
+        }
+
+        PA_IDXSET_FOREACH(source, core->sources, idx) {
+            if ((source->card) && source->card->index == card->index)
+                n_sink++;
+        }
+
+        if (n_sink || n_source) {
+            pa_log_debug("found %u sinks and %u sources belonging to "
+                         "'%s' card", n_sink, n_source, card->name);
+            pa_log_debug("nothing to do");
+        }
+        else {
+            pa_log_debug("card '%s' has no sinks/sources. Do routing ...",
+                         card->name);
+            mir_router_make_routing(u);
+        }
+    }
+    
+    pa_xfree(cc);
+}
+
+
+static void schedule_card_check(struct userdata *u, pa_card *card)
+{
+    pa_core *core;
+    card_check_t *cc;
+
+    pa_assert(u);
+    pa_assert(card);
+    pa_assert_se((core = u->core));
+
+    pa_log_debug("scheduling card check");
+
+    cc = pa_xnew0(card_check_t, 1);
+    cc->u = u;
+    cc->index = card->index;
+
+    pa_mainloop_api_once(core->mainloop, card_check_cb, cc);
 }
 
                                   
