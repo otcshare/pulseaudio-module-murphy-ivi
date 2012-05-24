@@ -1,6 +1,8 @@
 #ifndef fooaudiomgrfoo
 #define fooaudiomgrfoo
 
+#include <dbus/dbus.h>
+
 #include "userdata.h"
 
 
@@ -20,53 +22,53 @@
 
 
 struct am_domainreg_data {
-    uint16_t       domain_id;
+    dbus_uint16_t  domain_id;
     const char    *name;      /**< domain name in audio manager  */
     const char    *bus_name;  /**< audio manager's internal bus name
                                    (not to confuse this with D-Bus name)  */
-    const char    *node_name; /**< node name on audio manager's internal bus */
-    pa_bool_t      early;
-    pa_bool_t      complete;
-    uint16_t       state;
+    const char    *node_name; /**< node name on audio manager's internal bus*/
+    dbus_bool_t    early;
+    dbus_bool_t    complete;
+    dbus_uint16_t  state;
 };
 
 struct am_nodereg_data {
-    const char  *key;        /* for node lookup's */
-    uint16_t     id;
-    const char  *name;
-    uint16_t     domain;
-    uint16_t     class;
-    uint16_t     state;      /* 1=on, 2=off */
-    int16_t      volume;
-    bool         visible;
+    const char    *key;        /* for node lookup's */
+    dbus_uint16_t  id;
+    const char    *name;
+    dbus_uint16_t  domain;
+    dbus_uint16_t  class;
+    dbus_uint16_t  state;      /* 1=on, 2=off */
+    dbus_int16_t   volume;
+    dbus_bool_t    visible;
     struct {
-        int16_t  status;     /* 1=available, 2=unavailable */
-        int16_t  reason;     /* 1=newmedia, 2=same media, 3=nomedia */
+        dbus_int16_t  status; /* 1=available, 2=unavailable */
+        dbus_int16_t  reason; /* 1=newmedia, 2=same media, 3=nomedia */
     } avail;
-    uint16_t     mute;
-    uint16_t     mainvol;
-    uint16_t     interrupt;  /* 1=off, 2=interrupted */
+    dbus_uint16_t  mute;
+    dbus_uint16_t  mainvol;
+    dbus_uint16_t  interrupt;  /* 1=off, 2=interrupted */
 };
 
 struct am_nodeunreg_data {
-    uint16_t     id;
-    const char  *name;
+    dbus_uint16_t  id;
+    const char    *name;
 };
 
 
 struct am_connect_data {
-    uint16_t     handle;
-    uint16_t     connection;
-    uint16_t     source;
-    uint16_t     sink;
-    int16_t      format;
+    dbus_uint16_t  handle;
+    dbus_uint16_t  connection;
+    dbus_uint16_t  source;
+    dbus_uint16_t  sink;
+    dbus_int16_t   format;
 };
 
 struct am_ack_data {
-    uint32_t      handle;
-    uint16_t      param1;
-    uint16_t      param2;
-    uint16_t      error;
+    dbus_uint32_t  handle;
+    dbus_uint16_t  param1;
+    dbus_uint16_t  param2;
+    dbus_uint16_t  error;
 };
 
 
