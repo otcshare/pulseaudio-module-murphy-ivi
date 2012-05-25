@@ -3,11 +3,11 @@ m4_define(PAVER, regexp(FULL_PAVER, [\([0123456789.]+\).*], [\1]))
 
 AC_PREREQ(2.61)
 
-AC_INIT([pulseaudio-genivi-mir],[PAVER],[janos.f.kovacs@nokia.com])
+AC_INIT([pulseaudio-murphy-ivi],[PAVER],[janos.kovacs@intel.com])
 
 DOC_SUPPORT_INIT()
 
-AC_CONFIG_SRCDIR([src/module-genivi-mir.c])
+AC_CONFIG_SRCDIR([murphy/module-murphy-ivi.c])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([foreign 1.8.5 -Wall])
 
@@ -82,16 +82,12 @@ AC_ARG_WITH(
         AS_HELP_STRING([--with-module-dir],[Directory where to install the modules to (defaults to ${LIBDIR}/pulse-${PA_MAJORMINOR}/modules/]),
         [modlibexecdir=$withval], [modlibexecdir=${LIBDIR}/pulse-${PA_MAJORMINOR}/modules])
 
-PULSEAUDIO_HAS_PORTS=0
-echo -e "#include <pulsecore/pulsecore-config.h>\n #include <pulsecore/sink.h>\nint main() {\nreturn pa_sink_set_port((struct pa_sink *)0,\"\",0);\n}" | ${CC} ${CFLAGS} ${LIBPULSECORE_CFLAGS} ${LIBPULSE_CFLAGS} ${AM_LIBADD} ${LIBPULSECORE_LIBS} ${LIBPULSE_LIBS} -Wmissing-declarations -Werror -x c -c -o /dev/null - && PULSEAUDIO_HAS_PORTS=1
-AC_SUBST(PULSEAUDIO_HAS_PORTS)
-
 
 AC_SUBST(modlibexecdir)
 
 AC_CONFIG_FILES([
 	Makefile
-	src/Makefile
+	murphy/Makefile
 	doc/Makefile
 ])
 AC_OUTPUT
@@ -111,7 +107,6 @@ echo "
     LIBPULSECORE_CFLAGS:  ${LIBPULSECORE_CFLAGS}
     LIBPULSECORE_LIBS:    ${LIBPULSECORE_LIBS}
     MAJORMINOR:           ${PA_MAJORMINOR}
-    PULSEAUDIO_HAS_PORTS: ${PULSEAUDIO_HAS_PORTS}
     DBUS_CFLAGS:          ${DBUS_CFLAGS}
     DBUS_LIBS:            ${DBUS_LIBS}
     PD_SUPPORT:           ${PD_SUPPORT}

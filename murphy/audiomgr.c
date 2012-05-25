@@ -337,7 +337,7 @@ void pa_audiomgr_connect(struct userdata *u, am_connect_data *cd)
         (to   = pa_hashmap_get(am->nodes, hash_key(mir_output, cd->sink))))
     {
         pa_log_debug("routing '%s' => '%s'", from->amname, to->amname);
-        if (!mir_switch_setup_link(u, from, to, FALSE))
+        if (!mir_switch_setup_link(u, from, to))
             err = E_NOT_POSSIBLE;
     }
     else {

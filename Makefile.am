@@ -1,4 +1,4 @@
-SUBDIRS = src # doc
+SUBDIRS = murphy # doc
 
 MAINTAINERCLEANFILES = \
         Makefile.in src/Makefile.in config.h.in configure \

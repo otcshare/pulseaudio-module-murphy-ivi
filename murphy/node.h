@@ -103,6 +103,8 @@ struct mir_node {
     uint32_t        paidx;    /**< sink|source|sink_input|source_output index*/
     pa_node_card    pacard;   /**< pulse card related data, if any  */
     char           *paport;   /**< sink or source port if applies */
+    uint32_t        muxidx;   /**< for multiplexable input streams the index
+                                   of the combine module */
     mir_dlist       rtentries;/**< for devices: listhead of nodchain,
                                    for streams: priority link (head is in
                                                                pa_router )

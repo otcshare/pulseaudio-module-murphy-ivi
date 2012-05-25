@@ -6,8 +6,7 @@
 #include "userdata.h"
 
 
-pa_bool_t mir_switch_setup_link(struct userdata *, mir_node *, mir_node *,
-                                pa_bool_t);
+pa_bool_t mir_switch_setup_link(struct userdata *, mir_node *, mir_node *);
 
 
 #endif  /* foomirswitchfoo */

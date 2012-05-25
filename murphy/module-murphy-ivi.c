@@ -25,7 +25,7 @@
 #include <pulsecore/modargs.h>
 #include <pulsecore/log.h>
 
-#include "module-genivi-mir-symdef.h"
+#include "module-murphy-ivi-symdef.h"
 #include "userdata.h"
 #include "tracker.h"
 #include "discover.h"
@@ -36,12 +36,12 @@
 #include "utils.h"
 
 #ifndef DEFAULT_CONFIG_FILE
-#define DEFAULT_CONFIG_FILE "genivi-mir.conf"
+#define DEFAULT_CONFIG_FILE "murphy-ivi.conf"
 #endif
 
 
 PA_MODULE_AUTHOR("Janos Kovacs");
-PA_MODULE_DESCRIPTION("GenIVI and Murphy compliant audio policy module");
+PA_MODULE_DESCRIPTION("Murphy and GenIVI compliant audio policy module");
 PA_MODULE_VERSION(PACKAGE_VERSION);
 PA_MODULE_LOAD_ONCE(TRUE);
 PA_MODULE_USAGE(

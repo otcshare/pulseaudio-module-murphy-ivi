@@ -101,6 +101,7 @@ int mir_node_print(mir_node *node, char *buf, int len)
     PRINT("   pacard.profile: '%s'",  node->pacard.profile ?
                                       node->pacard.profile : "");
     PRINT("   paport        : '%s'",  node->paport ? node->paport : "");
+    PRINT("   muxidx        : %u"  ,  node->muxidx);
     PRINT("   stamp         : %u"  ,  node->stamp);
 
 #undef PRINT

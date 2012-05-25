@@ -233,6 +233,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 
 void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
 {
+    pa_module      *module;
     pa_discover    *discover;
     mir_node       *node;
     pa_card        *card;
@@ -244,6 +245,8 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
     pa_assert(u);
     pa_assert(sink);
     pa_assert_se((discover = u->discover));
+
+    module = sink->module;
 
     if ((card = sink->card)) {
         if (!(key = node_key_from_card(u, mir_output, sink, buf, sizeof(buf))))
@@ -268,12 +271,13 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
             }
         }
     }
-    else {
+    else if (!module || !pa_streq(module, "module-combine-sink")) {
         memset(&data, 0, sizeof(data));
         data.key = pa_xstrdup(sink->name);
         data.direction = mir_output;
         data.implement = mir_device;
         data.channels  = sink->channel_map.channels;
+        data.muxidx    = PA_IDXSET_INVALID;
 
         if (sink == pa_utils_get_null_sink(u)) {
             data.visible = FALSE;
@@ -434,12 +438,15 @@ void pa_discover_preroute_sink_input(struct userdata *u,
 
 void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
 {
+    static const char combine_pattern[] = "Simultaneous output on ";
+
     pa_proplist    *pl;
     pa_discover    *discover;
     mir_node        data;
     mir_node       *node;
     mir_node       *sinknod;
     char           *name;
+    const char     *media;
     mir_node_type   type;
     char            key[256];
     pa_bool_t       created;
@@ -449,12 +456,19 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = sinp->proplist));
 
+
+    if ((media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME)) &&
+        !strncmp(media, combine_pattern, sizeof(combine_pattern)-1))
+    {
+        pa_log_debug("handling new combine stream ...");
+        return;
+    }
+
     name = pa_utils_get_sink_input_name(sinp);
-    type = get_stream_routing_class(pl);
 
     pa_log_debug("dealing with new stream '%s'", name);
 
-    if (type == mir_node_type_unknown) {
+    if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
         if ((type = guess_stream_node_type(pl)) == mir_node_type_unknown) {
             pa_log_debug("cant find stream class for '%s'. "
                          "Leaving it alone", name);
@@ -463,7 +477,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
 
         set_stream_routing_properties(pl, type, NULL);
 
-        /* make some post-routing here */
+        /* if needed, make some post-routing here */
     }
 
     /* we need to add this to main hashmap as that is used for loop
@@ -568,6 +582,7 @@ static void handle_alsa_card(struct userdata *u, pa_card *card)
     data.implement = mir_device;
     data.paidx = PA_IDXSET_INVALID;
     data.stamp = pa_utils_get_stamp();
+    data.muxidx = PA_IDXSET_INVALID;
 
     cnam = pa_utils_get_card_name(card);
     udd  = pa_proplist_gets(card->proplist, "module-udev-detect.discovered");
@@ -621,6 +636,7 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     data.amname = amname;
     data.amdescr = (char *)cdescr;
     data.pacard.index = card->index;
+    data.muxidx = PA_IDXSET_INVALID;
     data.stamp = pa_utils_get_stamp();
 
     cnam = pa_utils_get_card_name(card);

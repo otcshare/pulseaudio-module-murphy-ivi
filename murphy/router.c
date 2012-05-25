@@ -270,16 +270,16 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
     MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, source, &router->nodlist) {
         if (priority >= node_priority(u, source)) {
             if ((target = route_stream(u, data)))
-                mir_switch_setup_link(u, NULL, target, TRUE);
+                mir_switch_setup_link(u, NULL, target);
             done = TRUE;
         }
 
         if ((sink = route_stream(u, source)))
-            mir_switch_setup_link(u, source, sink, FALSE);
+            mir_switch_setup_link(u, source, sink);
     }    
 
     if (!done && (target = route_stream(u, data)))
-        mir_switch_setup_link(u, NULL, target, TRUE);
+        mir_switch_setup_link(u, NULL, target);
 
     return target;
 }
@@ -303,7 +303,7 @@ void mir_router_make_routing(struct userdata *u)
 
     MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, source, &router->nodlist) {
         if ((sink = route_stream(u, source)))
-            mir_switch_setup_link(u, source, sink, FALSE);
+            mir_switch_setup_link(u, source, sink);
     }    
 
     ongoing_routing = FALSE;

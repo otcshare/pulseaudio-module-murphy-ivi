@@ -1,4 +1,4 @@
-PACKAGE := genivi-mir
+PACKAGE := pulseaudio-module-murphy-ivi
 VERSION := 1.1.10
 THISDIR := fedora
 
@@ -19,7 +19,7 @@ PKGDIR   := $(PACKAGE)-$(VERSION)
 # tarball type to use (git = HEAD, current = working copy)
 type      = current
 
-all: rpms cleanup
+all: rpms #cleanup
 
 #showvar:
 #	@echo "$(var) = $($(var))"
@@ -38,9 +38,9 @@ rpms: rmtar $(SPECFILE) tarball
 
 
 cleanup:
-#	rm -fr $(TMPDIR) && \
-#	rm -f $(SPECFILE)
-#	rm -f $(TARBALL)
+	rm -fr $(TMPDIR) && \
+	rm -f $(SPECFILE)
+	rm -f $(TARBALL)
 
 # rules to patch the SPEC file and build a source tarball
 $(SPECFILE): $(SPECFILE).in

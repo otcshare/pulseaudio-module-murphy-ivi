@@ -1,10 +1,10 @@
 Summary: Pulseaudio module for enforcing policy decisions in the audio domain
-Name: genivi-mir
+Name: pulseaudio-module-murphy-ivi
 Version:  ##__VERSION__##
 Release: 0
 License: LGPLv2.1
 Group: System Environment/Daemons
-URL: http://meego.gitorious.org/maemo-multimedia/pulseaudio-policy-enforcement
+URL: https://github.com/otcshare/pulseaudio-module-murphy-ivi
 Source0: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 BuildRequires: pulseaudio-module-devel
@@ -38,7 +38,7 @@ rm -f %{_libdir}/pulse-*/modules/module-*.la
 
     
 %clean
-rm -rf $RPM_BUILD_ROOT
+#rm -rf $RPM_BUILD_ROOT
 
 %post -p /sbin/ldconfig
 
