@@ -37,6 +37,7 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     node->amid      = data->amid;
     node->paname    = pa_xstrdup(data->paname);
     node->paidx     = data->paidx;
+    node->mux       = data->mux;
     node->stamp     = data->stamp;
     MIR_DLIST_INIT(node->rtentries);
     
@@ -74,10 +75,13 @@ void mir_node_destroy(struct userdata *u, mir_node *node)
 int mir_node_print(mir_node *node, char *buf, int len)
 {
     char *p, *e;
+    char mux[256];
 
     pa_assert(node);
     pa_assert(buf);
     pa_assert(len > 0);
+
+    pa_multiplex_print(node->mux, mux, sizeof(mux));
 
     e = (p = buf) + len;
 
@@ -101,7 +105,7 @@ int mir_node_print(mir_node *node, char *buf, int len)
     PRINT("   pacard.profile: '%s'",  node->pacard.profile ?
                                       node->pacard.profile : "");
     PRINT("   paport        : '%s'",  node->paport ? node->paport : "");
-    PRINT("   muxidx        : %u"  ,  node->muxidx);
+    PRINT("   mux           : %s"  ,  mux);
     PRINT("   stamp         : %u"  ,  node->stamp);
 
 #undef PRINT

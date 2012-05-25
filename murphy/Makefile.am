@@ -7,12 +7,13 @@ module_murphy_ivi_la_SOURCES = \
 			discover.c \
 			router.c \
 			switch.c \
+			multiplex.c \
 			audiomgr.c \
 			dbusif.c \
 			config.c \
 			utils.c
 
-#AM_CFLAGS = -pedantic
+AM_CFLAGS = -I..
 
 module_murphy_ivi_la_LDFLAGS = -module -avoid-version -Wl,--no-undefined
 module_murphy_ivi_la_LIBADD = $(AM_LIBADD) $(DBUS_LIBS) $(LIBPULSE_LIBS) $(PULSEDEVEL_LIBS)

@@ -4,6 +4,9 @@
 #include <stdbool.h>
 #include <pulsecore/core.h>
 
+#include "multiplex.h"
+
+
 #define PA_PROP_ROUTING_CLASS_NAME  "routing.class.name"
 #define PA_PROP_ROUTING_CLASS_ID    "routing.class.id"
 #define PA_PROP_ROUTING_METHOD      "routing.method"
@@ -62,6 +65,7 @@ struct userdata {
     pa_discover       *discover;
     pa_tracker        *tracker;
     pa_router         *router;
+    pa_multiplex      *multiplex;
     pa_mir_config     *config;
     pa_mir_state       state;
 };

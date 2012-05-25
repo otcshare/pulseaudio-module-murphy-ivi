@@ -30,6 +30,7 @@
 #include "tracker.h"
 #include "discover.h"
 #include "router.h"
+#include "multiplex.h"
 #include "audiomgr.h"
 #include "dbusif.h"
 #include "config.h"
@@ -99,15 +100,16 @@ int pa__init(pa_module *m) {
     nsnam   = pa_modargs_get_value(ma, "null_sink_name", NULL);
     
     u = pa_xnew0(struct userdata, 1);
-    u->core     = m->core;
-    u->module   = m;
-    u->nullsink = pa_utils_create_null_sink(u, nsnam);
-    u->audiomgr = pa_audiomgr_init(u);
-    u->dbusif   = pa_policy_dbusif_init(u,ifnam, mrppath,mrpnam, ampath,amnam);
-    u->discover = pa_discover_init(u);
-    u->tracker  = pa_tracker_init(u);
-    u->router   = pa_router_init(u);
-    u->config   = pa_mir_config_init(u);
+    u->core      = m->core;
+    u->module    = m;
+    u->nullsink  = pa_utils_create_null_sink(u, nsnam);
+    u->audiomgr  = pa_audiomgr_init(u);
+    u->dbusif    = pa_policy_dbusif_init(u,ifnam,mrppath,mrpnam,ampath,amnam);
+    u->discover  = pa_discover_init(u);
+    u->tracker   = pa_tracker_init(u);
+    u->router    = pa_router_init(u);
+    u->multiplex = pa_multiplex_init();
+    u->config    = pa_mir_config_init(u);
 
     if (/*u->nullsink == NULL ||*/ u->dbusif == NULL  ||
         u->audiomgr == NULL || u->discover == NULL)
@@ -151,6 +153,7 @@ void pa__done(pa_module *m) {
         pa_audiomgr_done(u);
         pa_policy_dbusif_done(u);
         pa_mir_config_done(u);
+        pa_multiplex_done(u->multiplex);
 
         pa_utils_destroy_null_sink(u);
 

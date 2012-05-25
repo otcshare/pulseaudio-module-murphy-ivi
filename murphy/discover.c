@@ -18,6 +18,7 @@
 #include "node.h"
 #include "audiomgr.h"
 #include "router.h"
+#include "multiplex.h"
 #include "utils.h"
 
 #define MAX_CARD_TARGET   4
@@ -277,7 +278,6 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         data.direction = mir_output;
         data.implement = mir_device;
         data.channels  = sink->channel_map.channels;
-        data.muxidx    = PA_IDXSET_INVALID;
 
         if (sink == pa_utils_get_null_sink(u)) {
             data.visible = FALSE;
@@ -389,8 +389,10 @@ void pa_discover_preroute_sink_input(struct userdata *u,
                                      pa_sink_input_new_data *data)
 {
     pa_core       *core;
+    pa_module     *module;
     pa_proplist   *pl;
     pa_discover   *discover;
+    pa_muxnode    *mux;
     mir_node_type  type;
     mir_node       fake;
     mir_node      *target;
@@ -401,10 +403,14 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = data->proplist));
+    pa_assert_se((module = data->module));
 
-    type = guess_stream_node_type(pl);
-
-    set_stream_routing_properties(pl, type, data->sink);
+    if (pa_streq(module->name, "module-combine-sink"))
+        type = mir_node_type_unknown;
+    else {
+        type = guess_stream_node_type(pl);
+        set_stream_routing_properties(pl, type, data->sink);
+    }
 
     if (!data->sink) {
         memset(&fake, 0, sizeof(fake));
@@ -424,6 +430,16 @@ void pa_discover_preroute_sink_input(struct userdata *u,
             pa_log("can't route to the default '%s': no sink", target->amname);
         else {
             if ((sink = pa_idxset_get_by_index(core->sinks, target->paidx))) {
+                if (1) {
+                    mux = pa_multiplex_new(u->multiplex, core, sink->index,
+                                           &data->channel_map, NULL);
+                    if (mux) {
+                        sink = pa_idxset_get_by_index(core->sinks,
+                                                      mux->sink_index);
+                        pa_assert(sink);
+                    }
+                }
+
                 if (!pa_sink_input_new_data_set_sink(data, sink, FALSE))
                     pa_log("can't set sink %d for new sink-input",sink->index);
             }
@@ -440,8 +456,11 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
 {
     static const char combine_pattern[] = "Simultaneous output on ";
 
+    pa_core        *core;
+    pa_sink        *s;
     pa_proplist    *pl;
     pa_discover    *discover;
+    pa_muxnode     *mux;
     mir_node        data;
     mir_node       *node;
     mir_node       *sinknod;
@@ -453,6 +472,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
 
     pa_assert(u);
     pa_assert(sinp);
+    pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = sinp->proplist));
 
@@ -497,6 +517,9 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     data.amid      = AM_ID_INVALID;
     data.paname    = name;
     data.paidx     = sinp->index;
+
+    if ((mux = pa_multiplex_find(u->multiplex, sinp->sink->index)))
+        data.mux = mux;
 
     node = create_node(u, &data, &created);
 
@@ -544,6 +567,7 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
         else {
             pa_log_debug("clear route '%s' => '%s'",
                          node->amname, sinknod->amname);
+
             /* FIXME: and actually do it ... */
         }
 
@@ -582,7 +606,6 @@ static void handle_alsa_card(struct userdata *u, pa_card *card)
     data.implement = mir_device;
     data.paidx = PA_IDXSET_INVALID;
     data.stamp = pa_utils_get_stamp();
-    data.muxidx = PA_IDXSET_INVALID;
 
     cnam = pa_utils_get_card_name(card);
     udd  = pa_proplist_gets(card->proplist, "module-udev-detect.discovered");
@@ -636,7 +659,6 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     data.amname = amname;
     data.amdescr = (char *)cdescr;
     data.pacard.index = card->index;
-    data.muxidx = PA_IDXSET_INVALID;
     data.stamp = pa_utils_get_stamp();
 
     cnam = pa_utils_get_card_name(card);
@@ -884,6 +906,14 @@ static void destroy_node(struct userdata *u, mir_node *node)
         }
 
         pa_log_debug("destroying node: %s / '%s'", node->key, node->amname);
+
+        if (node->implement == mir_stream) {
+            if (node->direction == mir_input) {
+                if (node->mux) {
+                    pa_log_debug("removing multiplexer"); 
+                }
+            }
+        }
         
         pa_audiomgr_unregister_node(u, node);
         
