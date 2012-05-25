@@ -12,6 +12,7 @@ BuildRequires: pulseaudio-libs-devel
 BuildRequires: dbus-devel
 BuildRequires: libtool-ltdl-devel
 BuildRequires: glib2-devel
+Conflicts: pulseaudio-module-combine-sink
 
 %define _unpackaged_files_terminate_build 0
 

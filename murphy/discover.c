@@ -271,7 +271,7 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
             }
         }
     }
-    else if (!module || !pa_streq(module, "module-combine-sink")) {
+    else if (!module || !pa_streq(module->name, "module-combine-sink")) {
         memset(&data, 0, sizeof(data));
         data.key = pa_xstrdup(sink->name);
         data.direction = mir_output;

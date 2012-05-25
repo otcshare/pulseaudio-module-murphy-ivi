@@ -1,4 +1,4 @@
-SUBDIRS = murphy # doc
+SUBDIRS = murphy combine # doc
 
 MAINTAINERCLEANFILES = \
         Makefile.in src/Makefile.in config.h.in configure \
@@ -8,4 +8,3 @@ MAINTAINERCLEANFILES = \
 	stamp-h1 
 
 clean-local:
-	dh_clean

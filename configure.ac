@@ -88,6 +88,7 @@ AC_SUBST(modlibexecdir)
 AC_CONFIG_FILES([
 	Makefile
 	murphy/Makefile
+        combine/Makefile
 	doc/Makefile
 ])
 AC_OUTPUT
