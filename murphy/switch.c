@@ -15,6 +15,7 @@
 
 #include "switch.h"
 #include "node.h"
+#include "multiplex.h"
 
 
 pa_bool_t set_profile(struct userdata *, mir_node *);
@@ -22,11 +23,10 @@ pa_bool_t set_profile(struct userdata *, mir_node *);
 
 pa_bool_t mir_switch_setup_link(struct userdata *u,mir_node *from,mir_node *to)
 {
-    pa_core         *core;
-    pa_card         *card;
-    pa_card_profile *prof;
-    pa_sink_input   *sinp;
-    pa_sink         *sink;
+    pa_core       *core;
+    pa_sink_input *sinp;
+    pa_sink       *sink;
+    pa_muxnode    *mux;
 
     pa_assert(u);
     pa_assert(to);
@@ -55,14 +55,24 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,mir_node *from,mir_node *to)
         return FALSE;
     }
 
-    if (!from || from->paidx == PA_IDXSET_INVALID) {
-        pa_log_debug("can't route '%s': no sink-input", to->amname);
-        return FALSE;
-    }
 
-    if (!(sinp = pa_idxset_get_by_index(core->sink_inputs, from->paidx))) {
-        pa_log_debug("can't route '%s': cant find sink-input", to->amname);
-        return FALSE;
+    if (from->implement == mir_stream && (mux = from->mux)) {
+        if (!(sinp = pa_multiplex_default_stream(core, mux))) {
+            pa_log_debug("can't find default stream on mux %u",
+                         mux->module_index); 
+            return FALSE;
+        }
+    }
+    else {
+        if (from->paidx == PA_IDXSET_INVALID) {
+            pa_log_debug("can't route '%s': no sink-input", to->amname);
+            return FALSE;
+        }
+
+        if (!(sinp = pa_idxset_get_by_index(core->sink_inputs, from->paidx))) {
+            pa_log_debug("can't route '%s': cant find sink-input", to->amname);
+            return FALSE;
+        }
     }
 
     if (pa_sink_input_move_to(sinp, sink, FALSE) < 0)

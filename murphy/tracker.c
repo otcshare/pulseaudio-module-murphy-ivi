@@ -7,6 +7,8 @@
 #include "utils.h"
 #include "discover.h"
 #include "router.h"
+#include "node.h"
+
 
 static pa_hook_result_t card_put(void *, void *, void *);
 static pa_hook_result_t card_unlink(void *, void *, void *);
@@ -175,8 +177,13 @@ void pa_tracker_synchronize(struct userdata *u)
         pa_discover_add_source(u, source);
     }
 
+    /* Hmm... we should first collect all sink-inputs, assign
+       priority to them, sort them, and call pa_discover_register_sink_input()
+       in reverse priority order. Until than we may experience sound leaks
+       unnecessary profile changes etc ... */
+
     PA_IDXSET_FOREACH(sinp, core->sink_inputs, index) {
-        pa_discover_add_sink_input(u, sinp);
+        pa_discover_register_sink_input(u, sinp);
     }
 
     mir_router_make_routing(u);
@@ -244,20 +251,12 @@ static pa_hook_result_t sink_put(void *hook_data,
 {
     pa_sink *sink = (pa_sink *)call_data;
     struct userdata *u = (struct userdata *)slot_data;
-    char buf[4096];
 
     pa_assert(u);
     pa_assert(sink);
 
     pa_utils_new_stamp();
     pa_discover_add_sink(u, sink, TRUE);
-
-    /*
-    mir_router_print_rtgroups(u, buf, sizeof(buf));
-    pa_log_debug("%s", buf);
-
-    mir_router_make_routing(u);
-    */
 
     return PA_HOOK_OK;
 }

@@ -67,6 +67,7 @@ void pa_discover_remove_sink(struct userdata *, pa_sink *);
 void pa_discover_add_source(struct userdata *, pa_source *);
 void pa_discover_remove_source(struct userdata *, pa_source *);
 
+void pa_discover_register_sink_input(struct userdata *, pa_sink_input *);
 void pa_discover_preroute_sink_input(struct userdata *,
                                      pa_sink_input_new_data *);
 void pa_discover_add_sink_input(struct userdata *, pa_sink_input *);

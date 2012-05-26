@@ -153,9 +153,10 @@ void pa__done(pa_module *m) {
         pa_audiomgr_done(u);
         pa_policy_dbusif_done(u);
         pa_mir_config_done(u);
-        pa_multiplex_done(u->multiplex);
-
         pa_utils_destroy_null_sink(u);
+
+        pa_multiplex_done(u->multiplex, u->core);
+
 
         pa_xfree(u);
     }

@@ -528,12 +528,12 @@ static mir_node *route_stream(struct userdata *u, mir_node *source)
         }
         
         if (sink->ignore) {
-            pa_log_debug("   '%s' should be ignored", sink->amname);
+            pa_log_debug("   '%s' ignored. Skipping...",sink->amname);
             continue;
         }
 
         if (!sink->available) {
-            pa_log_debug("   '%s' not available", sink->amname);
+            pa_log_debug("   '%s' not available. Skipping...", sink->amname);
             continue;
         }
 
@@ -541,7 +541,7 @@ static mir_node *route_stream(struct userdata *u, mir_node *source)
             if (sink->type != mir_bluetooth_a2dp &&
                 sink->type != mir_bluetooth_sco)
             {
-                pa_log_debug("   '%s' has no sink", sink->amname); 
+                pa_log_debug("   '%s' has no sink. Skipping...", sink->amname);
                 continue;
             }
         }

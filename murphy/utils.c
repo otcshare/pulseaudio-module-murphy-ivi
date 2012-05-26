@@ -13,6 +13,7 @@
 
 #include <pulsecore/pulsecore-config.h>
 
+#include <pulsecore/core-util.h>
 #include <pulsecore/card.h>
 #include <pulsecore/sink.h>
 #include <pulsecore/source.h>
@@ -20,6 +21,7 @@
 
 #include "userdata.h"
 #include "utils.h"
+#include "node.h"
 
 #ifndef DEFAULT_CONFIG_DIR
 #define DEFAULT_CONFIG_DIR "/etc/pulse"
@@ -147,6 +149,46 @@ char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *data)
     return "<unknown>";
 }
 
+
+void pa_utils_set_stream_routing_properties(pa_proplist *pl,
+                                            int          styp,
+                                            pa_sink     *sink)
+{
+    const char    *clnam;
+    const char    *method;
+    char           clid[32];
+
+    pa_assert(pl);
+    pa_assert(styp);
+    
+    snprintf(clid, sizeof(clid), "%d", styp);
+    clnam  = mir_node_type_str(styp);
+    method = sink ? PA_ROUTING_EXPLICIT : PA_ROUTING_DEFAULT;
+
+    if (pa_proplist_sets(pl, PA_PROP_ROUTING_CLASS_NAME, clnam ) < 0 ||
+        pa_proplist_sets(pl, PA_PROP_ROUTING_CLASS_ID  , clid  ) < 0 ||
+        pa_proplist_sets(pl, PA_PROP_ROUTING_METHOD    , method) < 0  )
+    {
+        pa_log("failed to set properties on sink-input. "
+               "some routing function might malfunction later on");
+    }
+}
+
+pa_bool_t pa_utils_stream_has_default_route(pa_proplist *pl)
+{
+    const char *method;
+
+    pa_assert(pl);
+
+    method = pa_proplist_gets(pl, PA_PROP_ROUTING_METHOD);
+
+    if (method && pa_streq(method, PA_ROUTING_DEFAULT))
+        return TRUE;
+
+    return FALSE;
+}
+
+
 static char *sink_input_name(pa_proplist *pl)
 {
     const char  *appnam;
@@ -164,11 +206,9 @@ static char *sink_input_name(pa_proplist *pl)
 
 const char *pa_utils_file_path(const char *file, char *buf, size_t len)
 {
-    /*
     pa_assert(file);
     pa_assert(buf);
     pa_assert(len > 0);
-    */
 
     snprintf(buf, len, "%s/%s", DEFAULT_CONFIG_DIR, file);
 

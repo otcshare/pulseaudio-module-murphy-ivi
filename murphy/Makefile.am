@@ -11,6 +11,7 @@ module_murphy_ivi_la_SOURCES = \
 			audiomgr.c \
 			dbusif.c \
 			config.c \
+			classify.c \
 			utils.c
 
 AM_CFLAGS = -I..

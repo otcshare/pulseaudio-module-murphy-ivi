@@ -1,6 +1,32 @@
 #ifndef foocombinesinkuserdatafoo
 #define foocombinesinkuserdatafoo
 
+
+
+struct output {
+    struct userdata *userdata;
+
+    pa_sink *sink;
+    pa_sink_input *sink_input;
+    pa_bool_t ignore_state_change;
+
+    pa_asyncmsgq *inq,    /* Message queue from the sink thread to this sink input */
+                 *outq;   /* Message queue from this sink input to the sink thread */
+    pa_rtpoll_item *inq_rtpoll_item_read, *inq_rtpoll_item_write;
+    pa_rtpoll_item *outq_rtpoll_item_read, *outq_rtpoll_item_write;
+
+    pa_memblockq *memblockq;
+
+    /* For communication of the stream latencies to the main thread */
+    pa_usec_t total_latency;
+
+    /* For communication of the stream parameters to the sink thread */
+    pa_atomic_t max_request;
+    pa_atomic_t requested_latency;
+
+    PA_LLIST_FIELDS(struct output);
+};
+
 struct userdata {
     pa_core *core;
     pa_module *module;
