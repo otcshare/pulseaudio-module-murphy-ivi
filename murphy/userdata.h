@@ -25,6 +25,7 @@ typedef struct pa_policy_dbusif      pa_policy_dbusif;
 typedef struct pa_discover           pa_discover;
 typedef struct pa_router             pa_router;
 typedef struct pa_mir_config         pa_mir_config;
+typedef struct pa_nodeset            pa_nodeset;
 typedef struct pa_node_card          pa_node_card;
 typedef struct pa_card_hooks         pa_card_hooks;
 typedef struct pa_sink_hooks         pa_sink_hooks;
@@ -39,6 +40,7 @@ typedef enum   mir_privacy           mir_privacy;
 typedef struct mir_node              mir_node;
 typedef struct mir_rtgroup           mir_rtgroup;
 typedef struct mir_rtentry           mir_rtentry;
+typedef struct mir_connection        mir_connection;
 
 typedef struct am_domainreg_data     am_domainreg_data;
 typedef struct am_nodereg_data       am_nodereg_data;
@@ -60,6 +62,7 @@ struct userdata {
     pa_core           *core;
     pa_module         *module;
     pa_null_sink      *nullsink;
+    pa_nodeset        *nodeset;
     pa_audiomgr       *audiomgr;
     pa_policy_dbusif  *dbusif;
     pa_discover       *discover;

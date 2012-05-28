@@ -83,14 +83,19 @@ pa_muxnode *pa_multiplex_create(pa_multiplex   *multiplex,
     mux = pa_xnew0(pa_muxnode, 1);
     mux->module_index = module->index;
     mux->sink_index = u->sink->index;
+    mux->defstream_index = PA_IDXSET_INVALID;
 
     PA_LLIST_PREPEND(pa_muxnode, multiplex->muxnodes, mux);
 
     if (!(o = pa_idxset_first(u->outputs, &idx)))
         pa_log("can't find default multiplexer stream");
     else {
-        if ((sinp = o->sink_input))
+        if ((sinp = o->sink_input)) {
             pa_utils_set_stream_routing_properties(sinp->proplist, type, NULL);
+            mux->defstream_index = sinp->index;
+            /* Hmm... */
+            sinp->flags &= ~(pa_sink_input_flags_t)PA_SINK_INPUT_DONT_MOVE;
+        }
     }
 
     pa_log_debug("multiplexer succesfully loaded");
@@ -130,41 +135,120 @@ pa_muxnode *pa_multiplex_find(pa_multiplex *multiplex, uint32_t sink_index)
     return NULL;
 }
 
-pa_sink_input *pa_multiplex_default_stream(pa_core *core, pa_muxnode *mux)
+
+pa_bool_t pa_multiplex_remove_default_route(pa_core *core,
+                                            pa_muxnode *mux,
+                                            pa_bool_t transfer_to_explicit)
 {
-    pa_module       *module;
-    pa_sink_input   *sinp;
+    pa_module *module;
+    pa_sink_input *sinp;
+    uint32_t idx;
     struct userdata *u;         /* combine's userdata! */
-    struct output   *o;
-    uint32_t         idx;
 
     pa_assert(core);
     pa_assert(mux);
-   
-    if ((module = pa_idxset_get_by_index(core->modules, mux->module_index)) &&
-        (u = module->userdata))
-    {
-        pa_log_debug("trying to find the default stream on mux %u",
-                     module->index);
 
-        PA_IDXSET_FOREACH(o, u->outputs, idx) {            
-            if (!(sinp = o->sink_input))
-                continue;
+    if (!(module = pa_idxset_get_by_index(core->modules, mux->module_index)))
+        pa_log("module %u is gone", mux->module_index);
+    else if ((idx = mux->defstream_index) == PA_IDXSET_INVALID)
+        pa_log_debug("mux %u do not have default stream", mux->module_index);
+    else if (!(sinp = pa_idxset_get_by_index(core->sink_inputs, idx)))
+        pa_log("can't remove default route: sink-input %u is gone", idx);
+    else {
+        pa_assert_se((u = module->userdata));
+        mux->defstream_index = PA_IDXSET_INVALID;
 
-            pa_log_debug("  trying sink input %u", sinp->index);
-
-            if (pa_utils_stream_has_default_route(sinp->proplist)) {
-                pa_log_debug("sink input %u is the default", sinp->index);
-                return sinp;
-            }
-
-            pa_log_debug("  no");
+        if (transfer_to_explicit) {
+            pa_log_debug("converting default route sink-input.%u -> sink.%u "
+                         "to explicit", sinp->index, sinp->sink->index);
+            pa_utils_set_stream_routing_method_property(sinp->proplist, TRUE);
+            return TRUE;
+        }
+        else {
+            /* call Jaska's routine */
         }
     }
 
-    pa_log_debug("could not find the default stream on mux %u", module->index);
-    
-    return NULL;
+    return FALSE;
+}
+
+
+pa_bool_t pa_multiplex_add_explicit_route(pa_core    *core,
+                                          pa_muxnode *mux,
+                                          pa_sink    *sink,
+                                          int         type)
+{
+    pa_module *module;
+    pa_sink_input *sinp;
+    struct userdata *u;         /* combine's userdata! */
+
+    pa_assert(core);
+    pa_assert(mux);
+
+    if (!(module = pa_idxset_get_by_index(core->modules, mux->module_index)))
+        pa_log("module %u is gone", mux->module_index);
+    else {
+        pa_assert_se((u = module->userdata));
+
+        if (sink == u->sink) {
+            pa_log("%s: mux %d refuses to make a loopback to itself",
+                   __FILE__, mux->module_index);
+        }
+        else {
+            pa_log_debug("adding explicit route to mux %u", mux->module_index);
+            /* pa_utils_set_stream_routing_properties(sinp->proplist, type, sink); */
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+
+pa_bool_t pa_multiplex_duplicate_route(pa_core       *core,
+                                       pa_muxnode    *mux,
+                                       pa_sink_input *sinp,
+                                       pa_sink       *sink)
+{
+    pa_module       *module;
+    struct userdata *u;   /* combine's userdata! */
+    struct output   *o;
+    uint32_t         idx;
+    pa_sink_input   *i;
+
+    pa_assert(core);
+    pa_assert(mux);
+    pa_assert(sink);
+
+    pa_log_debug("check for duplicate route on mux %u",
+                 mux->module_index);
+
+    if (!(module = pa_idxset_get_by_index(core->modules,mux->module_index)))
+        pa_log("module %u is gone", mux->module_index);
+    else {
+        pa_assert_se((u = module->userdata));
+
+        PA_IDXSET_FOREACH(o, u->outputs, idx) {
+            if (!(i = o->sink_input))
+                continue;
+            if (sinp && i == sinp)
+                continue;
+            if (i->sink == sink) {
+                pa_log_debug("route sink-input.%u -> sink.%u is a duplicate",
+                             i->index, sink->index);
+                return TRUE;
+            }
+        }
+
+        if (!sinp)
+            pa_log_debug("no duplicate route found to sink.%u", sink->index);
+        else {
+            pa_log_debug("no duplicate found for route sink-input.%u -> "
+                         "sink.%u", sinp->index, sink->index);
+        }
+    }
+        
+    return FALSE;
 }
 
 
@@ -180,8 +264,8 @@ int pa_multiplex_print(pa_muxnode *mux, char *buf, int len)
     if (!mux)
         p += snprintf(p, e-p, "<not set>");
     else {
-        p += snprintf(p, e-p, "module %u, sink %u",
-                      mux->module_index, mux->sink_index);
+        p += snprintf(p, e-p, "module %u, sink %u, default stream %u",
+                      mux->module_index, mux->sink_index,mux->defstream_index);
     }
     
     return p - buf;

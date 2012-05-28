@@ -13,10 +13,11 @@ typedef int       (*mir_rtgroup_compare_t)(struct userdata *u,
 
 struct pa_router {
     pa_hashmap   *rtgroups;
-    int           maplen;       /**< length of the class- and priormap */
-    mir_rtgroup **classmap;     /**< to map device node types to rtgroups  */
-    int          *priormap;     /**< stream node priorities */
-    mir_dlist     nodlist;      /**< priorized list of the nodes  */
+    int           maplen;     /**< length of the class- and priormap */
+    mir_rtgroup **classmap;   /**< to map device node types to rtgroups */
+    int          *priormap;   /**< stream node priorities */
+    mir_dlist     nodlist;    /**< priorized list of the input stream nodes */
+    mir_dlist     connlist;   /**< listhead of the connections */
 };
 
 
@@ -35,6 +36,15 @@ struct mir_rtgroup {
     mir_rtgroup_compare_t compare;  /**< comparision function for ordering */
 };
 
+struct mir_connection {
+    mir_dlist     link;     /**< list of connections */
+    pa_bool_t     blocked;  /**< true if this conflicts with another route */
+    uint16_t      amid;     /**< audio manager connection id */
+    uint32_t      from;     /**< source node index */
+    uint32_t      to;       /**< destination node index */
+    uint32_t      stream;   /**< index of the sink-input to be routed */
+};
+
 
 pa_router *pa_router_init(struct userdata *);
 void pa_router_done(struct userdata *);
@@ -51,6 +61,11 @@ void mir_router_unregister_node(struct userdata *, mir_node *);
 
 mir_node *mir_router_make_prerouting(struct userdata *, mir_node *);
 void mir_router_make_routing(struct userdata *);
+
+mir_connection *mir_router_add_explicit_route(struct userdata *, uint16_t,
+                                              mir_node *, mir_node *);
+void mir_router_remove_explicit_route(struct userdata *, mir_connection *);
+
 
 int mir_router_print_rtgroups(struct userdata *, char *, int);
 

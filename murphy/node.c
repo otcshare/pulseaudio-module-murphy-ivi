@@ -11,13 +11,42 @@
 #include "discover.h"
 #include "router.h"
 
+struct pa_nodeset {
+    pa_idxset *nodes;
+};
+
+
+pa_nodeset *pa_nodeset_init(struct userdata *u)
+{
+    pa_nodeset *ns;
+
+    pa_assert(u);
+
+    ns = pa_xnew0(pa_nodeset, 1);
+    ns->nodes = pa_idxset_new(pa_idxset_trivial_hash_func,
+                              pa_idxset_trivial_compare_func);
+    return ns;
+}
+
+void pa_nodeset_done(struct userdata *u)
+{
+    pa_nodeset *ns;
+
+    if (u && (ns = u->nodeset)) {
+        pa_idxset_free(ns->nodes, NULL, NULL);
+        free(ns);
+    }    
+}
+
 
 mir_node *mir_node_create(struct userdata *u, mir_node *data)
 {
+    pa_nodeset *ns;
     mir_node *node;
 
     pa_assert(u);
     pa_assert(data);
+    pa_assert_se((ns = u->nodeset));
     pa_assert(data->key);
     pa_assert(data->paname);
     
@@ -49,6 +78,8 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
             node->paport = pa_xstrdup(data->paport);
     }
 
+    pa_idxset_put(ns->nodes, node, &node->index);
+
     mir_router_register_node(u, node);
     
     return node;
@@ -56,10 +87,15 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
 
 void mir_node_destroy(struct userdata *u, mir_node *node)
 {
+    pa_nodeset *ns;
+
     pa_assert(u);
+    pa_assert_se((ns = u->nodeset));
 
     if (node) {
         mir_router_unregister_node(u, node);
+
+        pa_idxset_remove_by_index(ns->nodes, node->index);
 
         pa_xfree(node->key);
         pa_xfree(node->amname);
@@ -70,6 +106,19 @@ void mir_node_destroy(struct userdata *u, mir_node *node)
 
         pa_xfree(node);
     }
+}
+
+mir_node *mir_node_find_by_index(struct userdata *u, uint32_t nodidx)
+{
+    pa_nodeset *ns;
+    mir_node *node;
+
+    pa_assert(u);
+    pa_assert_se((ns = u->nodeset));
+
+    node = pa_idxset_get_by_index(ns->nodes, nodidx);
+
+    return node;
 }
 
 int mir_node_print(mir_node *node, char *buf, int len)
@@ -87,6 +136,7 @@ int mir_node_print(mir_node *node, char *buf, int len)
 
 #define PRINT(f,v) if (p < e) p += snprintf(p, e-p, f "\n", v)
 
+    PRINT("   index         : %u"  ,  node->index);
     PRINT("   key           : '%s'",  node->key ? node->key : "");
     PRINT("   direction     : %s"  ,  mir_direction_str(node->direction));
     PRINT("   implement     : %s"  ,  mir_implement_str(node->implement));
