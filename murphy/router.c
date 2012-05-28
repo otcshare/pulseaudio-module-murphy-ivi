@@ -250,16 +250,35 @@ mir_connection *mir_router_add_explicit_route(struct userdata *u,
 
 void mir_router_remove_explicit_route(struct userdata *u, mir_connection *conn)
 {
+    pa_core   *core;
     pa_router *router;
+    mir_node  *from;
+    mir_node  *to;
 
     pa_assert(u);
     pa_assert(conn);
+    pa_assert_se((core = u->core));
     pa_assert_se((router = u->router));
 
     MIR_DLIST_UNLINK(mir_connection, link, conn);
 
-    if (!conn->blocked)
-        mir_router_make_routing(u);
+    if (!(from = mir_node_find_by_index(u, conn->from)) ||
+        !(to   = mir_node_find_by_index(u, conn->to))     )
+    {
+        pa_log_debug("can't remove explicit route: some node was not found");
+    }
+    else {
+        pa_log_debug("tear down link '%s' => '%s'", from->amname, to->amname);
+
+        if (!mir_switch_teardown_link(u, from, to)) {
+            pa_log_debug("can't remove explicit route: "
+                         "failed to teardown link");
+        }
+        else {
+            if (!conn->blocked)
+                mir_router_make_routing(u);
+        }
+    }
 
     pa_xfree(conn);
 }

@@ -60,6 +60,10 @@ struct userdata {
         pa_smoother *smoother;
         uint64_t counter;
     } thread_info;
+
+    pa_sink_input *  (*add_slave)(struct userdata *, pa_sink *);
+    void             (*remove_slave)(struct userdata *, pa_sink_input *, pa_sink *);
+    int              (*move_slave)(struct userdata *, pa_sink_input *, pa_sink *);
 };
 
 

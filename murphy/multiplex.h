@@ -31,8 +31,10 @@ void pa_multiplex_destroy(pa_multiplex *, pa_core *, pa_muxnode *);
 pa_muxnode *pa_multiplex_find(pa_multiplex *, uint32_t);
 
 pa_bool_t pa_multiplex_remove_default_route(pa_core *,pa_muxnode *,pa_bool_t);
+pa_bool_t pa_multiplex_change_default_route(pa_core *,pa_muxnode *,pa_sink *);
 
 pa_bool_t pa_multiplex_add_explicit_route(pa_core*, pa_muxnode*, pa_sink*,int);
+pa_bool_t pa_multiplex_remove_explicit_route(pa_core *, pa_muxnode *, pa_sink *);
 
 pa_bool_t pa_multiplex_duplicate_route(pa_core *, pa_muxnode *,
                                        pa_sink_input *, pa_sink *);

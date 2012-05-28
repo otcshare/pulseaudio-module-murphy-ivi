@@ -140,9 +140,9 @@ pa_bool_t pa_multiplex_remove_default_route(pa_core *core,
                                             pa_muxnode *mux,
                                             pa_bool_t transfer_to_explicit)
 {
-    pa_module *module;
-    pa_sink_input *sinp;
-    uint32_t idx;
+    pa_module       *module;
+    pa_sink_input   *sinp;
+    uint32_t         idx;
     struct userdata *u;         /* combine's userdata! */
 
     pa_assert(core);
@@ -165,7 +165,40 @@ pa_bool_t pa_multiplex_remove_default_route(pa_core *core,
             return TRUE;
         }
         else {
-            /* call Jaska's routine */
+            u->remove_slave(u, sinp, NULL);
+        }
+    }
+
+    return FALSE;
+}
+
+pa_bool_t pa_multiplex_change_default_route(pa_core    *core,
+                                            pa_muxnode *mux,
+                                            pa_sink    *sink)
+{
+    pa_module       *module;
+    pa_sink_input   *sinp;
+    uint32_t         idx;
+    struct userdata *u;         /* combine's userdata! */
+
+    pa_assert(core);
+    pa_assert(mux);
+    pa_assert(sink);
+
+    if (!(module = pa_idxset_get_by_index(core->modules, mux->module_index)))
+        pa_log("module %u is gone", mux->module_index);
+    else if ((idx = mux->defstream_index) == PA_IDXSET_INVALID)
+        pa_log_debug("mux %u do not have default stream", mux->module_index);
+    else if (!(sinp = pa_idxset_get_by_index(core->sink_inputs, idx)))
+        pa_log("can't remove default route: sink-input %u is gone", idx);
+    else {
+        pa_assert_se((u = module->userdata));
+        if (!u->move_slave(u, sinp, sink))
+            pa_log_debug("failed to move default stream on mux %u", mux->module_index);
+        else {
+            pa_log_debug("default stream was successfully moved on mux %u",
+                         mux->module_index);
+            return TRUE;
         }
     }
 
@@ -184,6 +217,7 @@ pa_bool_t pa_multiplex_add_explicit_route(pa_core    *core,
 
     pa_assert(core);
     pa_assert(mux);
+    pa_assert(sink);
 
     if (!(module = pa_idxset_get_by_index(core->modules, mux->module_index)))
         pa_log("module %u is gone", mux->module_index);
@@ -196,9 +230,44 @@ pa_bool_t pa_multiplex_add_explicit_route(pa_core    *core,
         }
         else {
             pa_log_debug("adding explicit route to mux %u", mux->module_index);
-            /* pa_utils_set_stream_routing_properties(sinp->proplist, type, sink); */
+
+            if (!(sinp = u->add_slave(u, sink))) {
+                pa_log("failed to add new slave to mux %u", mux->module_index);
+                return FALSE;
+            }
+
+            pa_utils_set_stream_routing_properties(sinp->proplist, type, sink);
+
             return TRUE;
         }
+    }
+
+    return FALSE;
+}
+
+
+pa_bool_t pa_multiplex_remove_explicit_route(pa_core    *core,
+                                             pa_muxnode *mux,
+                                             pa_sink    *sink)
+{
+    pa_module *module;
+    pa_sink_input *sinp;
+    struct userdata *u;         /* combine's userdata! */
+
+    pa_assert(core);
+    pa_assert(mux);
+    pa_assert(sink);
+
+    if (!(module = pa_idxset_get_by_index(core->modules, mux->module_index)))
+        pa_log("module %u is gone", mux->module_index);
+    else {
+        pa_assert_se((u = module->userdata));
+
+        u->remove_slave(u, NULL, sink);
+
+        pa_log_debug("link to sink.%u removed", sink->index);
+
+        return TRUE;
     }
 
     return FALSE;

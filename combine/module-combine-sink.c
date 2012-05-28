@@ -106,6 +106,9 @@ static void output_disable(struct output *o);
 static void output_enable(struct output *o);
 static void output_free(struct output *o);
 static int output_create_sink_input(struct output *o);
+static pa_sink_input *add_slave(struct userdata *u, pa_sink *sink);
+static void remove_slave(struct userdata *u, pa_sink_input *i, pa_sink *s);
+static int move_slave(struct userdata *u, pa_sink_input *i, pa_sink *s);
 
 static void adjust_rates(struct userdata *u) {
     struct output *o;
@@ -141,7 +144,7 @@ static void adjust_rates(struct userdata *u) {
         avg_total_latency += o->total_latency;
         n++;
 
-        pa_log_debug("[%s] total=%0.2fms sink=%0.2fms ", o->sink->name, (double) o->total_latency / PA_USEC_PER_MSEC, (double) sink_latency / PA_USEC_PER_MSEC);
+        /* pa_log_debug("[%s] total=%0.2fms sink=%0.2fms ", o->sink->name, (double) o->total_latency / PA_USEC_PER_MSEC, (double) sink_latency / PA_USEC_PER_MSEC); */
 
         if (o->total_latency > 10*PA_USEC_PER_SEC)
             pa_log_warn("[%s] Total latency of output is very high (%0.2fms), most likely the audio timing in one of your drivers is broken.", o->sink->name, (double) o->total_latency / PA_USEC_PER_MSEC);
@@ -154,8 +157,10 @@ static void adjust_rates(struct userdata *u) {
 
     target_latency = max_sink_latency > min_total_latency ? max_sink_latency : min_total_latency;
 
+    /*
     pa_log_info("[%s] avg total latency is %0.2f msec.", u->sink->name, (double) avg_total_latency / PA_USEC_PER_MSEC);
     pa_log_info("[%s] target latency is %0.2f msec.", u->sink->name, (double) target_latency / PA_USEC_PER_MSEC);
+    */
 
     base_rate = u->sink->sample_spec.rate;
 
@@ -179,7 +184,7 @@ static void adjust_rates(struct userdata *u) {
               new_rate = base_rate;
             /* Do the adjustment in small steps; 2‰ can be considered inaudible */
             if (new_rate < (uint32_t) (current_rate*0.998) || new_rate > (uint32_t) (current_rate*1.002)) {
-                pa_log_info("[%s] new rate of %u Hz not within 2‰ of %u Hz, forcing smaller adjustment", o->sink_input->sink->name, new_rate, current_rate);
+                /* pa_log_info("[%s] new rate of %u Hz not within 2‰ of %u Hz, forcing smaller adjustment", o->sink_input->sink->name, new_rate, current_rate); */
                 new_rate = PA_CLAMP(new_rate, (uint32_t) (current_rate*0.998), (uint32_t) (current_rate*1.002));
             }
             pa_log_info("[%s] new rate is %u Hz; ratio is %0.3f; latency is %0.2f msec.", o->sink_input->sink->name, new_rate, (double) new_rate / base_rate, (double) o->total_latency / PA_USEC_PER_MSEC);
@@ -1115,6 +1120,10 @@ int pa__init(pa_module*m) {
             pa_rtclock_now(),
             TRUE);
 
+    u->add_slave = add_slave;
+    u->remove_slave = remove_slave;
+    u->move_slave = move_slave;
+
     adjust_time_sec = DEFAULT_ADJUST_TIME_USEC / PA_USEC_PER_SEC;
     if (pa_modargs_get_value_u32(ma, "adjust_time", &adjust_time_sec) < 0) {
         pa_log("Failed to parse adjust_time value");
@@ -1359,4 +1368,64 @@ void pa__done(pa_module*m) {
         pa_smoother_free(u->thread_info.smoother);
 
     pa_xfree(u);
+}
+
+static pa_sink_input *add_slave(struct userdata *u, pa_sink *sink) {
+    struct output *o;
+
+    pa_assert(u);
+    pa_assert(sink);
+
+    pa_log_debug("Adding a slave to module combine");
+
+    if (!(o = output_new(u, sink))) {
+        pa_log("Failed to create slave sink input on sink '%s'.", sink->name);
+        return NULL;
+    }
+
+    output_verify(o);
+
+    return o->sink_input;
+}
+
+static void remove_slave(struct userdata *u, pa_sink_input *i, pa_sink *s) {
+    struct output *o;
+
+    pa_assert(u);
+    pa_assert(i || s);
+
+    if (s == NULL)
+	s = i->sink;
+
+    o = find_output(u, s);
+
+    if (o == NULL) {
+	pa_log_debug("Couldn't find output in module combine");
+        return;
+    }
+
+    output_disable(o);
+    output_free(o);
+}
+
+static int move_slave(struct userdata *u, pa_sink_input *i, pa_sink *s) {
+    struct output *o;
+
+    pa_assert(u);
+    pa_assert(i);
+    pa_assert(s);
+
+    pa_assert(i->sink);
+
+    o = find_output(u, i->sink);
+
+    if (i->sink == s)
+	return 0;
+
+    if (pa_sink_input_move_to(i, s, FALSE) < 0)
+	return -1;
+
+    o->sink = s;
+
+    return 0;
 }
