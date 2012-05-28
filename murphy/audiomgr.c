@@ -14,7 +14,6 @@
 #include "node.h"
 #include "discover.h"
 #include "router.h"
-#include "switch.h"             /* later we should talk just the router */
 #include "dbusif.h"
 
 #define AUDIOMGR_DOMAIN   "PULSE"
@@ -60,11 +59,13 @@ typedef struct {
 
 struct pa_audiomgr {
     domain_t      domain;
-    pa_hashmap   *nodes;
+    pa_hashmap   *nodes;        /**< nodes ie. sinks and sources */
+    pa_hashmap   *conns;        /**< connections */
 };
 
 
-static void *hash_key(mir_direction, uint16_t);
+static void *node_hash(mir_direction, uint16_t);
+static void *conn_hash(uint16_t);
 
 
 struct pa_audiomgr *pa_audiomgr_init(struct userdata *u)
@@ -80,6 +81,8 @@ struct pa_audiomgr *pa_audiomgr_init(struct userdata *u)
     am->domain.state = DS_DOWN;
     am->nodes = pa_hashmap_new(pa_idxset_trivial_hash_func,
                                      pa_idxset_trivial_compare_func);
+    am->conns = pa_hashmap_new(pa_idxset_trivial_hash_func,
+                               pa_idxset_trivial_compare_func);
     return am;
 }
 
@@ -92,6 +95,7 @@ void pa_audiomgr_done(struct userdata *u)
             pa_policy_dbusif_unregister_domain(u, am->domain.id);
 
         pa_hashmap_free(am->nodes, NULL,NULL);
+        pa_hashmap_free(am->conns, NULL,NULL);
         pa_xfree((void *)am->domain.name);
         pa_xfree(am);
         u->audiomgr = NULL;
@@ -238,7 +242,7 @@ void pa_audiomgr_node_registered(struct userdata *u,
     else {
         node->amid = id;
 
-        key = hash_key(node->direction, id);
+        key = node_hash(node->direction, id);
 
         pa_log_debug("registering node '%s' (%p/%p)",
                      node->amname, key, node);
@@ -272,7 +276,7 @@ void pa_audiomgr_unregister_node(struct userdata *u, mir_node *node)
         ud->id   = node->amid;
         ud->name = pa_xstrdup(node->amname);
 
-        key = hash_key(node->direction, node->amid);
+        key = node_hash(node->direction, node->amid);
         removed = pa_hashmap_remove(am->nodes, key);
 
         if (node != removed) {
@@ -281,7 +285,7 @@ void pa_audiomgr_unregister_node(struct userdata *u, mir_node *node)
                        "attempted to remove '%s' (%p/%p); "
                        "actually removed '%s' (%p/%p)", __FILE__,
                        node->amname, key, node, removed->amname,
-                       hash_key(removed->direction, removed->amid), removed);
+                       node_hash(removed->direction, removed->amid), removed);
             else
                 pa_log("%s: confused with data structures: node %u (%p)"
                        "is not in the hash table", __FILE__, node->amid, node);
@@ -322,23 +326,32 @@ void pa_audiomgr_node_unregistered(struct userdata   *u,
 
 void pa_audiomgr_connect(struct userdata *u, am_connect_data *cd)
 {
-    pa_audiomgr *am;
-    am_ack_data  ad;
-    mir_node    *from = NULL;
-    mir_node    *to   = NULL;
-    int          err  = E_OK;
+    pa_audiomgr    *am;
+    am_ack_data     ad;
+    mir_connection *conn;
+    uint16_t        cid;
+    mir_node       *from = NULL;
+    mir_node       *to   = NULL;
+    int             err  = E_OK;
 
     pa_assert(u);
     pa_assert(cd);
     pa_assert_se((am = u->audiomgr));
 
-    /* temporary hack: instead of switching we should setup an explicit route*/
-    if ((from = pa_hashmap_get(am->nodes, hash_key(mir_input, cd->source))) &&
-        (to   = pa_hashmap_get(am->nodes, hash_key(mir_output, cd->sink))))
+    if ((from = pa_hashmap_get(am->nodes, node_hash(mir_input, cd->source))) &&
+        (to   = pa_hashmap_get(am->nodes, node_hash(mir_output, cd->sink))))
     {
+        cid = cd->connection;
+
         pa_log_debug("routing '%s' => '%s'", from->amname, to->amname);
-        if (!mir_switch_setup_link(u, from, to))
+
+        if (!(conn = mir_router_add_explicit_route(u, cid, from, to)))
             err = E_NOT_POSSIBLE;
+        else {
+            pa_log_debug("registering connection (%u/%p)",
+                         cd->connection, conn);
+            pa_hashmap_put(am->conns, conn_hash(cid), conn);
+        }
     }
     else {
         pa_log_debug("failed to connect: can't find node for %s %u",
@@ -356,14 +369,24 @@ void pa_audiomgr_connect(struct userdata *u, am_connect_data *cd)
 
 void pa_audiomgr_disconnect(struct userdata *u, am_connect_data *cd)
 {
-    am_ack_data  ad;
-    int err = E_OK;
+    pa_audiomgr    *am;
+    mir_connection *conn;
+    uint16_t        cid;
+    am_ack_data     ad;
+    int             err = E_OK;
 
     pa_assert(u);
     pa_assert(cd);
+    pa_assert_se((am = u->audiomgr));
 
-    /* temporary hack: instead this we should delete an explicit route */
-    mir_router_make_routing(u);
+    cid = cd->connection;
+
+    if ((conn = pa_hashmap_remove(am->conns, conn_hash(cid))))
+        mir_router_remove_explicit_route(u, conn);
+    else {
+        pa_log_debug("failed to disconnect: can't find connection %u", cid);
+        err = E_NON_EXISTENT;
+    }
 
     memset(&ad, 0, sizeof(ad));
     ad.handle = cd->handle;
@@ -373,9 +396,14 @@ void pa_audiomgr_disconnect(struct userdata *u, am_connect_data *cd)
     pa_policy_dbusif_acknowledge(u, AUDIOMGR_DISCONNECT_ACK, &ad);
 }
 
-static void *hash_key(mir_direction direction, uint16_t amid)
+static void *node_hash(mir_direction direction, uint16_t amid)
 {
     return NULL + ((uint32_t)direction << 16 | (uint32_t)amid);
+}
+
+static void *conn_hash(uint16_t connid)
+{
+    return NULL + (uint32_t)connid;
 }
 
 

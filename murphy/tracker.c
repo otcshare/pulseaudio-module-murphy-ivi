@@ -163,7 +163,6 @@ void pa_tracker_synchronize(struct userdata *u)
     pa_assert(u);
     pa_assert_se((core = u->core));
 
-    pa_utils_new_stamp();
 
     PA_IDXSET_FOREACH(card, core->cards, index) {
         pa_discover_add_card(u, card);
@@ -200,7 +199,6 @@ static pa_hook_result_t card_put(void *hook_data,
     pa_assert(u);
     pa_assert(card);
 
-    pa_utils_new_stamp();
     pa_discover_add_card(u, card);
 
     return PA_HOOK_OK;
@@ -238,7 +236,6 @@ static pa_hook_result_t card_profile_changed(void *hook_data,
     pa_assert(u);
     pa_assert(card);
 
-    pa_utils_new_stamp();
     pa_discover_profile_changed(u, card);
 
     return PA_HOOK_OK;
@@ -255,7 +252,6 @@ static pa_hook_result_t sink_put(void *hook_data,
     pa_assert(u);
     pa_assert(sink);
 
-    pa_utils_new_stamp();
     pa_discover_add_sink(u, sink, TRUE);
 
     return PA_HOOK_OK;
@@ -315,7 +311,6 @@ static pa_hook_result_t source_put(void *hook_data,
     pa_assert(u);
     pa_assert(source);
 
-    pa_utils_new_stamp();
     pa_discover_add_source(u, source);
 
     return PA_HOOK_OK;
@@ -376,7 +371,6 @@ static pa_hook_result_t sink_input_new(void *hook_data,
     pa_assert(u);
     pa_assert(data);
 
-    pa_utils_new_stamp();
     pa_discover_preroute_sink_input(u, data);
 
     return PA_HOOK_OK;
@@ -392,7 +386,6 @@ static pa_hook_result_t sink_input_put(void *hook_data,
     pa_assert(u);
     pa_assert(sinp);
 
-    pa_utils_new_stamp();
     pa_discover_add_sink_input(u, sinp);
 
     return PA_HOOK_OK;

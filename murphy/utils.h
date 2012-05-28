@@ -18,13 +18,14 @@ char *pa_utils_get_sink_input_name(pa_sink_input *);
 char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *);
 
 void  pa_utils_set_stream_routing_properties(pa_proplist *, int, pa_sink *);
+void  pa_utils_set_stream_routing_method_property(pa_proplist *, pa_bool_t);
 pa_bool_t pa_utils_stream_has_default_route(pa_proplist *);
 
 
 const char *pa_utils_file_path(const char *, char *, size_t);
 
-const uint32_t pa_utils_new_stamp(void);
-const uint32_t pa_utils_get_stamp(void);
+uint32_t pa_utils_new_stamp(void);
+uint32_t pa_utils_get_stamp(void);
 
 #endif
 

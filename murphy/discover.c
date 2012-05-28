@@ -586,10 +586,9 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     if (!data.mux)
         s = sinp->sink;
     else {
-        if ((csinp = pa_multiplex_default_stream(core, data.mux)))
-            s = csinp->sink;
-        else
-            s = NULL;
+        csinp = pa_idxset_get_by_index(core->sink_inputs,
+                                       data.mux->defstream_index);
+        s = csinp ? csinp->sink : NULL;
     }
        
     if (s)
@@ -1141,6 +1140,8 @@ static pa_sink *make_output_prerouting(struct userdata *u,
     pa_assert(chmap);
     pa_assert_se((core = u->core));
 
+    
+    
     target = mir_router_make_prerouting(u, data);
 
     if (!target)

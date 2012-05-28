@@ -17,11 +17,11 @@ static void rtgroup_destroy(struct userdata *, mir_rtgroup *);
 static int rtgroup_print(mir_rtgroup *, char *, int);
 static void rtgroup_update_module_property(struct userdata *, mir_rtgroup *);
 
-
 static void add_rtentry(struct userdata *, mir_rtgroup *, mir_node *);
 static void remove_rtentry(struct userdata *, mir_rtentry *);
 
-static mir_node *route_stream(struct userdata *, mir_node *);
+static void make_explicit_routes(struct userdata *, uint32_t);
+static mir_node *find_default_route(struct userdata *, mir_node *);
 
 
 static int uint32_cmp(uint32_t, uint32_t);
@@ -46,18 +46,25 @@ pa_router *pa_router_init(struct userdata *u)
     router->classmap = pa_xnew0(mir_rtgroup *, num_classes);
     router->priormap = pa_xnew0(int, num_classes);
     MIR_DLIST_INIT(router->nodlist);
+    MIR_DLIST_INIT(router->connlist);
     
     return router;
 }
 
 void pa_router_done(struct userdata *u)
 {
-    pa_router  *router;
-    mir_node   *e,*n;
+    pa_router      *router;
+    mir_connection *conn, *c;
+    mir_node       *e,*n;
 
     if (u && (router = u->router)) {
         MIR_DLIST_FOR_EACH_SAFE(mir_node, rtentries, e,n, &router->nodlist) {
             MIR_DLIST_UNLINK(mir_node, rtentries, e);
+        }
+
+        MIR_DLIST_FOR_EACH_SAFE(mir_connection,link, conn,c,&router->connlist){
+            MIR_DLIST_UNLINK(mir_connection, link, conn);
+            pa_xfree(conn);
         }
 
         pa_hashmap_free(router->rtgroups, pa_hashmap_rtgroup_free,u);
@@ -215,6 +222,48 @@ void mir_router_unregister_node(struct userdata *u, mir_node *node)
     }
 }
 
+mir_connection *mir_router_add_explicit_route(struct userdata *u,
+                                              uint16_t   amid,
+                                              mir_node  *from,
+                                              mir_node  *to)
+{
+    pa_router *router;
+    mir_connection *conn;
+
+    pa_assert(u);
+    pa_assert(from);
+    pa_assert(to);
+    pa_assert_se((router = u->router));
+
+    conn = pa_xnew0(mir_connection, 1);
+    MIR_DLIST_INIT(conn->link);
+    conn->amid = amid;
+    conn->from = from->index;
+    conn->to = to->index;
+    
+    MIR_DLIST_APPEND(mir_connection, link, conn, &router->connlist);
+
+    mir_router_make_routing(u);
+
+    return conn;
+}
+
+void mir_router_remove_explicit_route(struct userdata *u, mir_connection *conn)
+{
+    pa_router *router;
+
+    pa_assert(u);
+    pa_assert(conn);
+    pa_assert_se((router = u->router));
+
+    MIR_DLIST_UNLINK(mir_connection, link, conn);
+
+    if (!conn->blocked)
+        mir_router_make_routing(u);
+
+    pa_xfree(conn);
+}
+
 int mir_router_print_rtgroups(struct userdata *u, char *buf, int len)
 {
     pa_router *router;
@@ -254,32 +303,41 @@ int mir_router_print_rtgroups(struct userdata *u, char *buf, int len)
 mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
 {
     pa_router     *router;
-    mir_node      *source;
-    mir_node      *sink;
+    mir_node      *from;
+    mir_node      *to;
     int            priority;
     pa_bool_t      done;
     mir_node      *target;
+    uint32_t       stamp;
 
     pa_assert(u);
     pa_assert_se((router = u->router));
+    pa_assert_se((data->implement == mir_stream));
+    pa_assert_se((data->direction == mir_input));
 
     priority = node_priority(u, data);
     done = FALSE;
     target = NULL;
+    stamp = pa_utils_new_stamp();
 
-    MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, source, &router->nodlist) {
-        if (priority >= node_priority(u, source)) {
-            if ((target = route_stream(u, data)))
-                mir_switch_setup_link(u, NULL, target);
+    make_explicit_routes(u, stamp);
+
+    MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, from, &router->nodlist) {
+        if (priority >= node_priority(u, from)) {
+            if ((target = find_default_route(u, data)))
+                mir_switch_setup_link(u, NULL, target, FALSE);
             done = TRUE;
         }
 
-        if ((sink = route_stream(u, source)))
-            mir_switch_setup_link(u, source, sink);
+        if (from->stamp >= stamp)
+            continue;
+
+        if ((to = find_default_route(u, from)))
+            mir_switch_setup_link(u, from, to, FALSE);
     }    
 
-    if (!done && (target = route_stream(u, data)))
-        mir_switch_setup_link(u, NULL, target);
+    if (!done && (target = find_default_route(u, data)))
+        mir_switch_setup_link(u, NULL, target, FALSE);
 
     return target;
 }
@@ -289,9 +347,10 @@ void mir_router_make_routing(struct userdata *u)
 {
     static pa_bool_t ongoing_routing;
 
-    pa_router     *router;
-    mir_node      *source;
-    mir_node      *sink;
+    pa_router  *router;
+    mir_node   *from;
+    mir_node   *to;
+    uint32_t    stamp;
 
     pa_assert(u);
     pa_assert_se((router = u->router));
@@ -300,10 +359,16 @@ void mir_router_make_routing(struct userdata *u)
         return;
 
     ongoing_routing = TRUE;
+    stamp = pa_utils_new_stamp();
 
-    MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, source, &router->nodlist) {
-        if ((sink = route_stream(u, source)))
-            mir_switch_setup_link(u, source, sink);
+    make_explicit_routes(u, stamp);
+
+    MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, from, &router->nodlist) {
+        if (from->stamp >= stamp)
+            continue;
+
+        if ((to = find_default_route(u, from)))
+            mir_switch_setup_link(u, from, to, FALSE);
     }    
 
     ongoing_routing = FALSE;
@@ -494,64 +559,94 @@ static void remove_rtentry(struct userdata *u, mir_rtentry *rte)
     pa_xfree(rte);
 }
 
+static void make_explicit_routes(struct userdata *u, uint32_t stamp)
+{
+    pa_router *router;
+    mir_connection *conn;
+    mir_node *from;
+    mir_node *to;
 
-static mir_node *route_stream(struct userdata *u, mir_node *source)
+    pa_assert(u);
+    pa_assert_se((router = u->router));
+
+    MIR_DLIST_FOR_EACH_BACKWARD(mir_connection,link, conn, &router->connlist) {
+        if (conn->blocked)
+            continue;
+        
+        if (!(from = mir_node_find_by_index(u, conn->from)) ||
+            !(to   = mir_node_find_by_index(u, conn->to))     )
+        {
+            pa_log_debug("ignoring explicit route %u: some of the nodes "
+                         "not found", conn->amid);
+            continue;
+        }
+
+        if (!mir_switch_setup_link(u, from, to, TRUE))
+            continue;
+
+        if (from->implement == mir_stream)
+            from->stamp = stamp;
+    }
+}
+
+
+static mir_node *find_default_route(struct userdata *u, mir_node *from)
 {
     pa_router     *router = u->router;
-    mir_node_type  class  = source->type;
-    mir_node      *sink;
+    mir_node_type  class  = from->type;
+    mir_node      *to;
     mir_rtgroup   *rtg;
     mir_rtentry   *rte;
 
 
     if (class < 0 || class > router->maplen) {
         pa_log_debug("can't route '%s': class %d is out of range (0 - %d)",
-                     source->amname, class, router->maplen);
+                     from->amname, class, router->maplen);
         return NULL;
     }
     
     if (!(rtg = router->classmap[class])) {
         pa_log_debug("node '%s' won't be routed beacuse its class '%s' "
                      "is not assigned to any router group",
-                     source->amname, mir_node_type_str(class));
+                     from->amname, mir_node_type_str(class));
         return NULL;
     }
     
     pa_log_debug("using '%s' router group when routing '%s'",
-                 rtg->name, source->amname);
+                 rtg->name, from->amname);
 
         
     MIR_DLIST_FOR_EACH_BACKWARD(mir_rtentry, link, rte, &rtg->entries) {
-        if (!(sink = rte->node)) {
+        if (!(to = rte->node)) {
             pa_log("   node was null in mir_rtentry");
             continue;
         }
         
-        if (sink->ignore) {
-            pa_log_debug("   '%s' ignored. Skipping...",sink->amname);
+        if (to->ignore) {
+            pa_log_debug("   '%s' ignored. Skipping...",to->amname);
             continue;
         }
 
-        if (!sink->available) {
-            pa_log_debug("   '%s' not available. Skipping...", sink->amname);
+        if (!to->available) {
+            pa_log_debug("   '%s' not available. Skipping...", to->amname);
             continue;
         }
 
-        if (sink->paidx == PA_IDXSET_INVALID) {
-            if (sink->type != mir_bluetooth_a2dp &&
-                sink->type != mir_bluetooth_sco)
+        if (to->paidx == PA_IDXSET_INVALID) {
+            if (to->type != mir_bluetooth_a2dp &&
+                to->type != mir_bluetooth_sco)
             {
-                pa_log_debug("   '%s' has no sink. Skipping...", sink->amname);
+                pa_log_debug("   '%s' has no to. Skipping...", to->amname);
                 continue;
             }
         }
         
-        pa_log_debug("routing '%s' => '%s'", source->amname, sink->amname);
+        pa_log_debug("routing '%s' => '%s'", from->amname, to->amname);
 
-        return sink;
+        return to;
     }
     
-    pa_log_debug("could not find route for '%s'", source->amname);
+    pa_log_debug("could not find route for '%s'", from->amname);
 
     return NULL;
 }

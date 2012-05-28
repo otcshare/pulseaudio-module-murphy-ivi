@@ -9,6 +9,7 @@
 
 #define AM_ID_INVALID  65535
 
+
 enum mir_direction {
     mir_direction_unknown,
     mir_input,
@@ -87,6 +88,7 @@ struct pa_node_card {
  *          is either a sink_input or a source_output
  */
 struct mir_node {
+    uint32_t        index;    /**< index into nodeset->idxset */
     char           *key;      /**< hash key for discover lookups */
     mir_direction   direction;/**< mir_input | mir_output */
     mir_implement   implement;/**< mir_device | mir_stream */
@@ -113,8 +115,14 @@ struct mir_node {
 };
 
 
+pa_nodeset *pa_nodeset_init(struct userdata *);
+void pa_nodeset_done(struct userdata *);
+
+
 mir_node *mir_node_create(struct userdata *, mir_node *);
 void mir_node_destroy(struct userdata *, mir_node *);
+
+mir_node *mir_node_find_by_index(struct userdata *, uint32_t);
 
 int mir_node_print(mir_node *, char *, int);
 

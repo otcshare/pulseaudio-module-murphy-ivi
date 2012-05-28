@@ -17,6 +17,7 @@ struct pa_muxnode {
     PA_LLIST_FIELDS(pa_muxnode);
     uint32_t   module_index;
     uint32_t   sink_index;
+    uint32_t   defstream_index;
 };
 
 pa_multiplex *pa_multiplex_init(void);
@@ -29,7 +30,12 @@ void pa_multiplex_destroy(pa_multiplex *, pa_core *, pa_muxnode *);
 
 pa_muxnode *pa_multiplex_find(pa_multiplex *, uint32_t);
 
-pa_sink_input *pa_multiplex_default_stream(pa_core *, pa_muxnode *);
+pa_bool_t pa_multiplex_remove_default_route(pa_core *,pa_muxnode *,pa_bool_t);
+
+pa_bool_t pa_multiplex_add_explicit_route(pa_core*, pa_muxnode*, pa_sink*,int);
+
+pa_bool_t pa_multiplex_duplicate_route(pa_core *, pa_muxnode *,
+                                       pa_sink_input *, pa_sink *);
 
 int pa_multiplex_print(pa_muxnode *, char *, int);
 

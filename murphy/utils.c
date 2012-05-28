@@ -169,8 +169,19 @@ void pa_utils_set_stream_routing_properties(pa_proplist *pl,
         pa_proplist_sets(pl, PA_PROP_ROUTING_CLASS_ID  , clid  ) < 0 ||
         pa_proplist_sets(pl, PA_PROP_ROUTING_METHOD    , method) < 0  )
     {
-        pa_log("failed to set properties on sink-input. "
-               "some routing function might malfunction later on");
+        pa_log("failed to set some property on sink-input");
+    }
+}
+
+void pa_utils_set_stream_routing_method_property(pa_proplist *pl,
+                                                 pa_bool_t explicit)
+{
+    const char *method = explicit ? PA_ROUTING_EXPLICIT : PA_ROUTING_DEFAULT;
+
+    pa_assert(pl);
+    
+    if (pa_proplist_sets(pl, PA_PROP_ROUTING_METHOD, method) < 0) {
+        pa_log("failed to set routing method property on sink-input");
     }
 }
 
@@ -216,12 +227,12 @@ const char *pa_utils_file_path(const char *file, char *buf, size_t len)
 }
 
 
-const uint32_t pa_utils_new_stamp(void)
+uint32_t pa_utils_new_stamp(void)
 {
     return ++stamp;
 }
 
-const uint32_t pa_utils_get_stamp(void)
+uint32_t pa_utils_get_stamp(void)
 {
     return stamp;
 }
