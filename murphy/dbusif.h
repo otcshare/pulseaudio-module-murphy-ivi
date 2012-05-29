@@ -31,7 +31,8 @@
 
 struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *, const char *,
                                                const char *, const char *,
-                                               const char *, const char *);
+                                               const char *, const char *,
+                                               const char *);
 void pa_policy_dbusif_done(struct userdata *);
 
 #if 0

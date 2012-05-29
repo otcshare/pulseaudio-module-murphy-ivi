@@ -161,6 +161,7 @@ static pa_bool_t dbusif_disconnect(struct userdata *, DBusMessage *);
 
 
 struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
+                                               const char      *dbustype,
                                                const char      *ifnam,
                                                const char      *mrppath,
                                                const char      *mrpnam,
@@ -173,6 +174,7 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
 
     pa_module               *m = u->module;
     struct pa_policy_dbusif *dbusif = NULL;
+    DBusBusType              type;
     DBusConnection          *dbusconn;
     DBusError                error;
     unsigned int             flags;
@@ -186,15 +188,28 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
     char                     admarule[512];
     int                      result;
     
+    if (!dbustype || !strcasecmp(dbustype, "session")) {
+        dbustype = "session";
+        type = DBUS_BUS_SESSION;
+    }
+    else if (!strcasecmp(dbustype, "system")) {
+        dbustype = "system";
+        type = DBUS_BUS_SYSTEM;
+    }
+    else {
+        pa_log("invalid dbus type '%s'", dbustype);
+        return NULL;
+    }
+    
     dbusif = pa_xnew0(struct pa_policy_dbusif, 1);
     PA_LLIST_HEAD_INIT(struct pending, dbusif->pendlist);
 
     dbus_error_init(&error);
-    dbusif->conn = pa_dbus_bus_get(m->core, DBUS_BUS_SESSION, &error);
+    dbusif->conn = pa_dbus_bus_get(m->core, type, &error);
 
     if (dbusif->conn == NULL || dbus_error_is_set(&error)) {
-        pa_log("%s: failed to get SESSION Bus: %s: %s",
-               __FILE__, error.name, error.message);
+        pa_log("%s: failed to get %s Bus: %s: %s",
+               __FILE__, dbustype, error.name, error.message);
         goto fail;
     }
 
@@ -210,7 +225,8 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
         goto fail;
     }
     
-    pa_log_info("%s: now owner of '%s' D-Bus name", __FILE__, PULSE_DBUS_NAME);
+    pa_log_info("%s: now owner of '%s' D-Bus name on %s bus",
+                __FILE__, PULSE_DBUS_NAME, dbustype);
  
     if (!dbus_connection_add_filter(dbusconn, filter,u, NULL)) {
         pa_log("%s: failed to add filter function", __FILE__);

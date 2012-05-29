@@ -49,6 +49,7 @@ PA_MODULE_LOAD_ONCE(TRUE);
 PA_MODULE_USAGE(
     "config_dir=<configuration directory>"
     "config_file=<policy configuration file> "
+    "dbus_bus_type=<system|session> "
     "dbus_if_name=<policy dbus interface> "
     "dbus_murphy_path=<policy daemon's path> "
     "dbus_murphy_name=<policy daemon's name> "
@@ -60,6 +61,7 @@ PA_MODULE_USAGE(
 static const char* const valid_modargs[] = {
     "config_dir",
     "config_file",
+    "dbus_bus_type",
     "dbus_if_name",
     "dbus_murphy_path",
     "dbus_murphy_name",
@@ -75,6 +77,7 @@ int pa__init(pa_module *m) {
     pa_modargs      *ma = NULL;
     const char      *cfgdir;
     const char      *cfgfile;
+    const char      *dbustype;
     const char      *ifnam;
     const char      *mrppath;
     const char      *mrpnam;
@@ -91,14 +94,15 @@ int pa__init(pa_module *m) {
         goto fail;
     }
 
-    cfgdir  = pa_modargs_get_value(ma, "config_dir", NULL);
-    cfgfile = pa_modargs_get_value(ma, "config_file", DEFAULT_CONFIG_FILE);
-    ifnam   = pa_modargs_get_value(ma, "dbus_if_name", NULL);
-    mrppath = pa_modargs_get_value(ma, "dbus_murphy_path", NULL);
-    mrpnam  = pa_modargs_get_value(ma, "dbus_murphy_name", NULL);
-    ampath  = pa_modargs_get_value(ma, "dbus_audiomgr_path", NULL);
-    amnam   = pa_modargs_get_value(ma, "dbus_audiomgr_name", NULL);
-    nsnam   = pa_modargs_get_value(ma, "null_sink_name", NULL);
+    cfgdir   = pa_modargs_get_value(ma, "config_dir", NULL);
+    cfgfile  = pa_modargs_get_value(ma, "config_file", DEFAULT_CONFIG_FILE);
+    dbustype = pa_modargs_get_value(ma, "dbus_bus_type", NULL);
+    ifnam    = pa_modargs_get_value(ma, "dbus_if_name", NULL);
+    mrppath  = pa_modargs_get_value(ma, "dbus_murphy_path", NULL);
+    mrpnam   = pa_modargs_get_value(ma, "dbus_murphy_name", NULL);
+    ampath   = pa_modargs_get_value(ma, "dbus_audiomgr_path", NULL);
+    amnam    = pa_modargs_get_value(ma, "dbus_audiomgr_name", NULL);
+    nsnam    = pa_modargs_get_value(ma, "null_sink_name", NULL);
     
     u = pa_xnew0(struct userdata, 1);
     u->core      = m->core;
@@ -106,14 +110,15 @@ int pa__init(pa_module *m) {
     u->nullsink  = pa_utils_create_null_sink(u, nsnam);
     u->nodeset   = pa_nodeset_init(u);
     u->audiomgr  = pa_audiomgr_init(u);
-    u->dbusif    = pa_policy_dbusif_init(u,ifnam,mrppath,mrpnam,ampath,amnam);
+    u->dbusif    = pa_policy_dbusif_init(u, dbustype, ifnam, mrppath, mrpnam,
+                                         ampath, amnam);
     u->discover  = pa_discover_init(u);
     u->tracker   = pa_tracker_init(u);
     u->router    = pa_router_init(u);
     u->multiplex = pa_multiplex_init();
     u->config    = pa_mir_config_init(u);
 
-    if (/*u->nullsink == NULL ||*/ u->dbusif == NULL  ||
+    if (u->nullsink == NULL || u->dbusif == NULL  ||
         u->audiomgr == NULL || u->discover == NULL)
         goto fail;
 

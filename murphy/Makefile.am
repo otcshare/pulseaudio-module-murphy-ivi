@@ -14,6 +14,13 @@ module_murphy_ivi_la_SOURCES = \
 			classify.c \
 			utils.c
 
+dbussysdir = $(sysconfdir)/dbus-1/system.d
+
+dbussys_DATA = pulseaudio-murphy-ivi.conf
+
+EXTRA_DIST = $(dbussys_DATA)
+
+
 AM_CFLAGS = -I..
 
 module_murphy_ivi_la_LDFLAGS = -module -avoid-version -Wl,--no-undefined
