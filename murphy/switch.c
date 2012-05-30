@@ -306,24 +306,56 @@ static pa_bool_t setup_default_link_from_stream_to_device(struct userdata *u,
     }
 
     if ((mux = from->mux)) {
+        if (mux->defstream_index == PA_IDXSET_INVALID) {
+            pa_log_debug("currently mux %u has no default route",
+                         mux->module_index);
+            return TRUE;
+        }
+
         sinp = pa_idxset_get_by_index(core->sink_inputs, mux->defstream_index);
 
         if (!sinp) {
-            pa_log_debug("no default sstream found on multiplex %u",
+            /*
+             * we supposed to have a default stream but the sink-input
+             * on the combine side is not existing any more. This can
+             * happen, for instance, if the sink, where it was connected,
+             * died for some reason.
+             */
+            pa_log_debug("supposed to have a default stream on multiplex "
+                         "%u but non was found. Trying to make one",
                          mux->module_index);
-            mux->defstream_index = PA_IDXSET_INVALID;
-            return FALSE;
+            if (pa_multiplex_duplicate_route(core, mux, sinp, sink)) {                    
+                pa_log_debug("the default stream on mux %u would be a "
+                             "duplicate to an explicit route. "
+                             "Removing it ...", mux->module_index);
+                mux->defstream_index = PA_IDXSET_INVALID;
+                return TRUE; /* the routing is a success */
+            }
+
+            if (!pa_multiplex_add_default_route(core, mux,sink, from->type)) {
+                pa_log_debug("failed to add default route on mux %d",
+                             mux->module_index);
+                mux->defstream_index = PA_IDXSET_INVALID;
+                return FALSE;
+            }
         }
         else if (pa_multiplex_duplicate_route(core, mux, sinp, sink)) {
-            pa_log_debug("default stream on mux %u would be a duplicate "
+            pa_log_debug("the default stream on mux %u would be a duplicate "
                          "to an explicit route. Removing it ...",
                          mux->module_index);
             return TRUE;        /* the routing is a success */
         }
             
-        pa_log_debug("multiplex route: sink-input.%d -> (sink.%d - "
-                     "sink-input.%d) -> sink.%d", from->paidx,
-                     mux->sink_index, sinp->index, sink->index);
+        if (sinp) {
+            pa_log_debug("multiplex route: sink-input.%d -> (sink.%d - "
+                         "sink-input.%d) -> sink.%d", from->paidx,
+                         mux->sink_index, sinp->index, sink->index);
+        }
+        else {
+            pa_log_debug("multiplex route: sink-input.%d -> (sink.%d - "
+                         "sink-input) -> sink.%d", from->paidx,
+                         mux->sink_index, sink->index);
+        }
 
         if (!pa_multiplex_change_default_route(core, mux, sink))
             return FALSE;

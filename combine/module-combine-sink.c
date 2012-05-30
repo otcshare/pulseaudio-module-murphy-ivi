@@ -1004,8 +1004,10 @@ static pa_hook_result_t sink_put_hook_cb(pa_core *c, pa_sink *s, struct userdata
         while (l && !pa_streq(pa_strlist_data(l), s->name))
             l = pa_strlist_next(l);
 
-        if (!l)
+        if (!l) {
+	    pa_log_debug("This sink is not previously unlinked, so returning from sink put cb");
             return PA_HOOK_OK;
+	}
 
         u->unlinked_slaves = pa_strlist_remove(u->unlinked_slaves, s->name);
     }
@@ -1052,8 +1054,10 @@ static pa_hook_result_t sink_unlink_hook_cb(pa_core *c, pa_sink *s, struct userd
 
     pa_log_info("Unconfiguring sink: %s", s->name);
 
-    if (!u->automatic)
+    if (!u->automatic && !u->no_reattach) {
         u->unlinked_slaves = pa_strlist_prepend(u->unlinked_slaves, s->name);
+	pa_log_debug("Adding sink %s to the combine modules unlinked slaves list", s->name);
+    }
 
     output_free(o);
 
@@ -1418,6 +1422,11 @@ static int move_slave(struct userdata *u, pa_sink_input *i, pa_sink *s) {
     pa_assert(i->sink);
 
     o = find_output(u, i->sink);
+
+    if (o == NULL) {
+	pa_log_debug("Could not find output with sink %s for moving", s->name);
+	return -1;
+    }
 
     if (i->sink == s)
 	return 0;

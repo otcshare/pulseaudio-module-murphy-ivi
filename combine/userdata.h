@@ -41,6 +41,7 @@ struct userdata {
 
     pa_bool_t automatic;
     pa_bool_t auto_desc;
+    pa_bool_t no_reattach;
 
     pa_strlist *unlinked_slaves;
 

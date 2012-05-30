@@ -80,6 +80,8 @@ pa_muxnode *pa_multiplex_create(pa_multiplex   *multiplex,
     pa_assert_se((u = module->userdata));
     pa_assert(u->sink);
 
+    u->no_reattach = TRUE;
+
     mux = pa_xnew0(pa_muxnode, 1);
     mux->module_index = module->index;
     mux->sink_index = u->sink->index;
@@ -135,6 +137,47 @@ pa_muxnode *pa_multiplex_find(pa_multiplex *multiplex, uint32_t sink_index)
     return NULL;
 }
 
+
+pa_bool_t pa_multiplex_add_default_route(pa_core    *core,
+                                         pa_muxnode *mux,
+                                         pa_sink    *sink,
+                                         int         type)
+{
+    pa_module *module;
+    pa_sink_input *sinp;
+    struct userdata *u;         /* combine's userdata! */
+
+    pa_assert(core);
+    pa_assert(mux);
+    pa_assert(sink);
+
+    if (!(module = pa_idxset_get_by_index(core->modules, mux->module_index)))
+        pa_log("module %u is gone", mux->module_index);
+    else {
+        pa_assert_se((u = module->userdata));
+
+        if (sink == u->sink) {
+            pa_log("%s: mux %d refuses to make a loopback to itself",
+                   __FILE__, mux->module_index);
+        }
+        else {
+            pa_log_debug("adding default route to mux %u", mux->module_index);
+
+            if (!(sinp = u->add_slave(u, sink))) {
+                pa_log("failed to add new slave to mux %u", mux->module_index);
+                return FALSE;
+            }
+
+            pa_utils_set_stream_routing_properties(sinp->proplist, type, NULL);
+            mux->defstream_index = sinp->index;
+            sinp->flags &= ~(pa_sink_input_flags_t)PA_SINK_INPUT_DONT_MOVE;
+
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
 
 pa_bool_t pa_multiplex_remove_default_route(pa_core *core,
                                             pa_muxnode *mux,
