@@ -95,8 +95,6 @@ pa_muxnode *pa_multiplex_create(pa_multiplex   *multiplex,
         if ((sinp = o->sink_input)) {
             pa_utils_set_stream_routing_properties(sinp->proplist, type, NULL);
             mux->defstream_index = sinp->index;
-            /* Hmm... */
-            sinp->flags &= ~(pa_sink_input_flags_t)PA_SINK_INPUT_DONT_MOVE;
         }
     }
 
@@ -170,7 +168,6 @@ pa_bool_t pa_multiplex_add_default_route(pa_core    *core,
 
             pa_utils_set_stream_routing_properties(sinp->proplist, type, NULL);
             mux->defstream_index = sinp->index;
-            sinp->flags &= ~(pa_sink_input_flags_t)PA_SINK_INPUT_DONT_MOVE;
 
             return TRUE;
         }

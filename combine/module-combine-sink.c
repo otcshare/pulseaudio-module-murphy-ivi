@@ -1414,6 +1414,7 @@ static void remove_slave(struct userdata *u, pa_sink_input *i, pa_sink *s) {
 
 static int move_slave(struct userdata *u, pa_sink_input *i, pa_sink *s) {
     struct output *o;
+    int sts;
 
     pa_assert(u);
     pa_assert(i);
@@ -1431,7 +1432,14 @@ static int move_slave(struct userdata *u, pa_sink_input *i, pa_sink *s) {
     if (i->sink == s)
 	return 0;
 
-    if (pa_sink_input_move_to(i, s, FALSE) < 0)
+    i->flags &= ~(pa_sink_input_flags_t)PA_SINK_INPUT_DONT_MOVE;
+
+    sts = pa_sink_input_move_to(i, s, FALSE);
+
+    i->flags |= (pa_sink_input_flags_t)PA_SINK_INPUT_DONT_MOVE;
+
+
+    if (sts < 0)
 	return -1;
 
     o->sink = s;
