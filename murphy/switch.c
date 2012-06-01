@@ -16,7 +16,7 @@
 #include "switch.h"
 #include "node.h"
 #include "multiplex.h"
-
+#include "utils.h"
 
 static pa_bool_t setup_explicit_link_from_stream_to_device(struct userdata *,
                                                            mir_node *, mir_node *);

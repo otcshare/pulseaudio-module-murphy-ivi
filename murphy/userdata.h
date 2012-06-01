@@ -24,6 +24,7 @@ typedef struct pa_audiomgr           pa_audiomgr;
 typedef struct pa_policy_dbusif      pa_policy_dbusif;
 typedef struct pa_discover           pa_discover;
 typedef struct pa_router             pa_router;
+typedef struct pa_constrain          pa_constrain;
 typedef struct pa_mir_config         pa_mir_config;
 typedef struct pa_nodeset            pa_nodeset;
 typedef struct pa_node_card          pa_node_card;
@@ -41,6 +42,8 @@ typedef struct mir_node              mir_node;
 typedef struct mir_rtgroup           mir_rtgroup;
 typedef struct mir_rtentry           mir_rtentry;
 typedef struct mir_connection        mir_connection;
+typedef struct mir_constr_link       mir_constr_link;
+typedef struct mir_constr_def        mir_constr_def;
 
 typedef struct am_domainreg_data     am_domainreg_data;
 typedef struct am_nodereg_data       am_nodereg_data;
@@ -68,6 +71,7 @@ struct userdata {
     pa_discover       *discover;
     pa_tracker        *tracker;
     pa_router         *router;
+    pa_constrain      *constrain;
     pa_multiplex      *multiplex;
     pa_mir_config     *config;
     pa_mir_state       state;

@@ -24,6 +24,7 @@ struct pa_router {
 struct mir_rtentry {
     mir_dlist    link;        /**< rtgroup chain */
     mir_dlist    nodchain;    /**< node chain */
+    mir_rtgroup *group;       /**< back pointer to the group  */
     mir_node    *node;        /**< pointer to the owning node */
     bool         blocked;     /**< weather this routing entry is active */
     uint32_t     stamp;

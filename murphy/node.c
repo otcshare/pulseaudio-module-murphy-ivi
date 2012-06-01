@@ -10,6 +10,7 @@
 #include "node.h"
 #include "discover.h"
 #include "router.h"
+#include "constrain.h"
 
 struct pa_nodeset {
     pa_idxset *nodes;
@@ -69,6 +70,7 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     node->mux       = data->mux;
     node->stamp     = data->stamp;
     MIR_DLIST_INIT(node->rtentries);
+    MIR_DLIST_INIT(node->constrains);
     
     if (node->implement == mir_device) {
         node->pacard.index   = data->pacard.index;
@@ -125,12 +127,14 @@ int mir_node_print(mir_node *node, char *buf, int len)
 {
     char *p, *e;
     char mux[256];
+    char constr[512];
 
     pa_assert(node);
     pa_assert(buf);
     pa_assert(len > 0);
 
     pa_multiplex_print(node->mux, mux, sizeof(mux));
+    mir_constrain_print(node, constr, sizeof(constr));
 
     e = (p = buf) + len;
 
@@ -156,6 +160,7 @@ int mir_node_print(mir_node *node, char *buf, int len)
                                       node->pacard.profile : "");
     PRINT("   paport        : '%s'",  node->paport ? node->paport : "");
     PRINT("   mux           : %s"  ,  mux);
+    PRINT("   constrain     : %s"  ,  constr);
     PRINT("   stamp         : %u"  ,  node->stamp);
 
 #undef PRINT

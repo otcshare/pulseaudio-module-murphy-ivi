@@ -18,6 +18,7 @@
 #include "node.h"
 #include "audiomgr.h"
 #include "router.h"
+#include "constrain.h"
 #include "multiplex.h"
 #include "classify.h"
 #include "utils.h"
@@ -141,6 +142,7 @@ void pa_discover_add_card(struct userdata *u, pa_card *card)
 
 void pa_discover_remove_card(struct userdata *u, pa_card *card)
 {
+    const char  *bus;
     pa_discover *discover;
     mir_node    *node;
     void        *state;
@@ -149,6 +151,10 @@ void pa_discover_remove_card(struct userdata *u, pa_card *card)
     pa_assert(card);
     pa_assert_se((discover = u->discover));
 
+    if (!(bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS)))
+        bus = "<unknown>";
+
+
     PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
         if (node->implement == mir_device &&
             node->pacard.index == card->index)
@@ -156,6 +162,11 @@ void pa_discover_remove_card(struct userdata *u, pa_card *card)
             destroy_node(u, node);
         }
     }
+
+    if (pa_streq(bus, "pci") || pa_streq(bus, "usb"))
+        mir_constrain_destroy(u, node->paname);
+    else if (pa_streq(bus, "bluetooth"))
+        mir_constrain_destroy(u, card->name);
 }
 
 void pa_discover_profile_changed(struct userdata *u, pa_card *card)
@@ -692,6 +703,8 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     pa_discover     *discover;
     pa_card_profile *prof;
     mir_node         data;
+    mir_node        *node;
+    mir_constr_def  *cd;
     char            *cnam;
     char            *cid;
     const char      *cdescr;
@@ -727,6 +740,8 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     if (!strncmp(cnam, "bluez_card.", 11)) { 
         cid = cnam + 11;
 
+        cd = mir_constrain_create(u, "profile", mir_constrain_profile, cnam);
+
         PA_HASHMAP_FOREACH(prof, card->profiles, state) {
             data.available = TRUE;
             data.pacard.profile = prof->name;
@@ -739,7 +754,10 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
                 snprintf(paname, sizeof(paname), "bluez_sink.%s", cid);
                 snprintf(key, sizeof(key), "%s@%s", paname, prof->name);
                 pa_classify_node_by_card(&data, card, prof, NULL);
-                create_node(u, &data, NULL);
+                node = create_node(u, &data, NULL);
+                cd = mir_constrain_create(u, "profile", mir_constrain_profile,
+                                          paname);
+                mir_constrain_add_node(u, cd, node);
             }
 
             if (prof->n_sources > 0) {
@@ -750,7 +768,8 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
                 snprintf(paname, sizeof(paname), "bluez_source.%s", cid);
                 snprintf(key, sizeof(key), "%s@%s", paname, prof->name);
                 pa_classify_node_by_card(&data, card, prof, NULL);
-                create_node(u, &data, NULL);
+                node = create_node(u, &data, NULL);
+                mir_constrain_add_node(u, cd, node);
             }
         }
 
@@ -799,7 +818,7 @@ static void handle_udev_loaded_card(struct userdata *u, pa_card *card,
     active = card->active_profile;
 
     PA_HASHMAP_FOREACH(prof, card->profiles, state) {
-        /* filtering: deal with sepected profiles if requested so */
+        /* filtering: deal with selected profiles if requested so */
         if (discover->selected && (!active || (active && prof != active)))
             continue;
 
@@ -845,6 +864,7 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
 {
     mir_node       *node = NULL;
     pa_bool_t       have_ports = FALSE;
+    mir_constr_def *cd = NULL;
     char           *amname = data->amname;
     pa_device_port *port;
     void           *state;
@@ -869,8 +889,6 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
             {
                 have_ports = TRUE;
 
-                /* make constrain if node != NULL and add node to it */
-
                 amname[0] = '\0';
                 snprintf(key, sizeof(key), "%s@%s", data->paname, port->name);
 
@@ -884,10 +902,12 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
 
                 node = create_node(u, data, &created);
 
-                if (created)
-                    ; /* if constrain != NULL add the node to it */
-                else {
+                if (!created)
                     node->stamp = data->stamp;
+                else {
+                    cd = mir_constrain_create(u, "port", mir_constrain_port,
+                                              data->paname);
+                    mir_constrain_add_node(u, cd, node);
                 }
             }
         }
@@ -977,6 +997,8 @@ static void destroy_node(struct userdata *u, mir_node *node)
         }
         
         pa_audiomgr_unregister_node(u, node);
+
+        mir_constrain_remove_node(u, node);
 
         pa_multiplex_destroy(u->multiplex, u->core, node->mux);
         

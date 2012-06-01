@@ -291,7 +291,6 @@ pa_bool_t pa_multiplex_remove_explicit_route(pa_core    *core,
                                              pa_sink    *sink)
 {
     pa_module *module;
-    pa_sink_input *sinp;
     struct userdata *u;         /* combine's userdata! */
 
     pa_assert(core);

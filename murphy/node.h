@@ -88,30 +88,31 @@ struct pa_node_card {
  *          is either a sink_input or a source_output
  */
 struct mir_node {
-    uint32_t        index;    /**< index into nodeset->idxset */
-    char           *key;      /**< hash key for discover lookups */
-    mir_direction   direction;/**< mir_input | mir_output */
-    mir_implement   implement;/**< mir_device | mir_stream */
-    uint32_t        channels; /**< number of channels (eg. 1=mono, 2=stereo) */
-    mir_location    location; /**< mir_internal | mir_external */
-    mir_privacy     privacy;  /**< mir_public | mir_private */
-    mir_node_type   type;     /**< mir_speakers | mir_headset | ...  */
-    pa_bool_t       visible;  /**< internal or can appear on UI  */
-    pa_bool_t       available;/**< eg. is the headset connected?  */
-    pa_bool_t       ignore;   /**< do not consider it while routing  */
-    char           *amname;   /**< audiomanager name */
-    char           *amdescr;  /**< UI description */
-    uint16_t        amid;     /**< handle to audiomanager, if any */
-    char           *paname;   /**< sink|source|sink_input|source_output name */
-    uint32_t        paidx;    /**< sink|source|sink_input|source_output index*/
-    pa_node_card    pacard;   /**< pulse card related data, if any  */
-    char           *paport;   /**< sink or source port if applies */
-    pa_muxnode     *mux;      /**< for multiplexable input streams only */
-    mir_dlist       rtentries;/**< for devices: listhead of nodchain,
+    uint32_t       index;     /**< index into nodeset->idxset */
+    char          *key;       /**< hash key for discover lookups */
+    mir_direction  direction; /**< mir_input | mir_output */
+    mir_implement  implement; /**< mir_device | mir_stream */
+    uint32_t       channels;  /**< number of channels (eg. 1=mono, 2=stereo) */
+    mir_location   location;  /**< mir_internal | mir_external */
+    mir_privacy    privacy;   /**< mir_public | mir_private */
+    mir_node_type  type;      /**< mir_speakers | mir_headset | ...  */
+    pa_bool_t      visible;   /**< internal or can appear on UI  */
+    pa_bool_t      available; /**< eg. is the headset connected?  */
+    pa_bool_t      ignore;    /**< do not consider it while routing  */
+    char          *amname;    /**< audiomanager name */
+    char          *amdescr;   /**< UI description */
+    uint16_t       amid;      /**< handle to audiomanager, if any */
+    char          *paname;    /**< sink|source|sink_input|source_output name */
+    uint32_t       paidx;     /**< sink|source|sink_input|source_output index*/
+    pa_node_card   pacard;    /**< pulse card related data, if any  */
+    char          *paport;    /**< sink or source port if applies */
+    pa_muxnode    *mux;       /**< for multiplexable input streams only */
+    mir_dlist      rtentries; /**< for devices: listhead of nodchain,
                                    for streams: priority link (head is in
                                                                pa_router )
-                              */
-    uint32_t        stamp;
+                               */
+    mir_dlist      constrains;/**< listhead of constrains */
+    uint32_t       stamp;
 };
 
 

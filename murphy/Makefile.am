@@ -5,6 +5,7 @@ module_murphy_ivi_la_SOURCES = \
 			tracker.c \
 			node.c \
 			discover.c \
+			constrain.c \
 			router.c \
 			switch.c \
 			multiplex.c \

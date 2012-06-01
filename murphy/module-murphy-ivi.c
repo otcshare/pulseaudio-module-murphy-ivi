@@ -31,6 +31,7 @@
 #include "tracker.h"
 #include "discover.h"
 #include "router.h"
+#include "constrain.h"
 #include "multiplex.h"
 #include "audiomgr.h"
 #include "dbusif.h"
@@ -115,6 +116,7 @@ int pa__init(pa_module *m) {
     u->discover  = pa_discover_init(u);
     u->tracker   = pa_tracker_init(u);
     u->router    = pa_router_init(u);
+    u->constrain = pa_constrain_init(u);
     u->multiplex = pa_multiplex_init();
     u->config    = pa_mir_config_init(u);
 
@@ -156,6 +158,7 @@ void pa__done(pa_module *m) {
     
         pa_tracker_done(u);
         pa_discover_done(u);
+        pa_constrain_done(u);
         pa_router_done(u);
         pa_audiomgr_done(u);
         pa_policy_dbusif_done(u);

@@ -11,6 +11,8 @@
 #include "router.h"
 #include "node.h"
 #include "switch.h"
+#include "constrain.h"
+#include "utils.h"
 
 
 static void rtgroup_destroy(struct userdata *, mir_rtgroup *);
@@ -21,7 +23,7 @@ static void add_rtentry(struct userdata *, mir_rtgroup *, mir_node *);
 static void remove_rtentry(struct userdata *, mir_rtentry *);
 
 static void make_explicit_routes(struct userdata *, uint32_t);
-static mir_node *find_default_route(struct userdata *, mir_node *);
+static mir_node *find_default_route(struct userdata *, mir_node *, uint32_t);
 
 
 static int uint32_cmp(uint32_t, uint32_t);
@@ -343,7 +345,7 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
 
     MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, from, &router->nodlist) {
         if (priority >= node_priority(u, from)) {
-            if ((target = find_default_route(u, data)))
+            if ((target = find_default_route(u, data, stamp)))
                 mir_switch_setup_link(u, NULL, target, FALSE);
             done = TRUE;
         }
@@ -351,11 +353,11 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
         if (from->stamp >= stamp)
             continue;
 
-        if ((to = find_default_route(u, from)))
+        if ((to = find_default_route(u, from, stamp)))
             mir_switch_setup_link(u, from, to, FALSE);
     }    
 
-    if (!done && (target = find_default_route(u, data)))
+    if (!done && (target = find_default_route(u, data, stamp)))
         mir_switch_setup_link(u, NULL, target, FALSE);
 
     return target;
@@ -386,7 +388,7 @@ void mir_router_make_routing(struct userdata *u)
         if (from->stamp >= stamp)
             continue;
 
-        if ((to = find_default_route(u, from)))
+        if ((to = find_default_route(u, from, stamp)))
             mir_switch_setup_link(u, from, to, FALSE);
     }    
 
@@ -550,7 +552,8 @@ static void add_rtentry(struct userdata *u, mir_rtgroup *rtg, mir_node *node)
     rte = pa_xnew0(mir_rtentry, 1);
 
     MIR_DLIST_APPEND(mir_rtentry, nodchain, rte, &node->rtentries);
-    rte->node = node;
+    rte->group = rtg;
+    rte->node  = node;
 
     MIR_DLIST_FOR_EACH(mir_rtentry, link, before, &rtg->entries) {
         if (rtg->compare(u, node, before->node) < 0) {
@@ -609,7 +612,9 @@ static void make_explicit_routes(struct userdata *u, uint32_t stamp)
 }
 
 
-static mir_node *find_default_route(struct userdata *u, mir_node *from)
+static mir_node *find_default_route(struct userdata *u,
+                                    mir_node        *from,
+                                    uint32_t         stamp)
 {
     pa_router     *router = u->router;
     mir_node_type  class  = from->type;
@@ -655,7 +660,17 @@ static mir_node *find_default_route(struct userdata *u, mir_node *from)
             if (to->type != mir_bluetooth_a2dp &&
                 to->type != mir_bluetooth_sco)
             {
-                pa_log_debug("   '%s' has no to. Skipping...", to->amname);
+                pa_log_debug("   '%s' has no sink. Skipping...", to->amname);
+                continue;
+            }
+        }
+
+        if (rte->stamp < stamp)
+            mir_constrain_apply(u, to, stamp);
+        else {
+            if (rte->blocked) {
+                pa_log_debug("   '%s' is blocked by constraints. Skipping...",
+                             to->amname);
                 continue;
             }
         }
