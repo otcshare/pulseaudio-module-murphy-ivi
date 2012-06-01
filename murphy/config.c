@@ -19,6 +19,12 @@ typedef struct {
     const char    *rtgroup;
 } classmap_def;
 
+typedef struct {
+    mir_node_type  class;
+    int            priority;
+} prior_def;
+
+
 rtgroup_def  rtgroups[] = {
     {"default", mir_router_default_accept, mir_router_default_compare},
     {"phone"  , mir_router_phone_accept  , mir_router_phone_compare  },
@@ -31,9 +37,20 @@ classmap_def classmap[] = {
     {mir_navigator, "default"},
     {mir_game     , "default"},
     {mir_browser  , "default"},
-    {mir_phone    , "default"},
+    {mir_phone    , "phone"  },
     {mir_event    , "default"},
     {mir_node_type_unknown, NULL}
+};
+
+prior_def priormap[] = {
+    {mir_radio    , 1},
+    {mir_player   , 1},
+    {mir_navigator, 2},
+    {mir_game     , 3},
+    {mir_browser  , 1},
+    {mir_phone    , 4},
+    {mir_event    , 5},
+    {mir_node_type_unknown, 0}
 };
 
 
@@ -95,6 +112,7 @@ static pa_bool_t use_default_configuration(struct userdata *u)
 {
     rtgroup_def  *r;
     classmap_def *c;
+    prior_def    *p;
 
     pa_assert(u);
 
@@ -103,6 +121,9 @@ static pa_bool_t use_default_configuration(struct userdata *u)
 
     for (c = classmap;  c->rtgroup;  c++)
         mir_router_assign_class_to_rtgroup(u, c->class, c->rtgroup);
+
+    for (p = priormap;  p->class;  p++)
+        mir_router_assign_class_priority(u, p->class, p->priority);
 
     return TRUE;
 }

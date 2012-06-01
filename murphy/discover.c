@@ -641,9 +641,12 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
                          node->amname, sinknod->amname);
 
             /* FIXME: and actually do it ... */
+
         }
 
         destroy_node(u, node);
+
+        mir_router_make_routing(u);
     }
 }
 

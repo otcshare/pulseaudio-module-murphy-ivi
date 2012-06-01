@@ -50,6 +50,8 @@ struct mir_connection {
 pa_router *pa_router_init(struct userdata *);
 void pa_router_done(struct userdata *);
 
+void mir_router_assign_class_priority(struct userdata *, mir_node_type, int);
+
 pa_bool_t mir_router_create_rtgroup(struct userdata *, const char *,
                                     mir_rtgroup_accept_t,
                                     mir_rtgroup_compare_t);

@@ -187,7 +187,7 @@ mir_node_type pa_classify_guess_stream_node_type(pa_proplist *pl)
         {"music"    , mir_player },
         {"game"     , mir_game   },
         {"event"    , mir_event  },
-        {"phone"    , mir_player },
+        {"phone"    , mir_phone  },
         {"animation", mir_browser},
         {"test"     , mir_player },
         {NULL, mir_node_type_unknown}

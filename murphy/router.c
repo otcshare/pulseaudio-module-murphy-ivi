@@ -80,6 +80,22 @@ void pa_router_done(struct userdata *u)
 }
 
 
+void mir_router_assign_class_priority(struct userdata *u, mir_node_type class, int pri)
+{
+    pa_router *router;
+    int *priormap;
+
+    pa_assert(u);
+    pa_assert_se((router = u->router));
+    pa_assert_se((priormap = router->priormap));
+
+    if (class >= 0 && class < router->maplen) {
+        pa_log_debug("assigning priority %d to class '%s'", pri,mir_node_type_str(class));
+        priormap[class] = pri;
+    }
+}
+
+
 pa_bool_t mir_router_create_rtgroup(struct userdata      *u,
                                     const char           *name,
                                     mir_rtgroup_accept_t  accept,
