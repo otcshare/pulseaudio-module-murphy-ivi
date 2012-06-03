@@ -9,6 +9,7 @@ module_murphy_ivi_la_SOURCES = \
 			router.c \
 			switch.c \
 			multiplex.c \
+			volume.c \
 			audiomgr.c \
 			dbusif.c \
 			config.c \

@@ -12,6 +12,7 @@
 #include "node.h"
 #include "switch.h"
 #include "constrain.h"
+#include "volume.h"
 #include "utils.h"
 
 
@@ -80,7 +81,9 @@ void pa_router_done(struct userdata *u)
 }
 
 
-void mir_router_assign_class_priority(struct userdata *u, mir_node_type class, int pri)
+void mir_router_assign_class_priority(struct userdata *u,
+                                      mir_node_type    class,
+                                      int              pri)
 {
     pa_router *router;
     int *priormap;
@@ -90,7 +93,8 @@ void mir_router_assign_class_priority(struct userdata *u, mir_node_type class, i
     pa_assert_se((priormap = router->priormap));
 
     if (class >= 0 && class < router->maplen) {
-        pa_log_debug("assigning priority %d to class '%s'", pri,mir_node_type_str(class));
+        pa_log_debug("assigning priority %d to class '%s'",
+                     pri, mir_node_type_str(class));
         priormap[class] = pri;
     }
 }
@@ -359,22 +363,28 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
 
     make_explicit_routes(u, stamp);
 
-    MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, from, &router->nodlist) {
+    MIR_DLIST_FOR_EACH_BACKWARD(mir_node, rtentries, from, &router->nodlist) {
         if (priority >= node_priority(u, from)) {
-            if ((target = find_default_route(u, data, stamp)))
+            if ((target = find_default_route(u, data, stamp))) {
                 mir_switch_setup_link(u, NULL, target, FALSE);
+                mir_volume_add_limiting_class(u, target, data->type, stamp);
+            }
             done = TRUE;
         }
 
         if (from->stamp >= stamp)
             continue;
 
-        if ((to = find_default_route(u, from, stamp)))
+        if ((to = find_default_route(u, from, stamp))) {
             mir_switch_setup_link(u, from, to, FALSE);
+            mir_volume_add_limiting_class(u, to, from->type, stamp);
+        }
     }    
 
-    if (!done && (target = find_default_route(u, data, stamp)))
+    if (!done && (target = find_default_route(u, data, stamp))) {
         mir_switch_setup_link(u, NULL, target, FALSE);
+        mir_volume_add_limiting_class(u, target, data->type, stamp);
+    }
 
     return target;
 }
@@ -404,8 +414,10 @@ void mir_router_make_routing(struct userdata *u)
         if (from->stamp >= stamp)
             continue;
 
-        if ((to = find_default_route(u, from, stamp)))
+        if ((to = find_default_route(u, from, stamp))) {
             mir_switch_setup_link(u, from, to, FALSE);
+            mir_volume_add_limiting_class(u, to, from->type, stamp);
+        }
     }    
 
     ongoing_routing = FALSE;
@@ -624,6 +636,9 @@ static void make_explicit_routes(struct userdata *u, uint32_t stamp)
 
         if (from->implement == mir_stream)
             from->stamp = stamp;
+
+        if (to->implement == mir_device)
+            mir_volume_add_limiting_class(u, to, from->type, stamp);
     }
 }
 

@@ -33,6 +33,7 @@
 #include "router.h"
 #include "constrain.h"
 #include "multiplex.h"
+#include "volume.h"
 #include "audiomgr.h"
 #include "dbusif.h"
 #include "config.h"
@@ -118,6 +119,7 @@ int pa__init(pa_module *m) {
     u->router    = pa_router_init(u);
     u->constrain = pa_constrain_init(u);
     u->multiplex = pa_multiplex_init();
+    u->volume    = pa_mir_volume_init(u);
     u->config    = pa_mir_config_init(u);
 
     if (u->nullsink == NULL || u->dbusif == NULL  ||
@@ -162,12 +164,12 @@ void pa__done(pa_module *m) {
         pa_router_done(u);
         pa_audiomgr_done(u);
         pa_policy_dbusif_done(u);
+        pa_mir_volume_done(u);
         pa_mir_config_done(u);
         pa_nodeset_done(u);
         pa_utils_destroy_null_sink(u);
 
         pa_multiplex_done(u->multiplex, u->core);
-
 
         pa_xfree(u);
     }

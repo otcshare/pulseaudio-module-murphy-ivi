@@ -7,6 +7,7 @@
 #include "config.h"
 #include "node.h"
 #include "router.h"
+#include "volume.h"
 
 typedef struct {
     const char            *name;
@@ -25,13 +26,13 @@ typedef struct {
 } prior_def;
 
 
-rtgroup_def  rtgroups[] = {
+static rtgroup_def  rtgroups[] = {
     {"default", mir_router_default_accept, mir_router_default_compare},
     {"phone"  , mir_router_phone_accept  , mir_router_phone_compare  },
     {   NULL  ,            NULL          ,              NULL         }
 };
 
-classmap_def classmap[] = {
+static classmap_def classmap[] = {
     {mir_radio    , "default"},
     {mir_player   , "default"},
     {mir_navigator, "default"},
@@ -42,7 +43,7 @@ classmap_def classmap[] = {
     {mir_node_type_unknown, NULL}
 };
 
-prior_def priormap[] = {
+static prior_def priormap[] = {
     {mir_radio    , 1},
     {mir_player   , 1},
     {mir_navigator, 2},
@@ -51,6 +52,12 @@ prior_def priormap[] = {
     {mir_phone    , 4},
     {mir_event    , 5},
     {mir_node_type_unknown, 0}
+};
+
+static double speedvol;
+static int exception_classes[] = {mir_phone, mir_navigator};
+static mir_volume_suppress_arg suppress = {
+    -30.0, {DIM(exception_classes), exception_classes}
 };
 
 
@@ -124,6 +131,13 @@ static pa_bool_t use_default_configuration(struct userdata *u)
 
     for (p = priormap;  p->class;  p++)
         mir_router_assign_class_priority(u, p->class, p->priority);
+
+
+    mir_volume_add_generic_limit(u, mir_volume_correction, &speedvol);
+
+    mir_volume_add_class_limit(u, mir_phone,mir_volume_suppress, &suppress);
+    mir_volume_add_class_limit(u, mir_navigator,mir_volume_suppress,&suppress);
+
 
     return TRUE;
 }

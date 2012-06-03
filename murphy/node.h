@@ -6,6 +6,7 @@
 #include "userdata.h"
 #include "list.h"
 #include "multiplex.h"
+#include "volume.h"
 
 #define AM_ID_INVALID  65535
 
@@ -112,6 +113,7 @@ struct mir_node {
                                                                pa_router )
                                */
     mir_dlist      constrains;/**< listhead of constrains */
+    mir_vlim       vlim;      /**< volume limit */
     uint32_t       stamp;
 };
 
