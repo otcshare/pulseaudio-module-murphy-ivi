@@ -13,6 +13,7 @@
 #include "switch.h"
 #include "constrain.h"
 #include "volume.h"
+#include "fader.h"
 #include "utils.h"
 
 
@@ -419,6 +420,8 @@ void mir_router_make_routing(struct userdata *u)
             mir_volume_add_limiting_class(u, to, from->type, stamp);
         }
     }    
+
+    pa_fader_apply_volume_limits(u, stamp);
 
     ongoing_routing = FALSE;
 }

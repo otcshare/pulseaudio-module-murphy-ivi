@@ -27,8 +27,8 @@ typedef struct {
 
 
 static rtgroup_def  rtgroups[] = {
-    {"default", mir_router_default_accept, mir_router_default_compare},
-    {"phone"  , mir_router_phone_accept  , mir_router_phone_compare  },
+    {"default"  , mir_router_default_accept, mir_router_default_compare},
+    {"phone"    , mir_router_phone_accept  , mir_router_phone_compare  },
     {   NULL  ,            NULL          ,              NULL         }
 };
 
@@ -57,7 +57,7 @@ static prior_def priormap[] = {
 static double speedvol;
 static int exception_classes[] = {mir_phone, mir_navigator};
 static mir_volume_suppress_arg suppress = {
-    -30.0, {DIM(exception_classes), exception_classes}
+    -20.0, {DIM(exception_classes), exception_classes}
 };
 
 

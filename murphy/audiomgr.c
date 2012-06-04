@@ -237,7 +237,7 @@ void pa_audiomgr_node_registered(struct userdata *u,
     pa_assert(rd->key);
     pa_assert_se((am = u->audiomgr));
 
-    if (!(node = pa_discover_find_node(u, rd->key)))
+    if (!(node = pa_discover_find_node_by_key(u, rd->key)))
         pa_log("%s: can't find node with key '%s'", __FILE__, rd->key);
     else {
         node->amid = id;

@@ -183,13 +183,14 @@ mir_node_type pa_classify_guess_stream_node_type(pa_proplist *pl)
     } map_t;
 
     static map_t role_map[] = {
-        {"video"    , mir_player },
-        {"music"    , mir_player },
-        {"game"     , mir_game   },
-        {"event"    , mir_event  },
-        {"phone"    , mir_phone  },
-        {"animation", mir_browser},
-        {"test"     , mir_player },
+        {"video"    , mir_player   },
+        {"music"    , mir_player   },
+        {"game"     , mir_game     },
+        {"event"    , mir_event    },
+	{"navigator", mir_navigator},
+        {"phone"    , mir_phone    },
+        {"animation", mir_browser  },
+        {"test"     , mir_player   },
         {NULL, mir_node_type_unknown}
     };
 

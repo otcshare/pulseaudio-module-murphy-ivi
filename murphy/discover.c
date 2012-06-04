@@ -259,7 +259,7 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
     if ((card = sink->card)) {
         if (!(key = node_key_from_card(u, mir_output, sink, buf, sizeof(buf))))
             return;
-        if (!(node = pa_discover_find_node(u, key))) {
+        if (!(node = pa_discover_find_node_by_key(u, key))) {
             pa_log_debug("can't find node for sink (key '%s')", key);
             return;
         }
@@ -358,7 +358,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
     if ((card = source->card)) {
         if (!(key = node_key_from_card(u, mir_output,source, buf,sizeof(buf))))
             return;
-        if (!(node = pa_discover_find_node(u, key))) {
+        if (!(node = pa_discover_find_node_by_key(u, key))) {
             pa_log_debug("can't find node for source (key '%s')", key);
             return;
         }
@@ -611,6 +611,9 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         pa_log_debug("register route '%s' => '%s'",
                      node->amname, snod->amname);
         /* FIXME: and actually do it ... */
+
+
+        pa_fader_apply_volume_limits(u, pa_utils_get_stamp());
     }
 }
 
@@ -651,7 +654,7 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
 }
 
 
-mir_node *pa_discover_find_node(struct userdata *u, const char *key)
+mir_node *pa_discover_find_node_by_key(struct userdata *u, const char *key)
 {
     pa_discover *discover;
     mir_node    *node;
@@ -661,6 +664,22 @@ mir_node *pa_discover_find_node(struct userdata *u, const char *key)
 
     if (key)
         node = pa_hashmap_get(discover->nodes.byname, key);
+    else
+        node = NULL;
+
+    return node;
+}
+
+mir_node *pa_discover_find_node_by_ptr(struct userdata *u, void *ptr)
+{
+    pa_discover *discover;
+    mir_node    *node;
+    
+    pa_assert(u);
+    pa_assert_se((discover = u->discover));
+    
+    if (ptr)
+        node = pa_hashmap_get(discover->nodes.byptr, ptr);
     else
         node = NULL;
 

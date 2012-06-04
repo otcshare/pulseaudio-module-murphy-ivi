@@ -74,7 +74,8 @@ void pa_discover_add_sink_input(struct userdata *, pa_sink_input *);
 void pa_discover_remove_sink_input(struct userdata *, pa_sink_input *);
 
 
-mir_node *pa_discover_find_node(struct userdata *, const char *);
+mir_node *pa_discover_find_node_by_key(struct userdata *, const char *);
+mir_node *pa_discover_find_node_by_ptr(struct userdata *, void *);
 
 #endif
 

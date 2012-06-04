@@ -159,7 +159,7 @@ void pa_utils_set_stream_routing_properties(pa_proplist *pl,
     char           clid[32];
 
     pa_assert(pl);
-    pa_assert(styp);
+    pa_assert(styp >= 0);
     
     snprintf(clid, sizeof(clid), "%d", styp);
     clnam  = mir_node_type_str(styp);
@@ -197,6 +197,24 @@ pa_bool_t pa_utils_stream_has_default_route(pa_proplist *pl)
         return TRUE;
 
     return FALSE;
+}
+
+int pa_utils_get_stream_class(pa_proplist *pl)
+{
+    const char *clid_str;
+    char *e;
+    unsigned long int clid = 0;
+
+    pa_assert(pl);
+
+    if ((clid_str = pa_proplist_gets(pl, PA_PROP_ROUTING_CLASS_ID))) {
+        clid = strtoul(clid_str, &e, 10);
+
+        if (*e)
+            clid = 0;
+    }
+
+    return (int)clid;
 }
 
 

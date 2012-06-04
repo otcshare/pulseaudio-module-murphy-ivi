@@ -8,6 +8,7 @@ module_murphy_ivi_la_SOURCES = \
 			constrain.c \
 			router.c \
 			switch.c \
+			fader.c \
 			multiplex.c \
 			volume.c \
 			audiomgr.c \
