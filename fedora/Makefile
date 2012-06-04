@@ -19,7 +19,7 @@ PKGDIR   := $(PACKAGE)-$(VERSION)
 # tarball type to use (git = HEAD, current = working copy)
 type      = current
 
-all: rpms #cleanup
+all: rpms cleanup
 
 #showvar:
 #	@echo "$(var) = $($(var))"
@@ -40,7 +40,7 @@ rpms: rmtar $(SPECFILE) tarball
 cleanup:
 	rm -fr $(TMPDIR) && \
 	rm -f $(SPECFILE)
-	rm -f $(TARBALL)
+#	rm -f $(TARBALL)
 
 # rules to patch the SPEC file and build a source tarball
 $(SPECFILE): $(SPECFILE).in
@@ -57,7 +57,7 @@ git-tarball:
 	        gzip > $(THISDIR)/$(TARBALL)
 
 current-tarball:
-	cd .. && make distclean || : && ./autogen.sh
+	cd .. && make distclean || : && ./bootstrap.sh
 	cd .. && mkdir -p $(TMPDIR)/$(PKGDIR) && \
 	tar -cvf - --exclude '$(THISDIR)' \
 	           --exclude '.git' . | \

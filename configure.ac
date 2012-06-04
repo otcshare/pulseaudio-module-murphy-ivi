@@ -5,11 +5,10 @@ AC_PREREQ(2.61)
 
 AC_INIT([pulseaudio-murphy-ivi],[PAVER],[janos.kovacs@intel.com])
 
-DOC_SUPPORT_INIT()
-
 AC_CONFIG_SRCDIR([murphy/module-murphy-ivi.c])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([foreign 1.8.5 -Wall])
+
 
 # this would not be really needed if everything would be as it should be
 AS_IF([test x${exec_prefix} = xNONE], [LIBDIR=$ac_default_prefix/lib], [LIBDIR=${libdir}])
@@ -28,6 +27,8 @@ AC_PATH_PROG([M4], [m4 gm4], [no])
 if test "x$M4" = xno ; then
    AC_MSG_ERROR([m4 missing])
 fi
+
+AC_SUBST(ACLOCAL_AMFLAGS, "-I m4")
 
 #dnl Compiler flags
 #DESIRED_FLAGS="-Wall -W -Wextra -pedantic -pipe -Wno-long-long -Wvla -Wno-overlength-strings -Wconversion -Wundef -Wformat -Wlogical-op -Wpacked -Wformat-security -Wmissing-include-dirs -Wformat-nonliteral -Wold-style-definition -Wdeclaration-after-statement -Wfloat-equal -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls -Wmissing-noreturn -Wshadow -Wendif-labels -Wpointer-arith -Wcast-align -Wwrite-strings -Wno-unused-parameter -ffast-math"
@@ -63,9 +64,6 @@ PKG_CHECK_MODULES(LIBPULSE, [libpulse])
 AC_SUBST(LIBPULSE_CFLAGS)
 AC_SUBST(LIBPULSE_LIBS)
 
-#PKG_CHECK_MODULES(LIBPULSECORE, [pulsecore])
-#AC_SUBST(LIBPULSECORE_CFLAGS)
-#AC_SUBST(LIBPULSECORE_LIBS)
 
 PKG_CHECK_MODULES(PULSEDEVEL, [pulseaudio-module-devel])
 AC_SUBST(PULSEDEVEL_CFLAGS)
@@ -85,11 +83,15 @@ AC_ARG_WITH(
 
 AC_SUBST(modlibexecdir)
 
+# Shave by default
+SHAVE_INIT([build-aux], [enable])
+
 AC_CONFIG_FILES([
+        build-aux/shave
+        build-aux/shave-libtool
 	Makefile
 	murphy/Makefile
         combine/Makefile
-	doc/Makefile
 ])
 AC_OUTPUT
 

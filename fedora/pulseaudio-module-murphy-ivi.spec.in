@@ -26,7 +26,7 @@ corking and muting policy decisions.
 %build
 PAVER="`/usr/bin/pkg-config --silence-errors --modversion libpulse | \
         tr -d \\n | sed -e 's/\([0123456789.]\+\).*/\1/'`"
-./autogen.sh
+./bootstrap.sh
 
 unset LD_AS_NEEDED
 %configure --disable-static --with-module-dir=%{_libdir}/pulse-$PAVER/modules
