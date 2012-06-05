@@ -159,13 +159,14 @@ void pa_discover_remove_card(struct userdata *u, pa_card *card)
         if (node->implement == mir_device &&
             node->pacard.index == card->index)
         {
+            if (pa_streq(bus, "pci") || pa_streq(bus, "usb"))
+                mir_constrain_destroy(u, node->paname);
+
             destroy_node(u, node);
         }
     }
 
-    if (pa_streq(bus, "pci") || pa_streq(bus, "usb"))
-        mir_constrain_destroy(u, node->paname);
-    else if (pa_streq(bus, "bluetooth"))
+    if (pa_streq(bus, "bluetooth"))
         mir_constrain_destroy(u, card->name);
 }
 
