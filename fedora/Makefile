@@ -19,7 +19,7 @@ PKGDIR   := $(PACKAGE)-$(VERSION)
 # tarball type to use (git = HEAD, current = working copy)
 type      = current
 
-all: rpms cleanup
+all: rpms #cleanup
 
 #showvar:
 #	@echo "$(var) = $($(var))"

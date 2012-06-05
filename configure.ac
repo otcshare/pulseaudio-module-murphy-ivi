@@ -83,6 +83,61 @@ AC_ARG_WITH(
 
 AC_SUBST(modlibexecdir)
 
+
+# documentation
+AC_ARG_WITH([documentation],
+            [AS_HELP_STRING([--with-documentation],
+                            [generate pdf, html and other doc files])],
+            [],
+            [with_documentation=auto]
+)
+
+AS_IF( [ test x$with_documentation = xno ],
+       [ has_doc_tools="no" ],
+       [ AC_PATH_TOOL([PA_DOXYGEN], doxygen)
+         AC_PATH_TOOL([PA_LYX], lyx)
+         AC_PATH_TOOL([PA_INKSCAPE], inkscape)
+         AC_PATH_TOOL([PA_PYTHON], python)
+         AC_PATH_TOOL([PA_TOUCH], touch)
+         AC_PATH_TOOL([PA_DBLATEX], dblatex)
+         AC_PATH_TOOL([PA_XMLTO], xmlto)
+
+         AS_IF( [ test x$PA_DOXYGEN = x -o x$PA_LYX = x -o \
+                       x$PA_INKSCAPE = x -o x$PA_PYTHON = x -o \
+                       x$PA_TOUCH = x],
+                [ has_doc_tools="no";
+                  AC_MSG_WARN([Some essential doc-tool is missing]) ],
+                [ has_doc_tools="yes";
+                  PA_DOCINIT() ]
+         ) ]
+)
+
+AS_IF( [ test x$has_doc_tools == "xno" -o x$PA_DBLATEX = x ],
+       [ can_make_pdfs="no";
+         AC_WARN([No PDF documentation will be generated]) ],
+       [ can_make_pdfs="yes"]
+)
+
+AS_IF([ test x$has_doc_tools == "xno" -o x$PA_XMLTO = x ],
+      [ can_make_html="no";
+        AC_WARN([No HTML documentation will be generated]) ],
+      [ can_make_html="yes" ]
+)
+
+
+AM_CONDITIONAL(BUILD_DOCUMENTATION,  [ test x$has_doc_tools = "xyes" ])
+AM_CONDITIONAL(BUILD_PDF_DOCUMENTS,  [ test x$can_make_pdfs = "xyes" ])
+AM_CONDITIONAL(BUILD_HTML_DOCUMENTS, [ test x$can_make_html = "xyes" ])
+
+AC_SUBST(PA_DOCDIR, [`pwd`/doc])
+AC_SUBST(PA_FIGDIR, [$PA_DOCDIR/common/figures])
+AC_SUBST(PA_MAKE_DOCRULES, [$PA_DOCDIR/Makefile.rules])
+AC_SUBST(PA_DOCSCRIPT_DIR, [$PA_DOCDIR/scripts])
+AC_SUBST(PA_DBLYXFIX, [$PA_DOCSCRIPT_DIR/dblyxfix.py])
+AC_SUBST(PA_DOXML2DB, [$PA_DOCSCRIPT_DIR/doxml2db.py])
+AC_SUBST(PA_DOXYDEPS, [$PA_DOCSCRIPT_DIR/doxydeps.py])
+
+
 # Shave by default
 SHAVE_INIT([build-aux], [enable])
 
@@ -92,6 +147,9 @@ AC_CONFIG_FILES([
 	Makefile
 	murphy/Makefile
         combine/Makefile
+        doc/Makefile
+        doc/murphy-audio/Makefile
+        doc/murphy-audio/db/Makefile
 ])
 AC_OUTPUT
 
