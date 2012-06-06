@@ -1,0 +1,7 @@
+All module-murphy-ivi source files are licensed under the GNU Lesser
+General Public License, as are the rest of PulseAudio source files.
+However, module-murphy-ivi optionally uses libdbus, which is licensed
+under GPL. If you enable D-Bus support for module-murphy-ivi,
+module-murphy-ivi needs also to be distributed under GPL. However, if
+D-Bus support is not enabled, the module can be distributed under
+LGPL. See file COPYING for details.
