@@ -35,7 +35,7 @@
 #include "multiplex.h"
 #include "volume.h"
 #include "audiomgr.h"
-#include "dbusif.h"
+#include "routerif.h"
 #include "config.h"
 #include "utils.h"
 
@@ -51,24 +51,36 @@ PA_MODULE_LOAD_ONCE(TRUE);
 PA_MODULE_USAGE(
     "config_dir=<configuration directory>"
     "config_file=<policy configuration file> "
+#ifdef WITH_DBUS
     "dbus_bus_type=<system|session> "
     "dbus_if_name=<policy dbus interface> "
     "dbus_murphy_path=<policy daemon's path> "
     "dbus_murphy_name=<policy daemon's name> "
     "dbus_audiomgr_path=<GenIVI audio manager's path> " 
     "dbus_audiomgr_name=<GenIVI audio manager's name> " 
+#else
+    "audiomgr_socktype=<tcp|unix> "
+    "audiomgr_address=<audiomgr socket address> "
+    "audiomgr_port=<audiomgr tcp port> "
+#endif
     "null_sink_name=<name of the null sink> "
 );
 
 static const char* const valid_modargs[] = {
     "config_dir",
     "config_file",
+#ifdef WITH_DBUS
     "dbus_bus_type",
     "dbus_if_name",
     "dbus_murphy_path",
     "dbus_murphy_name",
     "dbus_audiomgr_path",
     "dbus_audiomgr_name",
+#else
+    "audiomgr_socktype",
+    "audiomgr_address",
+    "audiomgr_port",
+#endif
     "null_sink_name",
     NULL
 };
@@ -79,12 +91,18 @@ int pa__init(pa_module *m) {
     pa_modargs      *ma = NULL;
     const char      *cfgdir;
     const char      *cfgfile;
+#ifdef WITH_DBUS
     const char      *dbustype;
     const char      *ifnam;
     const char      *mrppath;
     const char      *mrpnam;
     const char      *ampath;
     const char      *amnam;
+#else
+    const char      *socktype;
+    const char      *amaddr;
+    const char      *amport;
+#endif
     const char      *nsnam;
     const char      *cfgpath;
     char             buf[4096];
@@ -98,12 +116,18 @@ int pa__init(pa_module *m) {
 
     cfgdir   = pa_modargs_get_value(ma, "config_dir", NULL);
     cfgfile  = pa_modargs_get_value(ma, "config_file", DEFAULT_CONFIG_FILE);
+#ifdef WITH_DBUS
     dbustype = pa_modargs_get_value(ma, "dbus_bus_type", NULL);
     ifnam    = pa_modargs_get_value(ma, "dbus_if_name", NULL);
     mrppath  = pa_modargs_get_value(ma, "dbus_murphy_path", NULL);
     mrpnam   = pa_modargs_get_value(ma, "dbus_murphy_name", NULL);
     ampath   = pa_modargs_get_value(ma, "dbus_audiomgr_path", NULL);
     amnam    = pa_modargs_get_value(ma, "dbus_audiomgr_name", NULL);
+#else
+    socktype = pa_modargs_get_value(ma, "audiomgr_socktype", NULL);
+    amaddr   = pa_modargs_get_value(ma, "audiomgr_address", NULL);
+    amport   = pa_modargs_get_value(ma, "audiomgr_port", NULL);
+#endif
     nsnam    = pa_modargs_get_value(ma, "null_sink_name", NULL);
     
     u = pa_xnew0(struct userdata, 1);
@@ -112,8 +136,12 @@ int pa__init(pa_module *m) {
     u->nullsink  = pa_utils_create_null_sink(u, nsnam);
     u->nodeset   = pa_nodeset_init(u);
     u->audiomgr  = pa_audiomgr_init(u);
-    u->dbusif    = pa_policy_dbusif_init(u, dbustype, ifnam, mrppath, mrpnam,
-                                         ampath, amnam);
+#ifdef WITH_DBUS
+    u->routerif  = pa_routerif_init(u, dbustype, ifnam, mrppath, mrpnam,
+                                    ampath, amnam);
+#else
+    u->routerif  = pa_routerif_init(u, socktype, amaddr, amport);
+#endif
     u->discover  = pa_discover_init(u);
     u->tracker   = pa_tracker_init(u);
     u->router    = pa_router_init(u);
@@ -122,7 +150,7 @@ int pa__init(pa_module *m) {
     u->volume    = pa_mir_volume_init(u);
     u->config    = pa_mir_config_init(u);
 
-    if (u->nullsink == NULL || u->dbusif == NULL  ||
+    if (u->nullsink == NULL || u->routerif == NULL  ||
         u->audiomgr == NULL || u->discover == NULL)
         goto fail;
 
@@ -163,7 +191,7 @@ void pa__done(pa_module *m) {
         pa_constrain_done(u);
         pa_router_done(u);
         pa_audiomgr_done(u);
-        pa_policy_dbusif_done(u);
+        pa_routerif_done(u);
         pa_mir_volume_done(u);
         pa_mir_config_done(u);
         pa_nodeset_done(u);

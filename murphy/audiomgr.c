@@ -14,7 +14,7 @@
 #include "node.h"
 #include "discover.h"
 #include "router.h"
-#include "dbusif.h"
+#include "routerif.h"
 
 #define AUDIOMGR_DOMAIN   "PULSE"
 #define AUDIOMGR_NODE     "pulsePlugin"
@@ -91,8 +91,8 @@ void pa_audiomgr_done(struct userdata *u)
     pa_audiomgr *am;
 
     if (u && (am = u->audiomgr)) {
-        if (u->dbusif && am->domain.id != AM_ID_INVALID)
-            pa_policy_dbusif_unregister_domain(u, am->domain.id);
+        if (u->routerif && am->domain.id != AM_ID_INVALID)
+            pa_routerif_unregister_domain(u, am->domain.id);
 
         pa_hashmap_free(am->nodes, NULL,NULL);
         pa_hashmap_free(am->conns, NULL,NULL);
@@ -121,7 +121,7 @@ void pa_audiomgr_register_domain(struct userdata *u)
     dr->complete  = FALSE;
     dr->state     = 1;
 
-    pa_policy_dbusif_register_domain(u, dr);
+    pa_routerif_register_domain(u, dr);
 }
 
 void pa_audiomgr_domain_registered(struct userdata   *u,
@@ -146,7 +146,7 @@ void pa_audiomgr_domain_registered(struct userdata   *u,
     
     pa_log_debug("domain registration for '%s' domain is complete", dr->name);
 
-    pa_policy_dbusif_domain_complete(u, id);
+    pa_routerif_domain_complete(u, id);
 
     pa_xfree(dr);
 }
@@ -179,7 +179,7 @@ void pa_audiomgr_register_node(struct userdata *u, mir_node *node)
 {
     pa_audiomgr      *am;
     am_nodereg_data  *rd;
-    const char       *method;
+    am_method         method;
     pa_bool_t         success;
 
     pa_assert(u);
@@ -202,14 +202,14 @@ void pa_audiomgr_register_node(struct userdata *u, mir_node *node)
             
             if (node->direction == mir_input) {
                 rd->interrupt = IS_OFF;
-                method = AUDIOMGR_REGISTER_SOURCE;
+                method = audiomgr_register_source;
             } 
             else {
                 rd->mute = MS_UNMUTED;
-                method = AUDIOMGR_REGISTER_SINK;
+                method = audiomgr_register_sink;
             }
             
-            success = pa_policy_dbusif_register_node(u, method, rd);
+            success = pa_routerif_register_node(u, method, rd);
             
             if (success) {
                 pa_log_debug("initiate registration node '%s' (%p)"
@@ -259,7 +259,7 @@ void pa_audiomgr_unregister_node(struct userdata *u, mir_node *node)
 {
     pa_audiomgr       *am;
     am_nodeunreg_data *ud;
-    const char        *method;
+    am_method          method;
     mir_node          *removed;
     pa_bool_t          success;
     void              *key;
@@ -293,12 +293,12 @@ void pa_audiomgr_unregister_node(struct userdata *u, mir_node *node)
         
         
         if (node->direction == mir_input)
-            method = AUDIOMGR_DEREGISTER_SOURCE;
+            method = audiomgr_deregister_source;
         else
-            method = AUDIOMGR_DEREGISTER_SINK;
+            method = audiomgr_deregister_sink;
         
         
-        success = pa_policy_dbusif_unregister_node(u, method, ud);
+        success = pa_routerif_unregister_node(u, method, ud);
         
         if (success) {
             pa_log_debug("sucessfully unregistered node '%s' (%p/%p)"
@@ -364,7 +364,7 @@ void pa_audiomgr_connect(struct userdata *u, am_connect_data *cd)
     ad.param1 = cd->connection;
     ad.error  = err;
 
-    pa_policy_dbusif_acknowledge(u, AUDIOMGR_CONNECT_ACK, &ad);
+    pa_routerif_acknowledge(u, audiomgr_connect_ack, &ad);
 }
 
 void pa_audiomgr_disconnect(struct userdata *u, am_connect_data *cd)
@@ -393,7 +393,7 @@ void pa_audiomgr_disconnect(struct userdata *u, am_connect_data *cd)
     ad.param1 = cd->connection;
     ad.error  = err;
 
-    pa_policy_dbusif_acknowledge(u, AUDIOMGR_DISCONNECT_ACK, &ad);
+    pa_routerif_acknowledge(u, audiomgr_disconnect, &ad);
 }
 
 static void *node_hash(mir_direction direction, uint16_t amid)

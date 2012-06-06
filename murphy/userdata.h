@@ -22,7 +22,7 @@ typedef struct pa_sink                  pa_sink;
 typedef struct pa_null_sink             pa_null_sink;
 typedef struct pa_tracker               pa_tracker;
 typedef struct pa_audiomgr              pa_audiomgr;
-typedef struct pa_policy_dbusif         pa_policy_dbusif;
+typedef struct pa_routerif              pa_routerif;
 typedef struct pa_discover              pa_discover;
 typedef struct pa_router                pa_router;
 typedef struct pa_constrain             pa_constrain;
@@ -49,6 +49,7 @@ typedef struct mir_constr_def           mir_constr_def;
 typedef struct mir_vlim                 mir_vlim;
 typedef struct mir_volume_suppress_arg  mir_volume_suppress_arg;
 
+typedef enum   am_method                am_method;
 typedef struct am_domainreg_data        am_domainreg_data;
 typedef struct am_nodereg_data          am_nodereg_data;
 typedef struct am_nodeunreg_data        am_nodeunreg_data;
@@ -66,20 +67,20 @@ typedef struct {
 
 
 struct userdata {
-    pa_core           *core;
-    pa_module         *module;
-    pa_null_sink      *nullsink;
-    pa_nodeset        *nodeset;
-    pa_audiomgr       *audiomgr;
-    pa_policy_dbusif  *dbusif;
-    pa_discover       *discover;
-    pa_tracker        *tracker;
-    pa_router         *router;
-    pa_constrain      *constrain;
-    pa_multiplex      *multiplex;
-    pa_mir_volume     *volume;
-    pa_mir_config     *config;
-    pa_mir_state       state;
+    pa_core       *core;
+    pa_module     *module;
+    pa_null_sink  *nullsink;
+    pa_nodeset    *nodeset;
+    pa_audiomgr   *audiomgr;
+    pa_routerif   *routerif;
+    pa_discover   *discover;
+    pa_tracker    *tracker;
+    pa_router     *router;
+    pa_constrain  *constrain;
+    pa_multiplex  *multiplex;
+    pa_mir_volume *volume;
+    pa_mir_config *config;
+    pa_mir_state   state;
 };
 
 #endif

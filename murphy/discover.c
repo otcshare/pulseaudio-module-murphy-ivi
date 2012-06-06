@@ -20,6 +20,7 @@
 #include "router.h"
 #include "constrain.h"
 #include "multiplex.h"
+#include "fader.h"
 #include "classify.h"
 #include "utils.h"
 
