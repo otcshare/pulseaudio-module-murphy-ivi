@@ -29,7 +29,7 @@ PAVER="`/usr/bin/pkg-config --silence-errors --modversion libpulse | \
 ./bootstrap.sh
 
 unset LD_AS_NEEDED
-%configure --disable-static --with-module-dir=%{_libdir}/pulse-$PAVER/modules
+%configure --disable-static --with-module-dir=%{_libdir}/pulse-$PAVER/modules --with-dbusif
 make
 
 %install
