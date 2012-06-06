@@ -70,16 +70,28 @@ AC_SUBST(PULSEDEVEL_CFLAGS)
 AC_SUBST(PULSEDEVEL_LIBS)
 
 
-PKG_CHECK_MODULES(DBUS, [dbus-1])
-AC_SUBST(DBUS_CFLAGS)
-AC_SUBST(DBUS_LIBS)
+# D-Bus
+AC_ARG_WITH([dbus],
+            [ AS_HELP_STRING([--with-dbus],
+                             [Use D-Bus towards with Murphy and AudioManager])
+            ],
+            [ build_with_dbus="yes" ;
+              PKG_CHECK_MODULES(DBUS, [dbus-1])
+              AC_SUBST(DBUS_CFLAGS)
+              AC_SUBST(DBUS_LIBS)
+            ],
+            [ build_with_dbus="no" ]
+)
+
+AM_CONDITIONAL(BUILD_WITH_DBUS,  [ test "x$build_with_dbus" = "xyes" ])
 
 
-AC_ARG_WITH(
-        [module-dir],
-        AS_HELP_STRING([--with-module-dir],[Directory where to install the modules to (defaults to ${LIBDIR}/pulse-${PA_MAJORMINOR}/modules/]),
-        [modlibexecdir=$withval], [modlibexecdir=${LIBDIR}/pulse-${PA_MAJORMINOR}/modules])
-
+# module directory
+AC_ARG_WITH([module-dir],
+            [AS_HELP_STRING([--with-module-dir], [Directory where to install the modules to (defaults to ${LIBDIR}/pulse-${PA_MAJORMINOR}/modules/])],
+            [modlibexecdir=$withval],
+            [modlibexecdir=${LIBDIR}/pulse-${PA_MAJORMINOR}/modules]
+)
 
 AC_SUBST(modlibexecdir)
 
@@ -170,5 +182,4 @@ echo "
     MAJORMINOR:           ${PA_MAJORMINOR}
     DBUS_CFLAGS:          ${DBUS_CFLAGS}
     DBUS_LIBS:            ${DBUS_LIBS}
-    PD_SUPPORT:           ${PD_SUPPORT}
 "

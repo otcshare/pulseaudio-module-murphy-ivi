@@ -59,7 +59,7 @@ struct pending {
     void             *data;
 };
 
-struct pa_policy_dbusif {
+struct pa_routerif {
     pa_dbus_connection *conn;
     char               *ifnam;    /* signal interface */
     char               *mrppath;  /* murphy signal path */
@@ -118,7 +118,7 @@ struct argctx {                 /* context arguments */
     char               *value;
 };
 
-static void pa_policy_free_dbusif(struct pa_policy_dbusif *,struct userdata *);
+static void free_routerif(pa_routerif *,struct userdata *);
 
 static pa_bool_t send_message_with_reply(struct userdata *, 
                                          DBusConnection *, DBusMessage *,
@@ -155,38 +155,39 @@ static pa_bool_t build_sound_properties(DBusMessageIter *,
                                         struct am_nodereg_data *);
 static pa_bool_t build_connection_formats(DBusMessageIter *,
                                           struct am_nodereg_data *);
-static pa_bool_t dbusif_connect(struct userdata *, DBusMessage *);
-static pa_bool_t dbusif_disconnect(struct userdata *, DBusMessage *);
+static pa_bool_t routerif_connect(struct userdata *, DBusMessage *);
+static pa_bool_t routerif_disconnect(struct userdata *, DBusMessage *);
+
+static const char *method_str(am_method);
 
 
-
-struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
-                                               const char      *dbustype,
-                                               const char      *ifnam,
-                                               const char      *mrppath,
-                                               const char      *mrpnam,
-                                               const char      *ampath,
-                                               const char      *amnam)
+pa_routerif *pa_routerif_init(struct userdata *u,
+                              const char      *dbustype,
+                              const char      *ifnam,
+                              const char      *mrppath,
+                              const char      *mrpnam,
+                              const char      *ampath,
+                              const char      *amnam)
 {
     static const DBusObjectPathVTable  vtable = {
         .message_function = audiomgr_method_handler,
     };
 
-    pa_module               *m = u->module;
-    struct pa_policy_dbusif *dbusif = NULL;
-    DBusBusType              type;
-    DBusConnection          *dbusconn;
-    DBusError                error;
-    unsigned int             flags;
-    char                     nambuf[128];
-    char                     pathbuf[128];
-    char                    *amrnam;
-    char                    *amrpath;
-    char                     actrule[512];
-    char                     strrule[512];
-    char                     admmrule[512];
-    char                     admarule[512];
-    int                      result;
+    pa_module      *m = u->module;
+    pa_routerif    *routerif = NULL;
+    DBusBusType     type;
+    DBusConnection *dbusconn;
+    DBusError       error;
+    unsigned int    flags;
+    char            nambuf[128];
+    char            pathbuf[128];
+    char           *amrnam;
+    char           *amrpath;
+    char            actrule[512];
+    char            strrule[512];
+    char            admmrule[512];
+    char            admarule[512];
+    int             result;
     
     if (!dbustype || !strcasecmp(dbustype, "session")) {
         dbustype = "session";
@@ -201,19 +202,19 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
         return NULL;
     }
     
-    dbusif = pa_xnew0(struct pa_policy_dbusif, 1);
-    PA_LLIST_HEAD_INIT(struct pending, dbusif->pendlist);
+    routerif = pa_xnew0(pa_routerif, 1);
+    PA_LLIST_HEAD_INIT(struct pending, routerif->pendlist);
 
     dbus_error_init(&error);
-    dbusif->conn = pa_dbus_bus_get(m->core, type, &error);
+    routerif->conn = pa_dbus_bus_get(m->core, type, &error);
 
-    if (dbusif->conn == NULL || dbus_error_is_set(&error)) {
+    if (routerif->conn == NULL || dbus_error_is_set(&error)) {
         pa_log("%s: failed to get %s Bus: %s: %s",
                __FILE__, dbustype, error.name, error.message);
         goto fail;
     }
 
-    dbusconn = pa_dbus_connection_get(dbusif->conn);
+    dbusconn = pa_dbus_connection_get(routerif->conn);
 
     flags  = DBUS_NAME_FLAG_REPLACE_EXISTING | DBUS_NAME_FLAG_DO_NOT_QUEUE;
     result = dbus_bus_request_name(dbusconn, PULSE_DBUS_NAME, flags,&error);
@@ -310,44 +311,43 @@ struct pa_policy_dbusif *pa_policy_dbusif_init(struct userdata *u,
     dbus_connection_register_object_path(dbusconn, PULSE_DBUS_PATH, &vtable,u);
 
 
-    dbusif->ifnam    = pa_xstrdup(ifnam);
-    dbusif->mrppath  = pa_xstrdup(mrppath);
-    dbusif->mrpnam   = pa_xstrdup(mrpnam);
-    dbusif->ampath   = pa_xstrdup(ampath);
-    dbusif->amnam    = pa_xstrdup(amnam);
-    dbusif->amrpath  = pa_xstrdup(amrpath);
-    dbusif->amrnam   = pa_xstrdup(amrnam);
-    dbusif->admmrule = pa_xstrdup(admmrule);
-    dbusif->admarule = pa_xstrdup(admarule);
-    dbusif->actrule  = pa_xstrdup(actrule);
-    dbusif->strrule  = pa_xstrdup(strrule);
+    routerif->ifnam    = pa_xstrdup(ifnam);
+    routerif->mrppath  = pa_xstrdup(mrppath);
+    routerif->mrpnam   = pa_xstrdup(mrpnam);
+    routerif->ampath   = pa_xstrdup(ampath);
+    routerif->amnam    = pa_xstrdup(amnam);
+    routerif->amrpath  = pa_xstrdup(amrpath);
+    routerif->amrnam   = pa_xstrdup(amrnam);
+    routerif->admmrule = pa_xstrdup(admmrule);
+    routerif->admarule = pa_xstrdup(admarule);
+    routerif->actrule  = pa_xstrdup(actrule);
+    routerif->strrule  = pa_xstrdup(strrule);
 
-    u->dbusif = dbusif; /* Argh.. */
+    u->routerif = routerif; /* Argh.. */
 
     register_to_murphy(u);
     register_to_audiomgr(u);
 
-    return dbusif;
+    return routerif;
 
  fail:
-    pa_policy_free_dbusif(dbusif, u);
+    free_routerif(routerif, u);
     dbus_error_free(&error);
     return NULL;
 }
 
-static void pa_policy_free_dbusif(struct pa_policy_dbusif *dbusif,
-                                  struct userdata *u)
+static void free_routerif(pa_routerif *routerif, struct userdata *u)
 {
     DBusConnection  *dbusconn;
     struct pending  *p, *n;
 
-    if (dbusif) {
+    if (routerif) {
 
-        if (dbusif->conn) {
-            dbusconn = pa_dbus_connection_get(dbusif->conn);
+        if (routerif->conn) {
+            dbusconn = pa_dbus_connection_get(routerif->conn);
 
-            PA_LLIST_FOREACH_SAFE(p,n, dbusif->pendlist) {
-                PA_LLIST_REMOVE(struct pending, dbusif->pendlist, p);
+            PA_LLIST_FOREACH_SAFE(p,n, routerif->pendlist) {
+                PA_LLIST_REMOVE(struct pending, routerif->pendlist, p);
                 dbus_pending_call_set_notify(p->call, NULL,NULL, NULL);
                 dbus_pending_call_unref(p->call);
             }
@@ -356,35 +356,35 @@ static void pa_policy_free_dbusif(struct pa_policy_dbusif *dbusif,
                 dbus_connection_remove_filter(dbusconn, filter,u);
             }
 
-            dbus_bus_remove_match(dbusconn, dbusif->admmrule, NULL);
-            dbus_bus_remove_match(dbusconn, dbusif->admarule, NULL);
-            dbus_bus_remove_match(dbusconn, dbusif->actrule, NULL);
-            dbus_bus_remove_match(dbusconn, dbusif->strrule, NULL);
+            dbus_bus_remove_match(dbusconn, routerif->admmrule, NULL);
+            dbus_bus_remove_match(dbusconn, routerif->admarule, NULL);
+            dbus_bus_remove_match(dbusconn, routerif->actrule, NULL);
+            dbus_bus_remove_match(dbusconn, routerif->strrule, NULL);
 
-            pa_dbus_connection_unref(dbusif->conn);
+            pa_dbus_connection_unref(routerif->conn);
         }
 
-        pa_xfree(dbusif->ifnam);
-        pa_xfree(dbusif->mrppath);
-        pa_xfree(dbusif->mrpnam);
-        pa_xfree(dbusif->ampath);
-        pa_xfree(dbusif->amnam);
-        pa_xfree(dbusif->amrpath);
-        pa_xfree(dbusif->amrnam);
-        pa_xfree(dbusif->admmrule);
-        pa_xfree(dbusif->admarule);
-        pa_xfree(dbusif->actrule);
-        pa_xfree(dbusif->strrule);
+        pa_xfree(routerif->ifnam);
+        pa_xfree(routerif->mrppath);
+        pa_xfree(routerif->mrpnam);
+        pa_xfree(routerif->ampath);
+        pa_xfree(routerif->amnam);
+        pa_xfree(routerif->amrpath);
+        pa_xfree(routerif->amrnam);
+        pa_xfree(routerif->admmrule);
+        pa_xfree(routerif->admarule);
+        pa_xfree(routerif->actrule);
+        pa_xfree(routerif->strrule);
 
-        pa_xfree(dbusif);
+        pa_xfree(routerif);
     }
 }
 
-void pa_policy_dbusif_done(struct userdata *u)
+void pa_routerif_done(struct userdata *u)
 {
-    if (u && u->dbusif) {
-        pa_policy_free_dbusif(u->dbusif, u);
-        u->dbusif = NULL;
+    if (u && u->routerif) {
+        free_routerif(u->routerif, u);
+        u->routerif = NULL;
     }
 }
 
@@ -420,14 +420,14 @@ static DBusHandlerResult filter(DBusConnection *conn, DBusMessage *msg,
 
 static void handle_admin_message(struct userdata *u, DBusMessage *msg)
 {
-    struct pa_policy_dbusif *dbusif;
-    char                    *name;
-    char                    *before;
-    char                    *after;
-    int                      success;
+    pa_routerif *routerif;
+    char        *name;
+    char        *before;
+    char        *after;
+    int          success;
 
     pa_assert(u);
-    pa_assert_se((dbusif = u->dbusif));
+    pa_assert_se((routerif = u->routerif));
 
     success = dbus_message_get_args(msg, NULL,
                                     DBUS_TYPE_STRING, &name,
@@ -440,26 +440,26 @@ static void handle_admin_message(struct userdata *u, DBusMessage *msg)
         return;
     }
 
-    if (!strcmp(name, dbusif->mrpnam)) {
+    if (!strcmp(name, routerif->mrpnam)) {
         if (after && strcmp(after, "")) {
             pa_log_debug("murphy is up");
 
-            if (!dbusif->mregist) {
+            if (!routerif->mregist) {
                 register_to_murphy(u);
             }
         }
 
         if (name && before && (!after || !strcmp(after, ""))) {
             pa_log_info("murphy is gone");
-            dbusif->mregist = 0;
+            routerif->mregist = 0;
         } 
     } else
 
-    if (!strcmp(name, dbusif->amnam)) {
+    if (!strcmp(name, routerif->amnam)) {
         if (after && strcmp(after, "")) {
             pa_log_debug("audio manager is up");
 
-            if (!dbusif->amisup) {
+            if (!routerif->amisup) {
                 register_to_audiomgr(u);
             }
         }
@@ -467,10 +467,10 @@ static void handle_admin_message(struct userdata *u, DBusMessage *msg)
         if (name && before && (!after || !strcmp(after, ""))) {
             pa_log_info("audio manager is gone");
 
-            if (dbusif->amisup)
+            if (routerif->amisup)
                 unregister_from_audiomgr(u);
 
-            dbusif->amisup = 0;
+            routerif->amisup = 0;
         } 
     }
 }
@@ -478,17 +478,17 @@ static void handle_admin_message(struct userdata *u, DBusMessage *msg)
 
 static void reply_cb(DBusPendingCall *pend, void *data)
 {
-    struct pending          *pdata = (struct pending *)data;
-    struct userdata         *u;
-    struct pa_policy_dbusif *dbusif;
-    DBusMessage             *reply;
+    struct pending  *pdata = (struct pending *)data;
+    struct userdata *u;
+    pa_routerif     *routerif;
+    DBusMessage     *reply;
 
     pa_assert(pdata);
     pa_assert(pdata->call == pend);
     pa_assert_se((u = pdata->u));
-    pa_assert_se((dbusif = u->dbusif));
+    pa_assert_se((routerif = u->routerif));
 
-    PA_LLIST_REMOVE(struct pending, dbusif->pendlist, pdata);
+    PA_LLIST_REMOVE(struct pending, routerif->pendlist, pdata);
 
     if ((reply = dbus_pending_call_steal_reply(pend)) == NULL) {
         pa_log("%s: Murphy pending call '%s' failed: invalid argument",
@@ -509,16 +509,16 @@ static pa_bool_t send_message_with_reply(struct userdata *u,
                                          pending_cb_t     cb,
                                          void            *data)
 {
-    struct pa_policy_dbusif  *dbusif;
-    struct pending           *pdata = NULL;
-    const char               *method;
-    DBusPendingCall          *pend;
+    pa_routerif     *routerif;
+    struct pending  *pdata = NULL;
+    const char      *method;
+    DBusPendingCall *pend;
 
     pa_assert(u);
     pa_assert(conn);
     pa_assert(msg);
     pa_assert(cb);
-    pa_assert_se((dbusif = u->dbusif));
+    pa_assert_se((routerif = u->routerif));
 
     if ((method = dbus_message_get_member(msg)) == NULL)
         goto failed;
@@ -529,7 +529,7 @@ static pa_bool_t send_message_with_reply(struct userdata *u,
     pdata->cb     = cb;
     pdata->data   = data;
 
-    PA_LLIST_PREPEND(struct pending, dbusif->pendlist, pdata);
+    PA_LLIST_PREPEND(struct pending, routerif->pendlist, pdata);
 
     if (!dbus_connection_send_with_reply(conn, msg, &pend, -1)) {
         pa_log("%s: Failed to %s", __FILE__, method);
@@ -548,7 +548,7 @@ static pa_bool_t send_message_with_reply(struct userdata *u,
 
  failed:
     if (pdata) {
-        PA_LLIST_REMOVE(struct pending, dbusif->pendlist, pdata);
+        PA_LLIST_REMOVE(struct pending, routerif->pendlist, pdata);
         pa_xfree((void *)pdata->method);
         pa_xfree((void *)pdata);
     }
@@ -562,23 +562,23 @@ static pa_bool_t send_message_with_reply(struct userdata *u,
  *
  */
 #if 0
-void pa_policy_dbusif_send_device_state(struct userdata *u, char *state,
-                                        char **types, int ntype)
+void pa_routerif_send_device_state(struct userdata *u, char *state,
+                                   char **types, int ntype)
 {
-    static char             *path = (char *)"/com/nokia/policy/info";
+    static char     *path = (char *)"/org/tizen/policy/info";
 
-    struct pa_policy_dbusif *dbusif = u->dbusif;
-    DBusConnection          *conn   = pa_dbus_connection_get(dbusif->conn);
-    DBusMessage             *msg;
-    DBusMessageIter          mit;
-    DBusMessageIter          dit;
-    int                      i;
-    int                      sts;
+    pa_routerif     *routerif = u->routerif;
+    DBusConnection  *conn = pa_dbus_connection_get(routerif->conn);
+    DBusMessage     *msg;
+    DBusMessageIter  mit;
+    DBusMessageIter  dit;
+    int              i;
+    int              sts;
 
     if (!types || ntype < 1)
         return;
 
-    msg = dbus_message_new_signal(path, dbusif->ifnam, "info");
+    msg = dbus_message_new_signal(path, routerif->ifnam, "info");
 
     if (msg == NULL) {
         pa_log("%s: failed to make new info message", __FILE__);
@@ -612,19 +612,19 @@ void pa_policy_dbusif_send_device_state(struct userdata *u, char *state,
     dbus_message_unref(msg);    /* should cope with NULL msg */
 }
 
-void pa_policy_dbusif_send_media_status(struct userdata *u, const char *media,
+void pa_routerif_send_media_status(struct userdata *u, const char *media,
                                         const char *group, int active)
 {
-    static char             *path = (char *)"/com/nokia/policy/info";
-    static const char       *type = "media";
+    static char        *path = (char *)"/org/tizen/policy/info";
+    static const char  *type = "media";
 
-    struct pa_policy_dbusif *dbusif = u->dbusif;
-    DBusConnection          *conn   = pa_dbus_connection_get(dbusif->conn);
-    DBusMessage             *msg;
-    const char              *state;
-    int                      success;
+    pa_routerif    *routerif = u->routerif;
+    DBusConnection *conn   = pa_dbus_connection_get(routerif->conn);
+    DBusMessage    *msg;
+    const char     *state;
+    int             success;
 
-    msg = dbus_message_new_signal(path, dbusif->ifnam, "info");
+    msg = dbus_message_new_signal(path, routerif->ifnam, "info");
 
     if (msg == NULL)
         pa_log("%s: failed to make new info message", __FILE__);
@@ -734,11 +734,11 @@ static void handle_action_message(struct userdata *u, DBusMessage *msg)
 {
     static struct actdsc actions[] = {
 /*
-        { "com.nokia.policy.audio_route" , audio_route_parser  },
-        { "com.nokia.policy.volume_limit", volume_limit_parser },
-        { "com.nokia.policy.audio_cork"  , audio_cork_parser   },
-        { "com.nokia.policy.audio_mute"  , audio_mute_parser   },
-        { "com.nokia.policy.context"     , context_parser      },
+        { "org.tizen.policy.audio_route" , audio_route_parser  },
+        { "org.tizen.policy.volume_limit", volume_limit_parser },
+        { "org.tizen.policy.audio_cork"  , audio_cork_parser   },
+        { "org.tizen.policy.audio_mute"  , audio_mute_parser   },
+        { "org.tizen.policy.context"     , context_parser      },
 */
         {               NULL             , NULL                }
     };
@@ -841,8 +841,8 @@ static void murphy_registration_cb(struct userdata *u,
     else {
         pa_log_info("Murphy replied to registration");
 
-        if (u->dbusif) {
-            u->dbusif->amisup = 1;
+        if (u->routerif) {
+            u->routerif->amisup = 1;
         }
     }
 }
@@ -851,19 +851,19 @@ static pa_bool_t register_to_murphy(struct userdata *u)
 {
     static const char *name = "pulseaudio";
 
-    pa_policy_dbusif *dbusif = u->dbusif;
-    DBusConnection   *conn   = pa_dbus_connection_get(dbusif->conn);
-    DBusMessage      *msg;
-    const char       *signals[4];
-    const char      **v_ARRAY;
-    int               i;
-    int               success;
+    pa_routerif    *routerif = u->routerif;
+    DBusConnection *conn   = pa_dbus_connection_get(routerif->conn);
+    DBusMessage    *msg;
+    const char     *signals[4];
+    const char    **v_ARRAY;
+    int             i;
+    int             success;
 
-    pa_log_info("%s: registering to murphy: name='%s' path='%s' if='%s'"
-                , __FILE__, dbusif->mrpnam, dbusif->mrppath, dbusif->ifnam);
+    pa_log_info("%s: registering to murphy: name='%s' path='%s' if='%s'",
+                __FILE__, routerif->mrpnam, routerif->mrppath,routerif->ifnam);
 
-    msg = dbus_message_new_method_call(dbusif->mrpnam, dbusif->mrppath,
-                                       dbusif->ifnam, "register");
+    msg = dbus_message_new_method_call(routerif->mrpnam, routerif->mrppath,
+                                       routerif->ifnam, "register");
 
     if (msg == NULL) {
         pa_log("%s: Failed to create D-Bus message to register", __FILE__);
@@ -898,11 +898,11 @@ static pa_bool_t register_to_murphy(struct userdata *u)
 #if 0
 static int signal_status(struct userdata *u, uint32_t txid, uint32_t status)
 {
-    struct pa_policy_dbusif *dbusif = u->dbusif;
-    DBusConnection          *conn   = pa_dbus_connection_get(dbusif->conn);
-    DBusMessage             *msg;
-    char                     path[256];
-    int                      ret;
+    pa_routerif    *routerif = u->routerif;
+    DBusConnection *conn = pa_dbus_connection_get(routerif->conn);
+    DBusMessage    *msg;
+    char            path[256];
+    int             ret;
 
     if (txid == 0) {
     
@@ -913,13 +913,13 @@ static int signal_status(struct userdata *u, uint32_t txid, uint32_t status)
         return 0;
     }
 
-    snprintf(path, sizeof(path), "%s/%s", dbusif->mrppath, POLICY_DECISION);
+    snprintf(path, sizeof(path), "%s/%s", routerif->mrppath, POLICY_DECISION);
 
     pa_log_debug("sending signal to: path='%s', if='%s' member='%s' "
-                 "content: txid=%d status=%d", path, dbusif->ifnam,
+                 "content: txid=%d status=%d", path, routerif->ifnam,
                  POLICY_STATUS, txid, status);
 
-    msg = dbus_message_new_signal(path, dbusif->ifnam, POLICY_STATUS);
+    msg = dbus_message_new_signal(path, routerif->ifnam, POLICY_STATUS);
 
     if (msg == NULL) {
         pa_log("%s: failed to make new status message", __FILE__);
@@ -969,9 +969,9 @@ static DBusHandlerResult audiomgr_method_handler(DBusConnection *conn,
     };
 
     static struct dispatch dispatch_tbl[] = {
-        { AUDIOMGR_CONNECT   , dbusif_connect    },
-        { AUDIOMGR_DISCONNECT, dbusif_disconnect },
-        {        NULL,                NULL       }
+        { AUDIOMGR_CONNECT   , routerif_connect    },
+        { AUDIOMGR_DISCONNECT, routerif_disconnect },
+        {        NULL,                 NULL        }
     };
 
     struct userdata         *u = (struct userdata *)arg;
@@ -1077,8 +1077,8 @@ static void audiomgr_register_domain_cb(struct userdata *u,
             pa_log_info("AudioManager replied to registration: "
                         "domainID %u, status %u", domain_id, status);
 
-            if (u->dbusif) {
-                u->dbusif->amisup = 1;
+            if (u->routerif) {
+                u->routerif->amisup = 1;
                 pa_audiomgr_domain_registered(u, domain_id, status, data);
             }
         }
@@ -1087,28 +1087,28 @@ static void audiomgr_register_domain_cb(struct userdata *u,
 
 
 
-pa_bool_t pa_policy_dbusif_register_domain(struct userdata   *u,
+pa_bool_t pa_routerif_register_domain(struct userdata   *u,
                                            am_domainreg_data *dr)
 {
-    pa_policy_dbusif *dbusif;
-    DBusConnection   *conn;
-    DBusMessage      *msg;
-    const char       *dbus_name;
-    const char       *dbus_path;
-    const char       *dbus_if;
-    int               success;
+    pa_routerif    *routerif;
+    DBusConnection *conn;
+    DBusMessage    *msg;
+    const char     *dbus_name;
+    const char     *dbus_path;
+    const char     *dbus_if;
+    int             success;
 
     pa_assert(u);
     pa_assert(dr);
-    pa_assert_se((dbusif = u->dbusif));
-    pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
+    pa_assert_se((routerif = u->routerif));
+    pa_assert_se((conn = pa_dbus_connection_get(routerif->conn)));
 
     pa_log_info("%s: registering to AudioManager: name='%s' path='%s' if='%s'"
-                , __FILE__, dbusif->amnam, dbusif->amrpath, dbusif->amrnam);
+                , __FILE__, routerif->amnam, routerif->amrpath, routerif->amrnam);
 
-    msg = dbus_message_new_method_call(dbusif->amnam,
-                                       dbusif->amrpath,
-                                       dbusif->amrnam,
+    msg = dbus_message_new_method_call(routerif->amnam,
+                                       routerif->amrpath,
+                                       routerif->amrnam,
                                        AUDIOMGR_REGISTER_DOMAIN);
     if (msg == NULL) {
         pa_log("%s: Failed to create D-Bus message to '%s'",
@@ -1150,25 +1150,25 @@ pa_bool_t pa_policy_dbusif_register_domain(struct userdata   *u,
     return success;
 }
 
-pa_bool_t pa_policy_dbusif_domain_complete(struct userdata *u, uint16_t domain)
+pa_bool_t pa_routerif_domain_complete(struct userdata *u, uint16_t domain)
 {
-    dbus_int32_t             id32 = domain;
-    struct pa_policy_dbusif *dbusif;
-    DBusConnection          *conn;
-    DBusMessage             *msg;
-    pa_bool_t                success;
+    dbus_int32_t    id32 = domain;
+    pa_routerif    *routerif;
+    DBusConnection *conn;
+    DBusMessage    *msg;
+    pa_bool_t       success;
 
     pa_assert(u);
-    pa_assert_se((dbusif = u->dbusif));
-    pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
+    pa_assert_se((routerif = u->routerif));
+    pa_assert_se((conn = pa_dbus_connection_get(routerif->conn)));
     
 
     pa_log_debug("%s: domain %u AudioManager %s", __FUNCTION__,
                  domain, AUDIOMGR_DOMAIN_COMPLETE);
 
-    msg = dbus_message_new_method_call(dbusif->amnam,
-                                       dbusif->amrpath,
-                                       dbusif->amrnam,
+    msg = dbus_message_new_method_call(routerif->amnam,
+                                       routerif->amrpath,
+                                       routerif->amrnam,
                                        AUDIOMGR_DOMAIN_COMPLETE);
     if (msg == NULL) {
         pa_log("%s: Failed to create D-Bus message for '%s'",
@@ -1198,24 +1198,23 @@ pa_bool_t pa_policy_dbusif_domain_complete(struct userdata *u, uint16_t domain)
     return success;
 }
 
-pa_bool_t pa_policy_dbusif_unregister_domain(struct userdata *u,
-                                             uint16_t domain)
+pa_bool_t pa_routerif_unregister_domain(struct userdata *u, uint16_t domain)
 {
-    pa_policy_dbusif *dbusif;
-    DBusConnection   *conn;
-    DBusMessage      *msg;
-    pa_bool_t         success;
+    pa_routerif    *routerif;
+    DBusConnection *conn;
+    DBusMessage    *msg;
+    pa_bool_t       success;
 
     pa_assert(u);
-    pa_assert_se((dbusif = u->dbusif));
-    pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
+    pa_assert_se((routerif = u->routerif));
+    pa_assert_se((conn = pa_dbus_connection_get(routerif->conn)));
 
     pa_log_info("%s: deregistreing domain %u from AudioManager",
                 __FILE__, domain);
 
-    msg = dbus_message_new_method_call(dbusif->amnam,
-                                       dbusif->amrpath,
-                                       dbusif->amrnam,
+    msg = dbus_message_new_method_call(routerif->amnam,
+                                       routerif->amrpath,
+                                       routerif->amrnam,
                                        AUDIOMGR_DEREGISTER_DOMAIN);
     if (msg == NULL) {
         pa_log("%s: Failed to create D-Bus message for '%s'",
@@ -1361,27 +1360,27 @@ static pa_bool_t build_connection_formats(DBusMessageIter *mit,
     return TRUE;
 }
 
-pa_bool_t pa_policy_dbusif_register_node(struct userdata *u,
-                                         const char *method,
-                                         am_nodereg_data *rd)
+pa_bool_t pa_routerif_register_node(struct userdata *u,
+                                    am_method m,
+                                    am_nodereg_data *rd)
 {
-    struct pa_policy_dbusif *dbusif;
-    DBusConnection          *conn;
-    DBusMessage             *msg;
-    DBusMessageIter          mit;
-    DBusMessageIter          cit;
-    pa_bool_t                success = FALSE;
+    const char      *method = method_str(m);
+    pa_routerif     *routerif;
+    DBusConnection  *conn;
+    DBusMessage     *msg;
+    DBusMessageIter  mit;
+    DBusMessageIter  cit;
+    pa_bool_t        success = FALSE;
 
     pa_assert(u);
-    pa_assert(method);
     pa_assert(rd);
-    pa_assert_se((dbusif = u->dbusif));
-    pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
+    pa_assert_se((routerif = u->routerif));
+    pa_assert_se((conn = pa_dbus_connection_get(routerif->conn)));
 
     pa_log_debug("%s: %s '%s' to AudioManager", __FUNCTION__, method,rd->name);
 
-    msg = dbus_message_new_method_call(dbusif->amnam, dbusif->amrpath,
-                                       dbusif->amrnam, method);
+    msg = dbus_message_new_method_call(routerif->amnam, routerif->amrpath,
+                                       routerif->amrnam, method);
     
     if (msg == NULL) {
         pa_log("%s: Failed to create D-BUS message to '%s'", __FILE__, method);
@@ -1501,25 +1500,25 @@ static void audiomgr_unregister_node_cb(struct userdata *u,
     }
 }
 
-pa_bool_t pa_policy_dbusif_unregister_node(struct userdata *u,
-                                           const char *method,
-                                           am_nodeunreg_data *ud)
+pa_bool_t pa_routerif_unregister_node(struct userdata *u,
+                                      am_method m,
+                                      am_nodeunreg_data *ud)
 {
-    struct pa_policy_dbusif *dbusif;
-    DBusConnection          *conn;
-    DBusMessage             *msg;
-    pa_bool_t                success = FALSE;
+    const char     *method = method_str(m);
+    pa_routerif    *routerif;
+    DBusConnection *conn;
+    DBusMessage    *msg;
+    pa_bool_t       success = FALSE;
 
     pa_assert(u);
-    pa_assert(method);
     pa_assert(ud);
-    pa_assert_se((dbusif = u->dbusif));
-    pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
+    pa_assert_se((routerif = u->routerif));
+    pa_assert_se((conn = pa_dbus_connection_get(routerif->conn)));
 
     pa_log_debug("%s: %s '%s' to AudioManager", __FUNCTION__, method,ud->name);
 
-    msg = dbus_message_new_method_call(dbusif->amnam, dbusif->amrpath,
-                                       dbusif->amrnam, method);
+    msg = dbus_message_new_method_call(routerif->amnam, routerif->amrpath,
+                                       routerif->amrnam, method);
     
     if (msg == NULL) {
         pa_log("%s: Failed to create D-BUS message to '%s'", __FILE__, method);
@@ -1542,7 +1541,7 @@ pa_bool_t pa_policy_dbusif_unregister_node(struct userdata *u,
     return success;
 }
 
-static pa_bool_t dbusif_connect(struct userdata *u, DBusMessage *msg)
+static pa_bool_t routerif_connect(struct userdata *u, DBusMessage *msg)
 {
     struct am_connect_data ac;
     int                    success;
@@ -1573,7 +1572,7 @@ static pa_bool_t dbusif_connect(struct userdata *u, DBusMessage *msg)
     return TRUE;
 }
 
-static pa_bool_t dbusif_disconnect(struct userdata *u, DBusMessage *msg)
+static pa_bool_t routerif_disconnect(struct userdata *u, DBusMessage *msg)
 {
     struct am_connect_data ac;
     int                    success;
@@ -1600,24 +1599,25 @@ static pa_bool_t dbusif_disconnect(struct userdata *u, DBusMessage *msg)
     return TRUE;
 }
 
-pa_bool_t pa_policy_dbusif_acknowledge(struct userdata *u, const char *method,
-                                       struct am_ack_data *ad)
+pa_bool_t pa_routerif_acknowledge(struct userdata *u, am_method m,
+                                  struct am_ack_data *ad)
 {
-    struct pa_policy_dbusif *dbusif;
-    DBusConnection          *conn;
-    DBusMessage             *msg;
-    pa_bool_t                success;
+    const char     *method = method_str(m);
+    pa_routerif    *routerif;
+    DBusConnection *conn;
+    DBusMessage    *msg;
+    pa_bool_t       success;
 
     pa_assert(u);
     pa_assert(method);
-    pa_assert_se((dbusif = u->dbusif));
-    pa_assert_se((conn = pa_dbus_connection_get(dbusif->conn)));
+    pa_assert_se((routerif = u->routerif));
+    pa_assert_se((conn = pa_dbus_connection_get(routerif->conn)));
 
     pa_log_debug("%s: sending %s", __FILE__, method);
 
-    msg = dbus_message_new_method_call(dbusif->amnam,
-                                       dbusif->amrpath,
-                                       dbusif->amrnam,
+    msg = dbus_message_new_method_call(routerif->amnam,
+                                       routerif->amrpath,
+                                       routerif->amrnam,
                                        method);
     if (msg == NULL) {
         pa_log("%s: Failed to create D-Bus message for '%s'",
@@ -1647,6 +1647,29 @@ pa_bool_t pa_policy_dbusif_acknowledge(struct userdata *u, const char *method,
     return success;
 }
 
+
+static const char *method_str(am_method m)
+{
+    switch (m) {
+    case audiomgr_register_domain:   return AUDIOMGR_REGISTER_DOMAIN;
+    case audiomgr_domain_complete:   return AUDIOMGR_DOMAIN_COMPLETE;
+    case audiomgr_deregister_domain: return AUDIOMGR_DEREGISTER_DOMAIN;
+    case audiomgr_register_source:   return AUDIOMGR_REGISTER_SOURCE;
+    case audiomgr_deregister_source: return AUDIOMGR_DEREGISTER_SOURCE;
+    case audiomgr_register_sink:     return AUDIOMGR_REGISTER_SINK;
+    case audiomgr_deregister_sink:   return AUDIOMGR_DEREGISTER_SINK;
+    case audiomgr_connect:           return AUDIOMGR_CONNECT;
+    case audiomgr_connect_ack:       return AUDIOMGR_CONNECT_ACK;   
+    case audiomgr_disconnect:        return AUDIOMGR_DISCONNECT;
+    case audiomgr_disconnect_ack:    return AUDIOMGR_DISCONNECT_ACK;    
+    case audiomgr_setsinkvol_ack:    return AUDIOMGR_SETSINKVOL_ACK;
+    case audiomgr_setsrcvol_ack:     return AUDIOMGR_SETSRCVOL_ACK;
+    case audiomgr_sinkvoltick_ack:   return AUDIOMGR_SINKVOLTICK_ACK;
+    case audiomgr_srcvoltick_ack:    return AUDIOMGR_SRCVOLTICK_ACK;
+    case audiomgr_setsinkprop_ack:   return AUDIOMGR_SETSINKPROP_ACK;
+    default:                         return "invalid_method";
+    }
+}
 
 /*
  * Local Variables:
