@@ -378,6 +378,24 @@ pa_bool_t pa_multiplex_duplicate_route(pa_core       *core,
     return FALSE;
 }
 
+int pa_multiplex_no_of_routes(pa_core *core, pa_muxnode *mux)
+{
+    pa_module       *module;
+    struct userdata *u;   /* combine's userdata! */
+
+    pa_assert(core);
+    pa_assert(mux);
+
+    if (!(module = pa_idxset_get_by_index(core->modules,mux->module_index))) {
+        pa_log("module %u is gone", mux->module_index);
+        return -1;
+    }
+
+    pa_assert_se((u = module->userdata));
+
+    return (int)pa_idxset_size(u->outputs);
+}
+
 
 int pa_multiplex_print(pa_muxnode *mux, char *buf, int len)
 {
