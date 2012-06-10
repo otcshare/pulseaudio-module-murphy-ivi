@@ -710,8 +710,9 @@ static mir_node *find_default_route(struct userdata *u,
         }
 
         if (to->paidx == PA_IDXSET_INVALID) {
-            if (to->type != mir_bluetooth_a2dp &&
-                to->type != mir_bluetooth_sco)
+            if (to->paport == NULL &&
+                to->type   != mir_bluetooth_a2dp &&
+                to->type   != mir_bluetooth_sco)
             {
                 pa_log_debug("   '%s' has no sink. Skipping...", to->amname);
                 continue;
