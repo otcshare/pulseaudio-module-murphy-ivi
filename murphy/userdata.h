@@ -50,6 +50,7 @@ typedef struct pa_mir_config            pa_mir_config;
 typedef struct pa_nodeset               pa_nodeset;
 typedef struct pa_node_card             pa_node_card;
 typedef struct pa_card_hooks            pa_card_hooks;
+typedef struct pa_port_hooks            pa_port_hooks;
 typedef struct pa_sink_hooks            pa_sink_hooks;
 typedef struct pa_source_hooks          pa_source_hooks;
 typedef struct pa_sink_input_hooks      pa_sink_input_hooks;
