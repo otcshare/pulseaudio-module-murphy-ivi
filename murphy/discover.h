@@ -80,6 +80,8 @@ void pa_discover_add_card(struct userdata *, pa_card *);
 void pa_discover_remove_card(struct userdata *, pa_card *);
 void pa_discover_profile_changed(struct userdata *, pa_card *);
 
+void pa_discover_port_available_changed(struct userdata *, pa_device_port *);
+
 void pa_discover_add_sink(struct userdata *, pa_sink *, pa_bool_t);
 void pa_discover_remove_sink(struct userdata *, pa_sink *);
 
@@ -95,6 +97,9 @@ void pa_discover_remove_sink_input(struct userdata *, pa_sink_input *);
 
 mir_node *pa_discover_find_node_by_key(struct userdata *, const char *);
 mir_node *pa_discover_find_node_by_ptr(struct userdata *, void *);
+
+void pa_discover_add_node_to_ptr_hash(struct userdata *, void *, mir_node *);
+mir_node *pa_discover_remove_node_from_ptr_hash(struct userdata *, void *);
 
 #endif
 

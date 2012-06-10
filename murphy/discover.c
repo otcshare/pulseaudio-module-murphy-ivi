@@ -46,6 +46,9 @@
 #define MAX_CARD_TARGET   4
 #define MAX_NAME_LENGTH   256
 
+#define ACTIVE_PORT       NULL
+
+
 typedef struct {
     struct userdata *u;
     uint32_t index;
@@ -63,12 +66,14 @@ static void handle_card_ports(struct userdata *, mir_node *,
 
 static mir_node *create_node(struct userdata *, mir_node *, pa_bool_t *);
 static void destroy_node(struct userdata *, mir_node *);
+static pa_bool_t update_node_availability(struct userdata *, mir_direction,
+                                          void *, pa_device_port *, pa_bool_t);
 
 static void parse_profile_name(pa_card_profile *,
                                char **, char **, char *, int);
 
-static char *node_key_from_card(struct userdata *, mir_direction,
-                                void *, char *, size_t);
+static char *node_key(struct userdata *, mir_direction,
+                      void *, pa_device_port *, char *, size_t);
 
 static pa_sink *make_output_prerouting(struct userdata *, mir_node *,
                                        pa_channel_map *, mir_node **);
@@ -260,6 +265,60 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 
 }
 
+void pa_discover_port_available_changed(struct userdata *u,
+                                        pa_device_port *port)
+{
+    pa_core    *core;
+    pa_sink    *sink;
+    pa_source  *source;
+    uint32_t    idx;
+    pa_bool_t   available;
+    const char *state;
+    pa_bool_t   route;
+
+    pa_assert(u);
+    pa_assert(port);
+    pa_assert_se((core = u->core));
+
+    switch (port->available) {
+    case PA_PORT_AVAILABLE_NO:    state = "not ";  available = FALSE;   break;
+    case PA_PORT_AVAILABLE_YES:   state = "";      available = TRUE;    break;
+    default:                      /*       do nothing              */   return;
+    }
+
+    pa_log_debug("port '%s' availabilty changed to %savailable. Updating",
+                 port->name, state);
+
+    route = FALSE;
+
+    if (port->is_output) {
+        PA_IDXSET_FOREACH(sink, core->sinks, idx) {
+            if (sink->ports) {
+                if (port == pa_hashmap_get(sink->ports, port->name)) {
+                    pa_log_debug("   sink '%s'", sink->name);
+                    route |= update_node_availability(u, mir_output,sink,port,
+                                                      available);
+                }
+            }
+        }
+    }
+
+    if (port->is_input) {
+        PA_IDXSET_FOREACH(source, core->sources, idx) {
+            if (source->ports) {
+                if (port == pa_hashmap_get(source->ports, port->name)) {
+                    pa_log_debug("   source '%s'", source->name);
+                    route |= update_node_availability(u, mir_input,source,port,
+                                                      available);
+                }
+            }
+        }
+    }
+
+    if (route)
+        mir_router_make_routing(u);
+}
+
 void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
 {
     pa_module      *module;
@@ -278,7 +337,7 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
     module = sink->module;
 
     if ((card = sink->card)) {
-        if (!(key = node_key_from_card(u, mir_output, sink, buf, sizeof(buf))))
+        if (!(key = node_key(u, mir_output,sink,ACTIVE_PORT, buf,sizeof(buf))))
             return;
         if (!(node = pa_discover_find_node_by_key(u, key))) {
             pa_log_debug("can't find node for sink (key '%s')", key);
@@ -287,7 +346,7 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         pa_log_debug("node for '%s' found (key %s). Updating with sink data",
                      node->paname, node->key);
         node->paidx = sink->index;
-        pa_hashmap_put(discover->nodes.byptr, sink, node);
+        pa_discover_add_node_to_ptr_hash(u, sink, node);
 
         type = node->type;
 
@@ -377,7 +436,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
     pa_assert_se((discover = u->discover));
 
     if ((card = source->card)) {
-        if (!(key = node_key_from_card(u, mir_output,source, buf,sizeof(buf))))
+        if (!(key = node_key(u,mir_input,source,ACTIVE_PORT,buf,sizeof(buf))))
             return;
         if (!(node = pa_discover_find_node_by_key(u, key))) {
             pa_log_debug("can't find node for source (key '%s')", key);
@@ -386,7 +445,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
         pa_log_debug("node for '%s' found. Updating with source data",
                      node->amname);
         node->paidx = source->index;
-        pa_hashmap_put(discover->nodes.byptr, source, node);
+        pa_discover_add_node_to_ptr_hash(u, source, node);
     }
 }
 
@@ -480,7 +539,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
 
     node = create_node(u, &data, NULL);
     pa_assert(node);
-    pa_hashmap_put(discover->nodes.byptr, sinp, node);
+    pa_discover_add_node_to_ptr_hash(u, sinp, node);
 
     if (sink && target) {
         pa_log_debug("move stream to sink %u (%s)", sink->index, sink->name);
@@ -613,7 +672,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         return;
     }
 
-    pa_hashmap_put(discover->nodes.byptr, sinp, node);
+    pa_discover_add_node_to_ptr_hash(u, sinp, node);
 
     if (!data.mux)
         s = sinp->sink;
@@ -652,7 +711,7 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
 
     name = pa_utils_get_sink_input_name(sinp);
 
-    if (!(node = pa_hashmap_remove(discover->nodes.byptr, sinp)))
+    if (!(node = pa_discover_remove_node_from_ptr_hash(u, sinp)))
         pa_log_debug("can't find node for sink-input (name '%s')", name);
     else {
         pa_log_debug("node found for '%s'. After clearing the route "
@@ -705,6 +764,31 @@ mir_node *pa_discover_find_node_by_ptr(struct userdata *u, void *ptr)
         node = NULL;
 
     return node;
+}
+
+void pa_discover_add_node_to_ptr_hash(struct userdata *u,
+                                      void *ptr,
+                                      mir_node *node)
+{
+    pa_discover *discover;
+
+    pa_assert(u);
+    pa_assert(ptr);
+    pa_assert(node);
+    pa_assert_se((discover = u->discover));
+
+    pa_hashmap_put(discover->nodes.byptr, ptr, node);
+}
+
+mir_node *pa_discover_remove_node_from_ptr_hash(struct userdata *u, void *ptr)
+{
+    pa_discover *discover;
+
+    pa_assert(u);
+    pa_assert(ptr);
+    pa_assert_se((discover = u->discover));
+
+    return pa_hashmap_remove(discover->nodes.byptr, ptr);
 }
 
 
@@ -1049,6 +1133,38 @@ static void destroy_node(struct userdata *u, mir_node *node)
     }    
 }
 
+static pa_bool_t update_node_availability(struct userdata *u,
+                                          mir_direction direction,
+                                          void *data, pa_device_port *port,
+                                          pa_bool_t available)
+{
+    mir_node *node;
+    char     *key;
+    char      buf[256];
+
+    pa_assert(u);
+    pa_assert(data);
+    pa_assert(port);
+    pa_assert(direction == mir_input || direction == mir_output);
+
+    if ((key = node_key(u, direction, data, port, buf, sizeof(buf)))) {
+        if (!(node = pa_discover_find_node_by_key(u, key)))
+            pa_log_debug("      can't find node for sink (key '%s')", key);
+        else {
+            pa_log_debug("      node for '%s' found (key %s)",
+                         node->paname, node->key);
+            if ((!available &&  node->available) ||
+                ( available && !node->available)  )
+            {
+                node->available = available;
+                return TRUE; /* routing needed */
+            }
+        }
+    }
+
+    return FALSE; /* no routing needed */
+}
+
 static char *get_name(char **string_ptr, int offs)
 {
     char c, *name, *end;
@@ -1111,12 +1227,11 @@ static void parse_profile_name(pa_card_profile *prof,
 }
 
 
-static char *node_key_from_card(struct userdata *u, mir_direction direction,
-                                void *data, char *buf, size_t len)
+static char *node_key(struct userdata *u, mir_direction direction,
+                      void *data, pa_device_port *port, char *buf, size_t len)
 {
     pa_card         *card;
     pa_card_profile *profile;
-    pa_device_port  *port;
     const char      *bus;
     pa_bool_t        pci;
     pa_bool_t        usb;
@@ -1132,17 +1247,19 @@ static char *node_key_from_card(struct userdata *u, mir_direction direction,
 
     if (direction == mir_input) {
         pa_sink *sink = data;
-        type  = "sink";
-        name  = pa_utils_get_sink_name(sink);
-        card  = sink->card;
-        port  = sink->active_port;
+        type = "sink";
+        name = pa_utils_get_sink_name(sink);
+        card = sink->card;
+        if (!port)
+            port = sink->active_port;
     }
     else {
         pa_source *source = data;
         type = "source";
         name = pa_utils_get_source_name(source);
         card = source->card;
-        port = source->active_port;
+        if (!port)
+            port = source->active_port;
     }
 
     if (!card)

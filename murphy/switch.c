@@ -24,6 +24,7 @@
 
 #include <pulsecore/pulsecore-config.h>
 #include <pulsecore/core-util.h>
+#include <pulsecore/namereg.h>
 
 #include <pulsecore/card.h>
 #include <pulsecore/sink.h>
@@ -35,6 +36,7 @@
 #include "switch.h"
 #include "node.h"
 #include "multiplex.h"
+#include "discover.h"
 #include "utils.h"
 
 static pa_bool_t setup_explicit_link_from_stream_to_device(struct userdata *,
@@ -49,6 +51,7 @@ static pa_bool_t setup_default_link_from_stream_to_device(struct userdata *,
 static pa_sink *setup_device_output(struct userdata *, mir_node *);
 
 static pa_bool_t set_profile(struct userdata *, mir_node *);
+static pa_bool_t set_port(struct userdata *, mir_node *);
 
 
 pa_bool_t mir_switch_setup_link(struct userdata *u,
@@ -214,7 +217,7 @@ static pa_bool_t setup_explicit_link_from_stream_to_device(struct userdata *u,
     if (!(sink = setup_device_output(u, to)))
         return FALSE;
 
-    if (!set_profile(u, from)) {
+    if (!set_profile(u, from) || !set_port(u, from)) {
         pa_log("can't route from '%s'", from->amname);
         return FALSE;
     }
@@ -319,7 +322,7 @@ static pa_bool_t setup_default_link_from_stream_to_device(struct userdata *u,
     if (!(sink = setup_device_output(u, to)))
         return FALSE;
 
-    if (!set_profile(u, from)) {
+    if (!set_profile(u, from) || !set_port(u, from)) {
         pa_log("can't route from '%s'", from->amname);
         return FALSE;
     }
@@ -409,7 +412,7 @@ static pa_sink *setup_device_output(struct userdata *u, mir_node *node)
     pa_assert(node);
     pa_assert_se((core = u->core));
 
-    if (!set_profile(u, node)) {
+    if (!set_profile(u, node) || !set_port(u, node)) {
         pa_log("can't route to '%s'", node->amname);
         return NULL;
     }
@@ -470,6 +473,75 @@ static pa_bool_t set_profile(struct userdata *u, mir_node *node)
             u->state.profile = NULL;            
         }
     }
+
+    return TRUE;
+}
+
+
+
+static pa_bool_t set_port(struct userdata *u, mir_node *node)
+{
+    pa_core   *core;
+    pa_sink   *sink;
+    pa_source *source;
+    void      *data;
+    pa_device_port *port;
+    mir_node  *oldnode;
+    uint32_t   paidx;
+
+    pa_assert(u);
+    pa_assert(node);
+    pa_assert(node->paname);
+    pa_assert_se((core = u->core));
+
+    if (node->implement != mir_device)
+        return TRUE;
+
+    if (!node->paport)
+        return TRUE;
+
+    if (node->direction == mir_input) {
+        source = pa_namereg_get(core, node->paname, PA_NAMEREG_SOURCE);
+        
+        if (!(data = source)) {
+            pa_log("can't set port for '%s': source not found",
+                   node->paname);
+            return FALSE;
+        }
+        
+        if ((port = source->active_port) && pa_streq(node->paport, port->name))
+            return TRUE;
+
+        if (pa_source_set_port(source, node->paport, FALSE) < 0)
+            return FALSE;
+
+        paidx = source->index;
+    }
+
+    if (node->direction == mir_output) {
+        sink = pa_namereg_get(core, node->paname, PA_NAMEREG_SINK);
+        
+        if (!(data = sink)) {
+            pa_log("can't set port for '%s': sink not found",
+                   node->paname);
+            return FALSE;
+        }
+
+        if ((port = sink->active_port) && pa_streq(node->paport, port->name))
+            return TRUE;
+
+        if (pa_sink_set_port(sink, node->paport, FALSE) < 0)
+            return FALSE;
+
+        paidx = sink->index;
+    }
+
+    if ((oldnode = pa_discover_remove_node_from_ptr_hash(u, data)))
+        oldnode->paidx = PA_IDXSET_INVALID;
+
+    node->paidx = paidx;
+    pa_discover_add_node_to_ptr_hash(u, data, node);
+
 
     return TRUE;
 }
