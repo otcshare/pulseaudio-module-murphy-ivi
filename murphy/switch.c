@@ -313,6 +313,7 @@ static pa_bool_t setup_default_link_from_stream_to_device(struct userdata *u,
     pa_sink       *sink;
     pa_sink_input *sinp;
     pa_muxnode    *mux;
+    int            n;
 
     pa_assert(u);
     pa_assert(from);
@@ -329,12 +330,19 @@ static pa_bool_t setup_default_link_from_stream_to_device(struct userdata *u,
 
     if ((mux = from->mux)) {
         if (mux->defstream_index == PA_IDXSET_INVALID) {
-            pa_log_debug("currently mux %u has no default route",
-                         mux->module_index);
-            return TRUE;
+            if ((n = pa_multiplex_no_of_routes(core, mux)) < 0)
+                return FALSE;
+            else if (n > 0) {
+                pa_log_debug("currently mux %u has no default route",
+                             mux->module_index);
+                return TRUE;
+            }
+            sinp = NULL;
         }
-
-        sinp = pa_idxset_get_by_index(core->sink_inputs, mux->defstream_index);
+        else {
+            sinp = pa_idxset_get_by_index(core->sink_inputs,
+                                          mux->defstream_index);
+        }
 
         if (!sinp) {
             /*
@@ -346,7 +354,7 @@ static pa_bool_t setup_default_link_from_stream_to_device(struct userdata *u,
             pa_log_debug("supposed to have a default stream on multiplex "
                          "%u but non was found. Trying to make one",
                          mux->module_index);
-            if (pa_multiplex_duplicate_route(core, mux, sinp, sink)) {                    
+            if (pa_multiplex_duplicate_route(core, mux, sinp, sink)) {
                 pa_log_debug("the default stream on mux %u would be a "
                              "duplicate to an explicit route. "
                              "Removing it ...", mux->module_index);

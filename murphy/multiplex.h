@@ -59,6 +59,8 @@ pa_bool_t pa_multiplex_remove_explicit_route(pa_core *, pa_muxnode *, pa_sink *)
 pa_bool_t pa_multiplex_duplicate_route(pa_core *, pa_muxnode *,
                                        pa_sink_input *, pa_sink *);
 
+int pa_multiplex_no_of_routes(pa_core *, pa_muxnode *);
+
 int pa_multiplex_print(pa_muxnode *, char *, int);
 
 
