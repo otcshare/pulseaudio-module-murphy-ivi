@@ -1082,7 +1082,8 @@ static mir_node *create_node(struct userdata *u, mir_node *data,
         mir_node_print(node, buf, sizeof(buf));
         pa_log_debug("new node:\n%s", buf);
         
-        pa_audiomgr_register_node(u, node);
+        if (node->available)
+            pa_audiomgr_register_node(u, node);
     }
     
     if (created_ret)
@@ -1157,6 +1158,12 @@ static pa_bool_t update_node_availability(struct userdata *u,
                 ( available && !node->available)  )
             {
                 node->available = available;
+
+                if (available)
+                    pa_audiomgr_register_node(u, node);
+                else
+                    pa_audiomgr_unregister_node(u, node);
+
                 return TRUE; /* routing needed */
             }
         }
