@@ -35,39 +35,24 @@
 
 #define ADMIN_NAME_OWNER_CHANGED    "NameOwnerChanged"
 
-#define POLICY_DBUS_INTERFACE       "org.tizen.policy"
-#define POLICY_DBUS_MRPPATH         "/org/tizen/policy"
-#define POLICY_DBUS_MRPNAME         "org.tizen.murphy"
-
 #define AUDIOMGR_DBUS_INTERFACE     "org.genivi.audiomanager"
 #define AUDIOMGR_DBUS_PATH          "/org/genivi/audiomanager"
+
 #define AUDIOMGR_DBUS_ROUTE_NAME    "RoutingInterface"
 #define AUDIOMGR_DBUS_ROUTE_PATH    "RoutingInterface"
+
+#define AUDIOMGR_DBUS_CONTROL_NAME    "ControlInterface"
+#define AUDIOMGR_DBUS_CONTROL_PATH    "ControlInterface"
 
 #define PULSE_DBUS_INTERFACE        "org.genivi.pulse"
 #define PULSE_DBUS_PATH             "/org/genivi/pulse"
 #define PULSE_DBUS_NAME             "org.genivi.pulse"
-
-
-#define POLICY_DECISION             "decision"
-#define POLICY_STREAM_INFO          "stream_info"
-#define POLICY_ACTIONS              "audio_actions"
-#define POLICY_STATUS               "status"
-
-#define PROP_ROUTE_SINK_TARGET      "policy.sink_route.target"
-#define PROP_ROUTE_SINK_MODE        "policy.sink_route.mode"
-#define PROP_ROUTE_SINK_HWID        "policy.sink_route.hwid"
-#define PROP_ROUTE_SOURCE_TARGET    "policy.source_route.target"
-#define PROP_ROUTE_SOURCE_MODE      "policy.source_route.mode"
-#define PROP_ROUTE_SOURCE_HWID      "policy.source_route.hwid"
-
 
 #define STRUCT_OFFSET(s,m) ((char *)&(((s *)0)->m) - (char *)0)
 
 typedef void (*pending_cb_t)(struct userdata *, const char *,
                              DBusMessage *, void *);
 typedef bool (*method_t)(struct userdata *, DBusMessage *);
-
 
 struct pending {
     PA_LLIST_FIELDS(struct pending);
@@ -80,24 +65,16 @@ struct pending {
 
 struct pa_routerif {
     pa_dbus_connection *conn;
-    char               *ifnam;    /* signal interface */
-    char               *mrppath;  /* murphy signal path */
-    char               *mrpnam;   /* murphy D-Bus name */
     char               *ampath;   /* audio manager path */
     char               *amnam;    /* audio manager name */
     char               *amrpath;  /* audio manager routing path */
     char               *amrnam;   /* audio manager routing name */
-    char               *admmrule; /* match rule to catch murphy name changes */
+    char               *amcpath;  /* audio manager control path */
+    char               *amcnam;   /* audio manager control name */
     char               *admarule; /* match rule to catch audiomgr name change*/
-    char               *actrule;  /* match rule to catch action signals */
-    char               *strrule;  /* match rule to catch stream info signals */
-    int                 mregist;  /* are we registered to murphy */
     int                 amisup;   /* is the audio manager up */
     PA_LLIST_HEAD(struct pending, pendlist);
 };
-
-
-
 
 struct actdsc {                 /* action descriptor */
     const char         *name;
@@ -143,29 +120,15 @@ static bool send_message_with_reply(struct userdata *,
                                          DBusConnection *, DBusMessage *,
                                          pending_cb_t, void *);
 
-
 static DBusHandlerResult filter(DBusConnection *, DBusMessage *, void *);
-
 static void handle_admin_message(struct userdata *, DBusMessage *);
-#if 0
-static void handle_info_message(struct userdata *, DBusMessage *);
-static void handle_action_message(struct userdata *, DBusMessage *);
-#endif
-
-static void murphy_registration_cb(struct userdata *, const char *,
-                                   DBusMessage *, void *);
-static bool register_to_murphy(struct userdata *);
-#if 0
-static int  signal_status(struct userdata *, uint32_t, uint32_t);
-#endif
-
+static bool register_to_controlif(struct userdata *);
 static DBusHandlerResult audiomgr_method_handler(DBusConnection *,
                                                  DBusMessage *, void *);
 static void audiomgr_register_domain_cb(struct userdata *, const char *,
                                         DBusMessage *, void *);
 static bool register_to_audiomgr(struct userdata *);
 static bool unregister_from_audiomgr(struct userdata *);
-
 static void audiomgr_register_node_cb(struct userdata *, const char *,
                                       DBusMessage *, void *);
 static void audiomgr_unregister_node_cb(struct userdata *, const char *,
@@ -179,12 +142,8 @@ static bool routerif_disconnect(struct userdata *, DBusMessage *);
 
 static const char *method_str(am_method);
 
-
 pa_routerif *pa_routerif_init(struct userdata *u,
                               const char      *dbustype,
-                              const char      *ifnam,
-                              const char      *mrppath,
-                              const char      *mrpnam,
                               const char      *ampath,
                               const char      *amnam)
 {
@@ -202,9 +161,8 @@ pa_routerif *pa_routerif_init(struct userdata *u,
     char            pathbuf[128];
     char           *amrnam;
     char           *amrpath;
-    char            actrule[512];
-    char            strrule[512];
-    char            admmrule[512];
+    char           *amcnam;
+    char           *amcpath;
     char            admarule[512];
     int             result;
     
@@ -253,24 +211,19 @@ pa_routerif *pa_routerif_init(struct userdata *u,
         goto fail;
     }
 
-    if (!ifnam)
-        ifnam = POLICY_DBUS_INTERFACE;
-
-    if (!mrppath)
-        mrppath = POLICY_DBUS_MRPPATH;
-
-    if (!mrpnam)
-        mrpnam = POLICY_DBUS_MRPNAME;
-
     if (ampath && *ampath) {
         char *slash = ampath[strlen(ampath)-1] == '/' ? "" : "/";
         snprintf(pathbuf, sizeof(pathbuf), "%s%s" AUDIOMGR_DBUS_ROUTE_PATH,
                  ampath, slash);
         amrpath = pathbuf;
+        snprintf(pathbuf, sizeof(pathbuf), "%s%s" AUDIOMGR_DBUS_CONTROL_PATH,
+                 ampath, slash);
+        amcpath = pathbuf;
     }
     else {
         ampath  = AUDIOMGR_DBUS_PATH;
         amrpath = AUDIOMGR_DBUS_PATH "/" AUDIOMGR_DBUS_ROUTE_PATH;
+        amcpath = AUDIOMGR_DBUS_PATH "/" AUDIOMGR_DBUS_CONTROL_PATH;
     }
 
     if (amnam && *amnam){
@@ -278,18 +231,15 @@ pa_routerif *pa_routerif_init(struct userdata *u,
         snprintf(nambuf, sizeof(nambuf), "%s%s" AUDIOMGR_DBUS_ROUTE_NAME,
                  amnam, dot);
         amrnam = nambuf;
+        snprintf(nambuf, sizeof(nambuf), "%s%s" AUDIOMGR_DBUS_CONTROL_NAME,
+                 amnam, dot);
+        amcnam = nambuf;
     }
     else {
         amnam  = AUDIOMGR_DBUS_INTERFACE;
         amrnam = AUDIOMGR_DBUS_INTERFACE "." AUDIOMGR_DBUS_ROUTE_NAME;
+        amcnam = AUDIOMGR_DBUS_INTERFACE "." AUDIOMGR_DBUS_ROUTE_NAME;
     }
-
-
-    snprintf(admmrule, sizeof(admmrule), "type='signal',sender='%s',path='%s',"
-             "interface='%s',member='%s',arg0='%s'", ADMIN_DBUS_MANAGER,
-             ADMIN_DBUS_PATH, ADMIN_DBUS_INTERFACE, ADMIN_NAME_OWNER_CHANGED,
-             mrpnam);
-    dbus_bus_add_match(dbusconn, admmrule, &error);
 
     snprintf(admarule, sizeof(admarule), "type='signal',sender='%s',path='%s',"
              "interface='%s',member='%s',arg0='%s'", ADMIN_DBUS_MANAGER,
@@ -303,48 +253,19 @@ pa_routerif *pa_routerif_init(struct userdata *u,
         goto fail;
     }
 
-    snprintf(actrule, sizeof(actrule), "type='signal',interface='%s',"
-             "member='%s',path='%s/%s'", ifnam, POLICY_ACTIONS,
-             mrppath, POLICY_DECISION);
-    dbus_bus_add_match(dbusconn, actrule, &error);
-
-    if (dbus_error_is_set(&error)) {
-        pa_log("%s: unable to subscribe policy %s signal on %s: %s: %s",
-               __FILE__, POLICY_ACTIONS, ifnam, error.name, error.message);
-        goto fail;
-    }
-
-    snprintf(strrule, sizeof(strrule), "type='signal',interface='%s',"
-             "member='%s',path='%s/%s'", ifnam, POLICY_STREAM_INFO,
-             mrppath, POLICY_DECISION);
-    dbus_bus_add_match(dbusconn, strrule, &error);
-
-    if (dbus_error_is_set(&error)) {
-        pa_log("%s: unable to subscribe policy %s signal on %s: %s: %s",
-               __FILE__, POLICY_STREAM_INFO, ifnam, error.name, error.message);
-        goto fail;
-    }
-
-    pa_log_info("%s: subscribed policy signals on %s", __FILE__, ifnam);
-
     dbus_connection_register_object_path(dbusconn, PULSE_DBUS_PATH, &vtable,u);
 
-
-    routerif->ifnam    = pa_xstrdup(ifnam);
-    routerif->mrppath  = pa_xstrdup(mrppath);
-    routerif->mrpnam   = pa_xstrdup(mrpnam);
     routerif->ampath   = pa_xstrdup(ampath);
     routerif->amnam    = pa_xstrdup(amnam);
     routerif->amrpath  = pa_xstrdup(amrpath);
     routerif->amrnam   = pa_xstrdup(amrnam);
-    routerif->admmrule = pa_xstrdup(admmrule);
+    routerif->amcpath  = pa_xstrdup(amrpath);
+    routerif->amcnam   = pa_xstrdup(amrnam);
     routerif->admarule = pa_xstrdup(admarule);
-    routerif->actrule  = pa_xstrdup(actrule);
-    routerif->strrule  = pa_xstrdup(strrule);
 
     u->routerif = routerif; /* Argh.. */
 
-    register_to_murphy(u);
+    register_to_controlif(u);
     register_to_audiomgr(u);
 
     return routerif;
@@ -375,25 +296,18 @@ static void free_routerif(pa_routerif *routerif, struct userdata *u)
                 dbus_connection_remove_filter(dbusconn, filter,u);
             }
 
-            dbus_bus_remove_match(dbusconn, routerif->admmrule, NULL);
             dbus_bus_remove_match(dbusconn, routerif->admarule, NULL);
-            dbus_bus_remove_match(dbusconn, routerif->actrule, NULL);
-            dbus_bus_remove_match(dbusconn, routerif->strrule, NULL);
 
             pa_dbus_connection_unref(routerif->conn);
         }
 
-        pa_xfree(routerif->ifnam);
-        pa_xfree(routerif->mrppath);
-        pa_xfree(routerif->mrpnam);
         pa_xfree(routerif->ampath);
         pa_xfree(routerif->amnam);
         pa_xfree(routerif->amrpath);
         pa_xfree(routerif->amrnam);
-        pa_xfree(routerif->admmrule);
+        pa_xfree(routerif->amcpath);
+        pa_xfree(routerif->amcnam);
         pa_xfree(routerif->admarule);
-        pa_xfree(routerif->actrule);
-        pa_xfree(routerif->strrule);
 
         pa_xfree(routerif);
     }
@@ -407,7 +321,6 @@ void pa_routerif_done(struct userdata *u)
     }
 }
 
-
 static DBusHandlerResult filter(DBusConnection *conn, DBusMessage *msg,
                                 void *arg)
 {
@@ -419,19 +332,6 @@ static DBusHandlerResult filter(DBusConnection *conn, DBusMessage *msg,
         handle_admin_message(u, msg);
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
-
-
-#if 0
-    if (dbus_message_is_signal(msg, POLICY_DBUS_INTERFACE,POLICY_STREAM_INFO)){
-        handle_info_message(u, msg);
-        return DBUS_HANDLER_RESULT_HANDLED;
-    }
-
-    if (dbus_message_is_signal(msg, POLICY_DBUS_INTERFACE, POLICY_ACTIONS)) {
-        handle_action_message(u, msg);
-        return DBUS_HANDLER_RESULT_HANDLED;
-    }
-#endif
 
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
@@ -459,21 +359,6 @@ static void handle_admin_message(struct userdata *u, DBusMessage *msg)
         return;
     }
 
-    if (!strcmp(name, routerif->mrpnam)) {
-        if (after && strcmp(after, "")) {
-            pa_log_debug("murphy is up");
-
-            if (!routerif->mregist) {
-                register_to_murphy(u);
-            }
-        }
-
-        if (name && before && (!after || !strcmp(after, ""))) {
-            pa_log_info("murphy is gone");
-            routerif->mregist = 0;
-        } 
-    } else
-
     if (!strcmp(name, routerif->amnam)) {
         if (after && strcmp(after, "")) {
             pa_log_debug("audio manager is up");
@@ -493,7 +378,6 @@ static void handle_admin_message(struct userdata *u, DBusMessage *msg)
         } 
     }
 }
-
 
 static void reply_cb(DBusPendingCall *pend, void *data)
 {
@@ -574,404 +458,10 @@ static bool send_message_with_reply(struct userdata *u,
     return false;
 }
 
-
-/**************************************************************************
- *
- * Murphy interfaces
- *
- */
-#if 0
-void pa_routerif_send_device_state(struct userdata *u, char *state,
-                                   char **types, int ntype)
+static bool register_to_controlif(struct userdata *u)
 {
-    static char     *path = (char *)"/org/tizen/policy/info";
-
-    pa_routerif     *routerif = u->routerif;
-    DBusConnection  *conn = pa_dbus_connection_get(routerif->conn);
-    DBusMessage     *msg;
-    DBusMessageIter  mit;
-    DBusMessageIter  dit;
-    int              i;
-    int              sts;
-
-    if (!types || ntype < 1)
-        return;
-
-    msg = dbus_message_new_signal(path, routerif->ifnam, "info");
-
-    if (msg == NULL) {
-        pa_log("%s: failed to make new info message", __FILE__);
-        goto fail;
-    }
-
-    dbus_message_iter_init_append(msg, &mit);
-
-    if (!dbus_message_iter_append_basic(&mit, DBUS_TYPE_STRING, &state) ||
-        !dbus_message_iter_open_container(&mit, DBUS_TYPE_ARRAY,"s", &dit)){
-        pa_log("%s: failed to build info message", __FILE__);
-        goto fail;
-    }
-
-    for (i = 0; i < ntype; i++) {
-        if (!dbus_message_iter_append_basic(&dit, DBUS_TYPE_STRING,&types[i])){
-            pa_log("%s: failed to build info message", __FILE__);
-            goto fail;
-        }
-    }
-
-    dbus_message_iter_close_container(&mit, &dit);
-
-    sts = dbus_connection_send(conn, msg, NULL);
-
-    if (!sts) {
-        pa_log("%s: Can't send info message: out of memory", __FILE__);
-    }
-
- fail:
-    dbus_message_unref(msg);    /* should cope with NULL msg */
+    return true;
 }
-
-void pa_routerif_send_media_status(struct userdata *u, const char *media,
-                                        const char *group, int active)
-{
-    static char        *path = (char *)"/org/tizen/policy/info";
-    static const char  *type = "media";
-
-    pa_routerif    *routerif = u->routerif;
-    DBusConnection *conn   = pa_dbus_connection_get(routerif->conn);
-    DBusMessage    *msg;
-    const char     *state;
-    int             success;
-
-    msg = dbus_message_new_signal(path, routerif->ifnam, "info");
-
-    if (msg == NULL)
-        pa_log("%s: failed to make new info message", __FILE__);
-    else {
-        state = active ? "active" : "inactive";
-
-        success = dbus_message_append_args(msg,
-                                           DBUS_TYPE_STRING, &type,
-                                           DBUS_TYPE_STRING, &media,
-                                           DBUS_TYPE_STRING, &group,
-                                           DBUS_TYPE_STRING, &state,
-                                           DBUS_TYPE_INVALID);
-        
-        if (!success)
-            pa_log("%s: Can't build D-Bus info message", __FILE__);
-        else {
-            if (!dbus_connection_send(conn, msg, NULL)) {
-                pa_log("%s: Can't send info message: out of memory", __FILE__);
-            }
-        }
-
-        dbus_message_unref(msg);
-    }
-}
-#endif
-
-#if 0
-static void handle_info_message(struct userdata *u, DBusMessage *msg)
-{
-    dbus_uint32_t  txid;
-    dbus_uint32_t  pid;
-    char          *oper;
-    char          *group;
-    char          *arg;
-    char          *method_str;
-    enum pa_classify_method method = pa_method_unknown;
-    char          *prop;
-    int            success;
-
-    success = dbus_message_get_args(msg, NULL,
-                                    DBUS_TYPE_UINT32, &txid,
-                                    DBUS_TYPE_STRING, &oper,
-                                    DBUS_TYPE_STRING, &group,
-                                    DBUS_TYPE_UINT32, &pid,
-                                    DBUS_TYPE_STRING, &arg,
-                                    DBUS_TYPE_STRING, &method_str,
-                                    DBUS_TYPE_STRING, &prop,
-                                    DBUS_TYPE_INVALID);
-    if (!success) {
-        pa_log("%s: failed to parse info message", __FILE__);
-        return;
-    }
-
-    if (!method_str)
-        method = pa_method_unknown;
-    else {
-        switch (method_str[0]) {
-        case 'e':
-            if (!strcmp(method_str, "equals"))
-                method = pa_method_equals;
-            break;
-        case 's':
-            if (!strcmp(method_str, "startswith"))
-                method = pa_method_startswith;
-            break;
-        case 'm':
-            if (!strcmp(method_str, "matches"))
-                method = pa_method_matches;
-            break;
-        case 't':
-            if (!strcmp(method_str, "true"))
-                method = pa_method_true;
-            break;
-        default:
-            method = pa_method_unknown;
-            break;
-        }
-    }
-
-    if (!arg)
-        method = pa_method_unknown;
-    else if (!strcmp(arg, "*"))
-        method = pa_method_true;
-
-    if (!strcmp(oper, "register")) {
-
-        if (pa_policy_group_find(u, group) == NULL) {
-            pa_log_debug("register client (%s|%u) failed: unknown group",
-                         group, pid);
-        }
-        else {
-            pa_log_debug("register client (%s|%u)", group, pid);
-            pa_classify_register_pid(u, (pid_t)pid, prop, method, arg, group);
-        }
-        
-    }
-    else if (!strcmp(oper, "unregister")) {
-        pa_log_debug("unregister client (%s|%u)", group, pid);
-        pa_classify_unregister_pid(u, (pid_t)pid, prop, method, arg);
-    }
-    else {
-        pa_log("%s: invalid operation: '%s'", __FILE__, oper);
-    }
-}
-
-static void handle_action_message(struct userdata *u, DBusMessage *msg)
-{
-    static struct actdsc actions[] = {
-/*
-        { "org.tizen.policy.audio_route" , audio_route_parser  },
-        { "org.tizen.policy.volume_limit", volume_limit_parser },
-        { "org.tizen.policy.audio_cork"  , audio_cork_parser   },
-        { "org.tizen.policy.audio_mute"  , audio_mute_parser   },
-        { "org.tizen.policy.context"     , context_parser      },
-*/
-        {               NULL             , NULL                }
-    };
-
-    struct actdsc   *act;
-    dbus_uint32_t    txid;
-    char            *actname;
-    DBusMessageIter  msgit;
-    DBusMessageIter  arrit;
-    DBusMessageIter  entit;
-    DBusMessageIter  actit;
-    int              success = true;
-
-    pa_log_debug("got policy actions");
-
-    dbus_message_iter_init(msg, &msgit);
-
-    if (dbus_message_iter_get_arg_type(&msgit) != DBUS_TYPE_UINT32)
-        return;
-
-    dbus_message_iter_get_basic(&msgit, (void *)&txid);
-
-    pa_log_debug("got actions (txid:%d)", txid);
-
-    if (!dbus_message_iter_next(&msgit) ||
-        dbus_message_iter_get_arg_type(&msgit) != DBUS_TYPE_ARRAY) {
-        success = false;
-        goto send_signal;
-    }
-
-    dbus_message_iter_recurse(&msgit, &arrit);
-
-    do {
-        if (dbus_message_iter_get_arg_type(&arrit) != DBUS_TYPE_DICT_ENTRY) {
-            success = false;
-            continue;
-        }
-
-        dbus_message_iter_recurse(&arrit, &entit);
-
-        do {
-            if (dbus_message_iter_get_arg_type(&entit) != DBUS_TYPE_STRING) {
-                success = false;
-                continue;
-            }
-            
-            dbus_message_iter_get_basic(&entit, (void *)&actname);
-            
-            if (!dbus_message_iter_next(&entit) ||
-                dbus_message_iter_get_arg_type(&entit) != DBUS_TYPE_ARRAY) {
-                success = false;
-                continue;
-            }
-            
-            dbus_message_iter_recurse(&entit, &actit);
-            
-            if (dbus_message_iter_get_arg_type(&actit) != DBUS_TYPE_ARRAY) {
-                success = false;
-                continue;
-            }
-            
-            for (act = actions;   act->name != NULL;   act++) {
-                if (!strcmp(actname, act->name))
-                    break;
-            }
-                                    
-            if (act->parser != NULL)
-                success &= act->parser(u, &actit);
-
-        } while (dbus_message_iter_next(&entit));
-
-    } while (dbus_message_iter_next(&arrit));
-
- send_signal:
-    signal_status(u, txid, success);
-}
-#endif
-
-static void murphy_registration_cb(struct userdata *u,
-                                   const char      *method,
-                                   DBusMessage     *reply,
-                                   void            *data)
-{
-    const char      *error_descr;
-    int              success;
-
-    (void)data;
-
-    if (dbus_message_get_type(reply) == DBUS_MESSAGE_TYPE_ERROR) {
-        success = dbus_message_get_args(reply, NULL,
-                                        DBUS_TYPE_STRING, &error_descr,
-                                        DBUS_TYPE_INVALID);
-
-        if (!success)
-            error_descr = dbus_message_get_error_name(reply);
-
-        pa_log_info("%s: registration to Murphy failed: %s",
-                    __FILE__, error_descr);
-    }
-    else {
-        pa_log_info("Murphy replied to registration");
-
-        if (u->routerif) {
-            u->routerif->amisup = 1;
-        }
-    }
-}
-
-static bool register_to_murphy(struct userdata *u)
-{
-    static const char *name = "pulseaudio";
-
-    pa_routerif    *routerif = u->routerif;
-    DBusConnection *conn   = pa_dbus_connection_get(routerif->conn);
-    DBusMessage    *msg;
-    const char     *signals[4];
-    const char    **v_ARRAY;
-    int             i;
-    int             success;
-
-    pa_log_info("%s: registering to murphy: name='%s' path='%s' if='%s'",
-                __FILE__, routerif->mrpnam, routerif->mrppath,routerif->ifnam);
-
-    msg = dbus_message_new_method_call(routerif->mrpnam, routerif->mrppath,
-                                       routerif->ifnam, "register");
-
-    if (msg == NULL) {
-        pa_log("%s: Failed to create D-Bus message to register", __FILE__);
-        success = false;
-        goto getout;
-    }
-
-    signals[i=0] = POLICY_ACTIONS;
-    v_ARRAY = signals;
-
-    success = dbus_message_append_args(msg,
-                                       DBUS_TYPE_STRING, &name,
-                                       DBUS_TYPE_ARRAY,
-                                       DBUS_TYPE_STRING, &v_ARRAY, i+1,
-                                       DBUS_TYPE_INVALID);
-    if (!success) {
-        pa_log("%s: Failed to build D-Bus message to register", __FILE__);
-        goto getout;
-    }
-
-    if (!send_message_with_reply(u, conn, msg, murphy_registration_cb, NULL)) {
-        pa_log("%s: Failed to register", __FILE__);
-        goto getout;
-    }
-
- getout:
-    dbus_message_unref(msg);
-    return success;
-}
-
-
-#if 0
-static int signal_status(struct userdata *u, uint32_t txid, uint32_t status)
-{
-    pa_routerif    *routerif = u->routerif;
-    DBusConnection *conn = pa_dbus_connection_get(routerif->conn);
-    DBusMessage    *msg;
-    char            path[256];
-    int             ret;
-
-    if (txid == 0) {
-    
-        /* When transaction ID is 0, the policy manager does not expect
-         * a response. */
-        
-        pa_log_debug("Not sending status message since transaction ID is 0");
-        return 0;
-    }
-
-    snprintf(path, sizeof(path), "%s/%s", routerif->mrppath, POLICY_DECISION);
-
-    pa_log_debug("sending signal to: path='%s', if='%s' member='%s' "
-                 "content: txid=%d status=%d", path, routerif->ifnam,
-                 POLICY_STATUS, txid, status);
-
-    msg = dbus_message_new_signal(path, routerif->ifnam, POLICY_STATUS);
-
-    if (msg == NULL) {
-        pa_log("%s: failed to make new status message", __FILE__);
-        goto fail;
-    }
-
-    ret = dbus_message_append_args(msg,
-            DBUS_TYPE_UINT32, &txid,
-            DBUS_TYPE_UINT32, &status,
-            DBUS_TYPE_INVALID);
-
-    if (!ret) {
-        pa_log("%s: Can't build D-Bus status message", __FILE__);
-        goto fail;
-    }
-
-    ret = dbus_connection_send(conn, msg, NULL);
-
-    if (!ret) {
-        pa_log("%s: Can't send status message: out of memory", __FILE__);
-        goto fail;
-    }
-
-    dbus_message_unref(msg);
-
-    return 0;
-
- fail:
-    dbus_message_unref(msg);    /* should cope with NULL msg */
-    return -1;
-}
-#endif
-
 
 /**************************************************************************
  *
@@ -1103,8 +593,6 @@ static void audiomgr_register_domain_cb(struct userdata *u,
         }
     }
 }
-
-
 
 bool pa_routerif_register_domain(struct userdata   *u,
                                  am_domainreg_data *dr)
@@ -1558,12 +1046,12 @@ bool pa_routerif_unregister_node(struct userdata *u,
                                        routerif->amrnam, method);
     
     if (msg == NULL) {
-        pa_log("%s: Failed to create D-BUS message to '%s'", __FILE__, method);
+        pa_log("%s: Failed to create D-Bus message for '%s'", __FILE__,method);
         goto getout;
     }
 
     success = dbus_message_append_args(msg,
-                                       DBUS_TYPE_UINT16, &ud->id,
+                                       DBUS_TYPE_INT16, &ud->id,
                                        DBUS_TYPE_INVALID);
 
     success = send_message_with_reply(u, conn, msg,
@@ -1576,6 +1064,140 @@ bool pa_routerif_unregister_node(struct userdata *u,
  getout:
     dbus_message_unref(msg);
     return success;
+}
+
+bool pa_routerif_register_implicit_connection(struct userdata *u,
+                                              am_connect_data *cd)
+{
+    static const char    *method = AUDIOMGR_IMPLICIT_CONNECTION;
+
+    pa_routerif     *routerif;
+    DBusConnection  *conn;
+    DBusMessage     *msg;
+    bool             success = false;
+
+    pa_assert(u);
+    pa_assert(cd);
+    pa_assert_se((routerif = u->routerif));
+    pa_assert_se((conn = pa_dbus_connection_get(routerif->conn)));
+
+    pa_log_debug("%s: register implicit connection", __FUNCTION__);
+
+    msg = dbus_message_new_method_call(routerif->amnam, routerif->amcpath,
+                                       routerif->amcnam, method);
+    if (msg == NULL) {
+        pa_log("%s: Failed to create D-Bus message for '%s'", __FILE__,method);
+        goto getout;
+    }
+
+    dbus_message_set_no_reply(msg, true);
+
+    success = dbus_message_append_args(msg,
+                                       DBUS_TYPE_UINT16, &cd->connection,
+                                       DBUS_TYPE_INT16 , &cd->format,
+                                       DBUS_TYPE_UINT16, &cd->source,
+                                       DBUS_TYPE_UINT16, &cd->sink,
+                                       DBUS_TYPE_INVALID);
+    if (!success) {
+        pa_log("%s: failed to build message for %s", __FILE__, method);
+        goto getout;
+    }
+
+    success = dbus_connection_send(conn, msg, NULL);
+
+    if (!success) {
+        pa_log("%s: Failed to %s", __FILE__, method);
+        goto getout;
+    }
+
+ getout:
+    dbus_message_unref(msg);
+    return success;
+}
+
+bool pa_routerif_register_implicit_connections(struct userdata *u,
+                                               int              nconn,
+                                               am_connect_data *conns)
+{
+#if 0
+    static const char    *method = AUDIOMGR_IMPLICIT_CONNECTIONS;
+    static dbus_uint16_t  zero;
+
+    pa_routerif     *routerif;
+    DBusConnection  *conn;
+    DBusMessage     *msg;
+    DBusMessageIter  mit;
+    DBusMessageIter  ait;
+    DBusMessageIter  sit;
+    am_connect_data *cd;
+    int              i;
+    bool             success = false;
+
+    pa_assert(u);
+    pa_assert(nconn > 0);
+    pa_assert(conns);
+    pa_assert_se((routerif = u->routerif));
+    pa_assert_se((conn = pa_dbus_connection_get(routerif->conn)));
+
+    pa_log_debug("%s: register %d implicit connections", __FUNCTION__, nconn);
+
+    msg = dbus_message_new_method_call(routerif->amnam, routerif->amrpath,
+                                       routerif->amrnam, method);
+    if (msg == NULL) {
+        pa_log("%s: Failed to create D-Bus message for '%s'", __FILE__,method);
+        goto getout;
+    }
+
+    dbus_message_set_no_reply(msg, true);
+    dbus_message_iter_init_append(msg, &mit);
+
+#define CONT_OPEN(p,t,s,c) dbus_message_iter_open_container(p, t, s, c)
+#define CONT_APPEND(i,t,v) dbus_message_iter_append_basic(i, t, v)
+#define CONT_CLOSE(p,c)    dbus_message_iter_close_container(p, c)
+
+    if (!CONT_OPEN(&mit, DBUS_TYPE_ARRAY, "(qqqqn)", &ait)) {
+        pa_log("%s: failed to open array iterator for %s", __FILE__, method);
+        goto getout;
+    }
+
+    for (i = 0;   i < nconn;   i++) {
+        cd = conns + i;
+        
+        if (! CONT_OPEN   (&ait, DBUS_TYPE_STRUCT, NULL, &sit     ) ||
+            ! CONT_APPEND (&sit, DBUS_TYPE_UINT16, &cd->connection) ||
+            ! CONT_APPEND (&sit, DBUS_TYPE_UINT16, &cd->source    ) ||
+            ! CONT_APPEND (&sit, DBUS_TYPE_UINT16, &cd->sink      ) ||
+            ! CONT_APPEND (&sit, DBUS_TYPE_UINT16, &zero          ) ||
+            ! CONT_APPEND (&sit, DBUS_TYPE_INT16 , &cd->format    ) ||
+            ! CONT_CLOSE  (&ait,                          &sit    )   )
+        {
+            pa_log("%s: failed to build conn struct for %s", __FILE__, method);
+            goto getout;
+        }
+    }
+
+    if (!CONT_CLOSE(&mit, &ait)) {
+        pa_log("%s: failed to close array iterator for %s", __FILE__, method);
+        goto getout;
+    } 
+
+#undef CONT_CLOSE
+#undef CONT_APPEND
+#undef CONT_OPEN
+
+
+    success = dbus_connection_send(conn, msg, NULL);
+
+    if (!success) {
+        pa_log("%s: Failed to %s", __FILE__, method);
+        goto getout;
+    }
+
+ getout:
+    dbus_message_unref(msg);
+    return success;
+#endif
+    return true;
 }
 
 static bool routerif_connect(struct userdata *u, DBusMessage *msg)
@@ -1688,23 +1310,25 @@ bool pa_routerif_acknowledge(struct userdata *u, am_method m,
 static const char *method_str(am_method m)
 {
     switch (m) {
-    case audiomgr_register_domain:   return AUDIOMGR_REGISTER_DOMAIN;
-    case audiomgr_domain_complete:   return AUDIOMGR_DOMAIN_COMPLETE;
-    case audiomgr_deregister_domain: return AUDIOMGR_DEREGISTER_DOMAIN;
-    case audiomgr_register_source:   return AUDIOMGR_REGISTER_SOURCE;
-    case audiomgr_deregister_source: return AUDIOMGR_DEREGISTER_SOURCE;
-    case audiomgr_register_sink:     return AUDIOMGR_REGISTER_SINK;
-    case audiomgr_deregister_sink:   return AUDIOMGR_DEREGISTER_SINK;
-    case audiomgr_connect:           return AUDIOMGR_CONNECT;
-    case audiomgr_connect_ack:       return AUDIOMGR_CONNECT_ACK;   
-    case audiomgr_disconnect:        return AUDIOMGR_DISCONNECT;
-    case audiomgr_disconnect_ack:    return AUDIOMGR_DISCONNECT_ACK;    
-    case audiomgr_setsinkvol_ack:    return AUDIOMGR_SETSINKVOL_ACK;
-    case audiomgr_setsrcvol_ack:     return AUDIOMGR_SETSRCVOL_ACK;
-    case audiomgr_sinkvoltick_ack:   return AUDIOMGR_SINKVOLTICK_ACK;
-    case audiomgr_srcvoltick_ack:    return AUDIOMGR_SRCVOLTICK_ACK;
-    case audiomgr_setsinkprop_ack:   return AUDIOMGR_SETSINKPROP_ACK;
-    default:                         return "invalid_method";
+    case audiomgr_register_domain:      return AUDIOMGR_REGISTER_DOMAIN;
+    case audiomgr_domain_complete:      return AUDIOMGR_DOMAIN_COMPLETE;
+    case audiomgr_deregister_domain:    return AUDIOMGR_DEREGISTER_DOMAIN;
+    case audiomgr_register_source:      return AUDIOMGR_REGISTER_SOURCE;
+    case audiomgr_deregister_source:    return AUDIOMGR_DEREGISTER_SOURCE;
+    case audiomgr_register_sink:        return AUDIOMGR_REGISTER_SINK;
+    case audiomgr_deregister_sink:      return AUDIOMGR_DEREGISTER_SINK;
+    case audiomgr_implicit_connection:  return AUDIOMGR_IMPLICIT_CONNECTION;
+    case audiomgr_implicit_connections: return AUDIOMGR_IMPLICIT_CONNECTIONS;
+    case audiomgr_connect:              return AUDIOMGR_CONNECT;
+    case audiomgr_connect_ack:          return AUDIOMGR_CONNECT_ACK;   
+    case audiomgr_disconnect:           return AUDIOMGR_DISCONNECT;
+    case audiomgr_disconnect_ack:       return AUDIOMGR_DISCONNECT_ACK;    
+    case audiomgr_setsinkvol_ack:       return AUDIOMGR_SETSINKVOL_ACK;
+    case audiomgr_setsrcvol_ack:        return AUDIOMGR_SETSRCVOL_ACK;
+    case audiomgr_sinkvoltick_ack:      return AUDIOMGR_SINKVOLTICK_ACK;
+    case audiomgr_srcvoltick_ack:       return AUDIOMGR_SRCVOLTICK_ACK;
+    case audiomgr_setsinkprop_ack:      return AUDIOMGR_SETSINKPROP_ACK;
+    default:                            return "invalid_method";
     }
 }
 

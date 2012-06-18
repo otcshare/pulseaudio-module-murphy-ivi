@@ -815,11 +815,8 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
 
         if (pa_sink_input_move_to(sinp, sink, false) < 0)
             pa_log("failed to route '%s' => '%s'",node->amname,target->amname);
-        else {
-            pa_log_debug("register route '%s' => '%s'",
-                         node->amname, target->amname);
-            /* FIXME: and actually do it ... */
-        }
+        else
+            pa_audiomgr_add_default_route(u, node, target);
     }
 }
 
@@ -872,14 +869,14 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
         if (loopback) {
             if (!(node = pa_utils_get_node_from_data(u, mir_input, data))) {
                 pa_log_debug("can't find loopback node for sink-input");
-                return TRUE;
+                return true;
             }
 
             if (node->direction == mir_output) {
                 pa_log_debug("refuse to preroute loopback sink-input "
                              "(current route: sink %u @ %p)", data->sink ?
                              data->sink->index : PA_IDXSET_INVALID,data->sink);
-                return TRUE;
+                return true;
             }
 
             data->sink = NULL;
@@ -909,6 +906,8 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
         fake.visible   = true;
         fake.available = true;
         fake.amname    = "<preroute sink-input>";
+        fake.amid      = AM_ID_INVALID;
+        fake.paidx     = PA_IDXSET_INVALID;
 
         role = pa_proplist_gets(data->proplist, PA_PROP_MEDIA_ROLE);
         sink = make_output_prerouting(u, &fake, &data->channel_map, role,NULL);
@@ -927,7 +926,7 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
                 pa_log("can't set sink %u for new sink-input", sink->index);
                                                       /* copes wit NULL mux */
                 pa_multiplex_destroy(u->multiplex, core, fake.mux);
-                return FALSE;
+                return false;
             }
         }
     }
@@ -935,13 +934,13 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
     if (loopback && data->sink && data->sink->module) {
         /* no ramp needed */
         if (pa_streq(data->sink->module->name, "module-combine-sink"))
-            return TRUE;
+            return true;
     }
 
     pa_log_debug("set sink-input ramp-muted");
     data->flags |= PA_SINK_INPUT_START_RAMP_MUTED;
 
-    return TRUE;
+    return true;
 }
 
 
@@ -960,7 +959,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     const char        *media;
     mir_node_type      type;
     char               key[256];
-    bool          created;
+    bool               created;
     pa_muxnode        *mux;
     pa_nodeset_resdef *resdef;
     pa_nodeset_resdef  rdbuf;
@@ -1087,7 +1086,13 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     else {
         pa_log_debug("register route '%s' => '%s'",
                      node->amname, snod->amname);
-        /* FIXME: and actually do it ... */
+
+        if (pa_utils_stream_has_default_route(sinp->proplist))
+            pa_audiomgr_add_default_route(u, node, snod);
+
+        /* FIXME: register explicit routes */
+        /* else pa_audiomgr_add/register_explicit_route() */
+        
 
         pa_fader_apply_volume_limits(u, pa_utils_get_stamp());
     }
@@ -1252,14 +1257,14 @@ bool pa_discover_preroute_source_output(struct userdata *u,
     if (pa_streq(mnam, "module-loopback")) {
         if (!(node = pa_utils_get_node_from_data(u, mir_output, data))) {
             pa_log_debug("can't find loopback node for source-output");
-            return TRUE;
+            return true;
         }
 
         if (node->direction == mir_input) {
             pa_log_debug("refuse to preroute loopback source-output "
                          "(current route: source %u @ %p)", data->source ?
                          data->source->index : PA_IDXSET_INVALID,data->source);
-            return TRUE;
+            return true;
         }
 
         data->source = NULL;
@@ -1300,7 +1305,7 @@ bool pa_discover_preroute_source_output(struct userdata *u,
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -1413,8 +1418,7 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
     else {
         pa_log_debug("register route '%s' => '%s'",
                      snod->amname, node->amname);
-        /* FIXME: and actually do it ... */
-
+        pa_audiomgr_add_default_route(u, node, snod);
     }
 }
 

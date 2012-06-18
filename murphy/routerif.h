@@ -35,6 +35,9 @@ enum am_method {
 
     audiomgr_register_sink,
     audiomgr_deregister_sink,
+
+    audiomgr_implicit_connection,
+    audiomgr_implicit_connections,
     
     audiomgr_connect,
     audiomgr_connect_ack,
@@ -54,9 +57,7 @@ enum am_method {
 
 #ifdef WITH_DBUS
 pa_routerif *pa_routerif_init(struct userdata *, const char *,
-                              const char *, const char *,
-                              const char *, const char *,
-                              const char *);
+                              const char *, const char *);
 #else
 pa_routerif *pa_routerif_init(struct userdata *, const char *,
                               const char *, const char *);
@@ -75,7 +76,13 @@ bool pa_routerif_register_node(struct userdata *, am_method,
                                     am_nodereg_data *);
 bool pa_routerif_unregister_node(struct userdata *, am_method,
                                       am_nodeunreg_data *);
+
 bool pa_routerif_acknowledge(struct userdata *, am_method, am_ack_data *);
+
+bool pa_routerif_register_implicit_connection(struct userdata *,
+                                                   am_connect_data *);
+bool pa_routerif_register_implicit_connections(struct userdata *, int,
+                                                    am_connect_data *);
 
 #endif  /* foorouteriffoo */
 

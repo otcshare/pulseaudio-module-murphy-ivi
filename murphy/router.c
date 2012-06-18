@@ -36,7 +36,7 @@
 #include "fader.h"
 #include "utils.h"
 #include "classify.h"
-
+#include "audiomgr.h"
 
 static void rtgroup_destroy(struct userdata *, mir_rtgroup *);
 static int rtgroup_print(mir_rtgroup *, char *, int);
@@ -470,6 +470,8 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
 
     make_explicit_routes(u, stamp);
 
+    pa_audiomgr_delete_default_routes(u);
+
     MIR_DLIST_FOR_EACH_BACKWARD(mir_node, rtprilist, start, &router->nodlist) {
         if (start->implement == mir_device) {
 #if 0
@@ -522,6 +524,8 @@ void mir_router_make_routing(struct userdata *u)
 
     make_explicit_routes(u, stamp);
 
+    pa_audiomgr_delete_default_routes(u);
+
     MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtprilist, start, &router->nodlist) {
         if (start->implement == mir_device) {
 #if 0
@@ -540,6 +544,8 @@ void mir_router_make_routing(struct userdata *u)
         if ((end = find_default_route(u, start, stamp)))
             implement_default_route(u, start, end, stamp);
     }    
+
+    pa_audiomgr_send_default_routes(u);
 
     pa_fader_apply_volume_limits(u, stamp);
 
@@ -616,7 +622,7 @@ bool mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
             class != mir_bluetooth_sink   &&
             class != mir_bluetooth_carkit   )
         {
-            return TRUE;
+            return true;
         }
     }
 
@@ -904,6 +910,8 @@ static mir_node *find_default_route(struct userdata *u,
         
         pa_log_debug("routing '%s' => '%s'", start->amname, end->amname);
 
+        pa_audiomgr_add_default_route(u, start, end);
+        
         return end;
     }
     

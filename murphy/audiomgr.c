@@ -68,6 +68,10 @@
 #define MS_MUTED          1
 #define MS_UNMUTED        2
 
+/* connection format */
+#define CF_MONO           1
+#define CF_STEREO         2
+#define CF_AUTO           4
 
 typedef struct {
     const char *name;
@@ -76,12 +80,28 @@ typedef struct {
 } domain_t;
 
 
+typedef struct {
+    uint16_t    fromidx;
+    uint16_t    toidx;
+    uint32_t    channels;
+} link_t;
+
+typedef struct {
+    int          maxlink;
+    int          nlink;
+    link_t      *links;
+} routes_t;
+
 struct pa_audiomgr {
     domain_t      domain;
     pa_hashmap   *nodes;        /**< nodes ie. sinks and sources */
     pa_hashmap   *conns;        /**< connections */
+    routes_t      defrts;       /**< default routes */
 };
 
+
+static bool find_default_route(struct userdata *, mir_node *,
+                               am_connect_data *);
 
 static void *node_hash(mir_direction, uint16_t);
 static void *conn_hash(uint16_t);
@@ -247,9 +267,10 @@ void pa_audiomgr_node_registered(struct userdata *u,
                                  uint16_t         state,
                                  am_nodereg_data *rd)
 {
-    pa_audiomgr *am;
-    mir_node    *node;
-    void        *key;
+    pa_audiomgr     *am;
+    mir_node        *node;
+    void            *key;
+    am_connect_data  cd;
 
     pa_assert(u);
     pa_assert(rd);
@@ -267,6 +288,9 @@ void pa_audiomgr_node_registered(struct userdata *u,
                      node->amname, key, node);
 
         pa_hashmap_put(am->nodes, key, node);
+
+        if (find_default_route(u, node, &cd))
+            pa_routerif_register_implicit_connection(u, &cd);
     }
 
     pa_xfree((void *)rd->key);
@@ -343,6 +367,108 @@ void pa_audiomgr_node_unregistered(struct userdata   *u,
 }
 
 
+void pa_audiomgr_delete_default_routes(struct userdata *u)
+{
+    pa_audiomgr *am;
+    routes_t    *defrts;
+
+    pa_assert(u);
+    pa_assert_se((am = u->audiomgr));
+
+    defrts = &am->defrts;
+
+    defrts->nlink = 0;
+}
+
+void pa_audiomgr_add_default_route(struct userdata *u,
+                                   mir_node        *from,
+                                   mir_node        *to)
+{
+    pa_audiomgr *am;
+    routes_t    *defrts;
+    link_t      *link;
+    size_t       size;
+
+    pa_assert(u);
+    pa_assert(from);
+    pa_assert(to);
+    pa_assert_se((am = u->audiomgr));
+
+    defrts = &am->defrts;
+
+    if (from->paidx == PA_IDXSET_INVALID || to->paidx == PA_IDXSET_INVALID) {
+        pa_log_debug("ignoring default route %s => %s: incomplete "
+                     "input or output", from->amname, to->amname);
+    }
+    else {
+        pa_log_debug("adding default route %s => %s", from->amname,to->amname);
+
+        if (defrts->nlink >= defrts->maxlink) {
+            defrts->maxlink += 16;
+            
+            size = sizeof(link_t) * defrts->maxlink;
+            defrts->links = realloc(defrts->links, size);
+            pa_assert(defrts->links);
+        }
+
+        link = defrts->links + defrts->nlink++;
+
+        link->fromidx  = from->index;
+        link->toidx    = to->index;
+        link->channels = from->channels < to->channels ?
+                         from->channels : to->channels;
+    }
+}
+
+void pa_audiomgr_send_default_routes(struct userdata *u)
+{
+#define MAX_DEFAULT_ROUTES 128
+
+    pa_audiomgr     *am;
+    routes_t        *defrts;
+    link_t          *link;
+    mir_node        *from;
+    mir_node        *to;
+    am_connect_data  cds[MAX_DEFAULT_ROUTES];
+    am_connect_data *cd;
+    int              ncd;
+
+    pa_assert(u);
+    pa_assert_se((am = u->audiomgr));
+
+    defrts = &am->defrts;
+
+    pa_assert(defrts->nlink < MAX_DEFAULT_ROUTES);
+
+    for (ncd = 0;   ncd < defrts->nlink;   ncd++) {
+        link = defrts->links + ncd;
+        cd = cds + ncd;
+
+        if (!(from = mir_node_find_by_index(u, link->fromidx)) ||
+            !(to   = mir_node_find_by_index(u, link->toidx))     )
+        {
+            pa_log_debug("will not send default route: node not found");
+            continue;
+        }
+
+        if (from->amid == AM_ID_INVALID || to->amid == AM_ID_INVALID) {
+            pa_log_debug("wil not send default route: invalid audiomgr ID");
+            continue;
+        }
+
+        cd->handle = 0;
+        cd->connection = 0;
+        cd->source = from->amid;
+        cd->sink = to->amid;
+        cd->format = link->channels >= 2 ? CF_STEREO : CF_MONO;
+    }
+
+    if (ncd > 0)
+        pa_routerif_register_implicit_connections(u, ncd, cds);
+
+#undef MAX_DEFAULT_ROUTES
+}
+
 void pa_audiomgr_connect(struct userdata *u, am_connect_data *cd)
 {
     pa_audiomgr    *am;
@@ -413,6 +539,46 @@ void pa_audiomgr_disconnect(struct userdata *u, am_connect_data *cd)
     ad.error  = err;
 
     pa_routerif_acknowledge(u, audiomgr_disconnect, &ad);
+}
+
+static bool find_default_route(struct userdata *u,
+                               mir_node        *node,
+                               am_connect_data *cd)
+{
+    pa_audiomgr *am;
+    routes_t    *defrts = &am->defrts;
+    link_t      *link;
+    mir_node    *pair;
+    int          i;
+
+    pa_assert(u);
+    pa_assert(node);
+    pa_assert(cd);
+    pa_assert_se((am = u->audiomgr));
+
+    defrts = &am->defrts;
+
+    memset(cd, 0, sizeof(am_connect_data));
+
+    for (i = 0;  i < defrts->nlink;  i++) {
+        link = defrts->links + i;
+
+        cd->format = link->channels >= 2 ? CF_STEREO : CF_MONO;
+
+        if (node->direction == mir_input && link->fromidx == node->index) {
+            return (pair = mir_node_find_by_index(u, link->toidx)) &&
+                   (cd->source = node->amid) != AM_ID_INVALID &&
+                   (cd->sink   = pair->amid) != AM_ID_INVALID;
+        }
+
+        if (node->direction == mir_output && link->toidx == node->index) {
+            return (pair = mir_node_find_by_index(u, link->fromidx)) &&
+                   (cd->source = pair->amid) != AM_ID_INVALID &&
+                   (cd->sink = node->amid) != AM_ID_INVALID;
+        }
+    }
+
+    return false;
 }
 
 static void *node_hash(mir_direction direction, uint16_t amid)

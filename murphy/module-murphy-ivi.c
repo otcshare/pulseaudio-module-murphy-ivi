@@ -206,8 +206,7 @@ int pa__init(pa_module *m) {
     u->nodeset   = pa_nodeset_init(u);
     u->audiomgr  = pa_audiomgr_init(u);
 #ifdef WITH_DBUS
-    u->routerif  = pa_routerif_init(u, dbustype, ifnam, mrppath, mrpnam,
-                                    ampath, amnam);
+    u->routerif  = pa_routerif_init(u, dbustype, ampath, amnam);
 #else
     u->routerif  = pa_routerif_init(u, socktype, amaddr, amport);
 #endif
