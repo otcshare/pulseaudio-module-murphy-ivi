@@ -34,6 +34,7 @@
 #include "volume.h"
 #include "fader.h"
 #include "utils.h"
+#include "audiomgr.h"
 
 
 static void rtgroup_destroy(struct userdata *, mir_rtgroup *);
@@ -383,6 +384,8 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
 
     make_explicit_routes(u, stamp);
 
+    pa_audiomgr_delete_default_routes(u);
+
     MIR_DLIST_FOR_EACH_BACKWARD(mir_node, rtentries, from, &router->nodlist) {
         if (priority >= node_priority(u, from)) {
             if ((target = find_default_route(u, data, stamp))) {
@@ -430,6 +433,8 @@ void mir_router_make_routing(struct userdata *u)
 
     make_explicit_routes(u, stamp);
 
+    pa_audiomgr_delete_default_routes(u);
+
     MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, from, &router->nodlist) {
         if (from->stamp >= stamp)
             continue;
@@ -439,6 +444,8 @@ void mir_router_make_routing(struct userdata *u)
             mir_volume_add_limiting_class(u, to, from->type, stamp);
         }
     }    
+
+    pa_audiomgr_send_default_routes(u);
 
     pa_fader_apply_volume_limits(u, stamp);
 
@@ -730,6 +737,8 @@ static mir_node *find_default_route(struct userdata *u,
         }
         
         pa_log_debug("routing '%s' => '%s'", from->amname, to->amname);
+
+        pa_audiomgr_add_default_route(u, from, to);
 
         return to;
     }

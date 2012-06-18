@@ -152,6 +152,11 @@ pa_bool_t pa_routerif_unregister_node(struct userdata *u,
     return success;
 }
 
+pa_bool_t pa_routerif_register_implicit_connections(struct userdata *u,
+                                                    int              nconn,
+                                                    am_connect_data *conns)
+{
+}
 
 pa_bool_t pa_routerif_acknowledge(struct userdata *u, am_method m,
                                   struct am_ack_data *ad)
@@ -174,23 +179,25 @@ pa_bool_t pa_routerif_acknowledge(struct userdata *u, am_method m,
 static const char *method_str(am_method m)
 {
     switch (m) {
-    case audiomgr_register_domain:   return "register_domain";
-    case audiomgr_domain_complete:   return "domain_complete";
-    case audiomgr_deregister_domain: return "deregister_domain";
-    case audiomgr_register_source:   return "register_source";
-    case audiomgr_deregister_source: return "deregister_source";
-    case audiomgr_register_sink:     return "register_sink";
-    case audiomgr_deregister_sink:   return "deregister_sink";
-    case audiomgr_connect:           return "connect";
-    case audiomgr_connect_ack:       return "connect_ack";   
-    case audiomgr_disconnect:        return "disconnect";
-    case audiomgr_disconnect_ack:    return "disconnect_ack";    
-    case audiomgr_setsinkvol_ack:    return "setsinkvol_ack";
-    case audiomgr_setsrcvol_ack:     return "setsrcvol_ack";
-    case audiomgr_sinkvoltick_ack:   return "sinkvoltick_ack";
-    case audiomgr_srcvoltick_ack:    return "srcvoltick_ack";
-    case audiomgr_setsinkprop_ack:   return "setsinkprop_ack";
-    default:                         return "invalid_method";
+    case audiomgr_register_domain:      return "register_domain";
+    case audiomgr_domain_complete:      return "domain_complete";
+    case audiomgr_deregister_domain:    return "deregister_domain";
+    case audiomgr_register_source:      return "register_source";
+    case audiomgr_deregister_source:    return "deregister_source";
+    case audiomgr_register_sink:        return "register_sink";
+    case audiomgr_deregister_sink:      return "deregister_sink";
+    case audiomgr_implicit_connection:  return "register_implicit_connection";
+    case audiomgr_implicit_connections: return "replace_implicit_connections";
+    case audiomgr_connect:              return "connect";
+    case audiomgr_connect_ack:          return "connect_ack";   
+    case audiomgr_disconnect:           return "disconnect";
+    case audiomgr_disconnect_ack:       return "disconnect_ack";    
+    case audiomgr_setsinkvol_ack:       return "setsinkvol_ack";
+    case audiomgr_setsrcvol_ack:        return "setsrcvol_ack";
+    case audiomgr_sinkvoltick_ack:      return "sinkvoltick_ack";
+    case audiomgr_srcvoltick_ack:       return "srcvoltick_ack";
+    case audiomgr_setsinkprop_ack:      return "setsinkprop_ack";
+    default:                            return "invalid_method";
     }
 }
 

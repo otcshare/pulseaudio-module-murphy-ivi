@@ -546,11 +546,8 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
 
         if (pa_sink_input_move_to(sinp, sink, FALSE) < 0)
             pa_log("failed to route '%s' => '%s'",node->amname,target->amname);
-        else {
-            pa_log_debug("register route '%s' => '%s'",
-                         node->amname, target->amname);
-            /* FIXME: and actually do it ... */
-        }
+        else
+            pa_audiomgr_add_default_route(u, node, target);
     }
 }
 
@@ -588,6 +585,8 @@ void pa_discover_preroute_sink_input(struct userdata *u,
         fake.visible   = TRUE;
         fake.available = TRUE;
         fake.amname    = "<preroute>";
+        fake.amid      = AM_ID_INVALID;
+        fake.paidx     = PA_IDXSET_INVALID;
 
         if ((sink = make_output_prerouting(u,&fake,&data->channel_map,NULL))) {
             if (!pa_sink_input_new_data_set_sink(data, sink, FALSE))
@@ -688,11 +687,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     if (!s || !(snod = pa_hashmap_get(discover->nodes.byptr, s)))
         pa_log_debug("can't figure out where this stream is routed");
     else {
-        pa_log_debug("register route '%s' => '%s'",
-                     node->amname, snod->amname);
-        /* FIXME: and actually do it ... */
-
-
+        pa_audiomgr_add_default_route(u, node, snod);
         pa_fader_apply_volume_limits(u, pa_utils_get_stamp());
     }
 }

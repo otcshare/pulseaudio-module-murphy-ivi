@@ -1540,7 +1540,7 @@ pa_bool_t pa_routerif_unregister_node(struct userdata *u,
                                        routerif->amrnam, method);
     
     if (msg == NULL) {
-        pa_log("%s: Failed to create D-BUS message to '%s'", __FILE__, method);
+        pa_log("%s: Failed to create D-Bus message for '%s'", __FILE__,method);
         goto getout;
     }
 
@@ -1555,6 +1555,139 @@ pa_bool_t pa_routerif_unregister_node(struct userdata *u,
         goto getout;
     }
     
+ getout:
+    dbus_message_unref(msg);
+    return success;
+}
+
+pa_bool_t pa_routerif_register_implicit_connection(struct userdata *u,
+                                                   am_connect_data *cd)
+{
+    static const char    *method = AUDIOMGR_IMPLICIT_CONNECTION;
+    static dbus_uint16_t  zero;
+
+    pa_routerif     *routerif;
+    DBusConnection  *conn;
+    DBusMessage     *msg;
+    pa_bool_t        success = FALSE;
+
+    pa_assert(u);
+    pa_assert(cd);
+    pa_assert_se((routerif = u->routerif));
+    pa_assert_se((conn = pa_dbus_connection_get(routerif->conn)));
+
+    pa_log_debug("%s: register implicit connection", __FUNCTION__);
+
+    msg = dbus_message_new_method_call(routerif->amnam, routerif->amrpath,
+                                       routerif->amrnam, method);
+    if (msg == NULL) {
+        pa_log("%s: Failed to create D-Bus message for '%s'", __FILE__,method);
+        goto getout;
+    }
+
+    dbus_message_set_no_reply(msg, TRUE);
+
+    success = dbus_message_append_args(msg,
+                                       DBUS_TYPE_UINT16, &cd->connection,
+                                       DBUS_TYPE_UINT16, &cd->source,
+                                       DBUS_TYPE_UINT16, &cd->sink,
+                                       DBUS_TYPE_UINT16, &zero,
+                                       DBUS_TYPE_INT16 , &cd->format,
+                                       DBUS_TYPE_INVALID);
+    if (!success) {
+        pa_log("%s: failed to build message for %s", __FILE__, method);
+        goto getout;
+    }
+
+    success = dbus_connection_send(conn, msg, NULL);
+
+    if (!success) {
+        pa_log("%s: Failed to %s", __FILE__, method);
+        goto getout;
+    }
+
+ getout:
+    dbus_message_unref(msg);
+    return success;
+}
+
+pa_bool_t pa_routerif_register_implicit_connections(struct userdata *u,
+                                                    int              nconn,
+                                                    am_connect_data *conns)
+{
+    static const char    *method = AUDIOMGR_IMPLICIT_CONNECTIONS;
+    static dbus_uint16_t  zero;
+
+    pa_routerif     *routerif;
+    DBusConnection  *conn;
+    DBusMessage     *msg;
+    DBusMessageIter  mit;
+    DBusMessageIter  ait;
+    DBusMessageIter  sit;
+    am_connect_data *cd;
+    int              i;
+    pa_bool_t        success = FALSE;
+
+    pa_assert(u);
+    pa_assert(nconn > 0);
+    pa_assert(conns);
+    pa_assert_se((routerif = u->routerif));
+    pa_assert_se((conn = pa_dbus_connection_get(routerif->conn)));
+
+    pa_log_debug("%s: register %d implicit connections", __FUNCTION__, nconn);
+
+    msg = dbus_message_new_method_call(routerif->amnam, routerif->amrpath,
+                                       routerif->amrnam, method);
+    if (msg == NULL) {
+        pa_log("%s: Failed to create D-Bus message for '%s'", __FILE__,method);
+        goto getout;
+    }
+
+    dbus_message_set_no_reply(msg, TRUE);
+    dbus_message_iter_init_append(msg, &mit);
+
+#define CONT_OPEN(p,t,s,c) dbus_message_iter_open_container(p, t, s, c)
+#define CONT_APPEND(i,t,v) dbus_message_iter_append_basic(i, t, v)
+#define CONT_CLOSE(p,c)    dbus_message_iter_close_container(p, c)
+
+    if (!CONT_OPEN(&mit, DBUS_TYPE_ARRAY, "(qqqqn)", &ait)) {
+        pa_log("%s: failed to open array iterator for %s", __FILE__, method);
+        goto getout;
+    }
+
+    for (i = 0;   i < nconn;   i++) {
+        cd = conns + i;
+        
+        if (! CONT_OPEN   (&ait, DBUS_TYPE_STRUCT, NULL, &sit     ) ||
+            ! CONT_APPEND (&sit, DBUS_TYPE_UINT16, &cd->connection) ||
+            ! CONT_APPEND (&sit, DBUS_TYPE_UINT16, &cd->source    ) ||
+            ! CONT_APPEND (&sit, DBUS_TYPE_UINT16, &cd->sink      ) ||
+            ! CONT_APPEND (&sit, DBUS_TYPE_UINT16, &zero          ) ||
+            ! CONT_APPEND (&sit, DBUS_TYPE_INT16 , &cd->format    ) ||
+            ! CONT_CLOSE  (&ait,                          &sit    )   )
+        {
+            pa_log("%s: failed to build conn struct for %s", __FILE__, method);
+            goto getout;
+        }
+    }
+
+    if (!CONT_CLOSE(&mit, &ait)) {
+        pa_log("%s: failed to close array iterator for %s", __FILE__, method);
+        goto getout;
+    } 
+
+#undef CONT_CLOSE
+#undef CONT_APPEND
+#undef CONT_OPEN
+
+
+    success = dbus_connection_send(conn, msg, NULL);
+
+    if (!success) {
+        pa_log("%s: Failed to %s", __FILE__, method);
+        goto getout;
+    }
+
  getout:
     dbus_message_unref(msg);
     return success;
@@ -1670,23 +1803,25 @@ pa_bool_t pa_routerif_acknowledge(struct userdata *u, am_method m,
 static const char *method_str(am_method m)
 {
     switch (m) {
-    case audiomgr_register_domain:   return AUDIOMGR_REGISTER_DOMAIN;
-    case audiomgr_domain_complete:   return AUDIOMGR_DOMAIN_COMPLETE;
-    case audiomgr_deregister_domain: return AUDIOMGR_DEREGISTER_DOMAIN;
-    case audiomgr_register_source:   return AUDIOMGR_REGISTER_SOURCE;
-    case audiomgr_deregister_source: return AUDIOMGR_DEREGISTER_SOURCE;
-    case audiomgr_register_sink:     return AUDIOMGR_REGISTER_SINK;
-    case audiomgr_deregister_sink:   return AUDIOMGR_DEREGISTER_SINK;
-    case audiomgr_connect:           return AUDIOMGR_CONNECT;
-    case audiomgr_connect_ack:       return AUDIOMGR_CONNECT_ACK;   
-    case audiomgr_disconnect:        return AUDIOMGR_DISCONNECT;
-    case audiomgr_disconnect_ack:    return AUDIOMGR_DISCONNECT_ACK;    
-    case audiomgr_setsinkvol_ack:    return AUDIOMGR_SETSINKVOL_ACK;
-    case audiomgr_setsrcvol_ack:     return AUDIOMGR_SETSRCVOL_ACK;
-    case audiomgr_sinkvoltick_ack:   return AUDIOMGR_SINKVOLTICK_ACK;
-    case audiomgr_srcvoltick_ack:    return AUDIOMGR_SRCVOLTICK_ACK;
-    case audiomgr_setsinkprop_ack:   return AUDIOMGR_SETSINKPROP_ACK;
-    default:                         return "invalid_method";
+    case audiomgr_register_domain:      return AUDIOMGR_REGISTER_DOMAIN;
+    case audiomgr_domain_complete:      return AUDIOMGR_DOMAIN_COMPLETE;
+    case audiomgr_deregister_domain:    return AUDIOMGR_DEREGISTER_DOMAIN;
+    case audiomgr_register_source:      return AUDIOMGR_REGISTER_SOURCE;
+    case audiomgr_deregister_source:    return AUDIOMGR_DEREGISTER_SOURCE;
+    case audiomgr_register_sink:        return AUDIOMGR_REGISTER_SINK;
+    case audiomgr_deregister_sink:      return AUDIOMGR_DEREGISTER_SINK;
+    case audiomgr_implicit_connection:  return AUDIOMGR_IMPLICIT_CONNECTION;
+    case audiomgr_implicit_connections: return AUDIOMGR_IMPLICIT_CONNECTIONS;
+    case audiomgr_connect:              return AUDIOMGR_CONNECT;
+    case audiomgr_connect_ack:          return AUDIOMGR_CONNECT_ACK;   
+    case audiomgr_disconnect:           return AUDIOMGR_DISCONNECT;
+    case audiomgr_disconnect_ack:       return AUDIOMGR_DISCONNECT_ACK;    
+    case audiomgr_setsinkvol_ack:       return AUDIOMGR_SETSINKVOL_ACK;
+    case audiomgr_setsrcvol_ack:        return AUDIOMGR_SETSRCVOL_ACK;
+    case audiomgr_sinkvoltick_ack:      return AUDIOMGR_SINKVOLTICK_ACK;
+    case audiomgr_srcvoltick_ack:       return AUDIOMGR_SRCVOLTICK_ACK;
+    case audiomgr_setsinkprop_ack:      return AUDIOMGR_SETSINKPROP_ACK;
+    default:                            return "invalid_method";
     }
 }
 

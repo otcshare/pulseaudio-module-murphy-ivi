@@ -105,6 +105,7 @@ struct am_ack_data {
 };
 
 
+
 pa_audiomgr *pa_audiomgr_init(struct userdata *);
 void pa_audiomgr_done(struct userdata *);
 
@@ -121,6 +122,10 @@ void pa_audiomgr_node_registered(struct userdata *, uint16_t, uint16_t,
 
 void pa_audiomgr_unregister_node(struct userdata *, mir_node *);
 void pa_audiomgr_node_unregistered(struct userdata *, am_nodeunreg_data *);
+
+void pa_audiomgr_delete_default_routes(struct userdata *);
+void pa_audiomgr_add_default_route(struct userdata *, mir_node *, mir_node *);
+void pa_audiomgr_send_default_routes(struct userdata *);
 
 void pa_audiomgr_connect(struct userdata *, am_connect_data *);
 void pa_audiomgr_disconnect(struct userdata *, am_connect_data *);
