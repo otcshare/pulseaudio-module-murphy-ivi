@@ -54,6 +54,11 @@ typedef struct {
     uint32_t index;
 } card_check_t;
 
+typedef struct {
+    struct userdata *u;
+    pa_muxnode *mux;
+} mux_destructor_t;
+
 static const char combine_pattern[] = "Simultaneous output on ";
 
 static void handle_alsa_card(struct userdata *, pa_card *);
@@ -83,6 +88,7 @@ static mir_node_type get_stream_routing_class(pa_proplist *);
 
 static void schedule_deferred_routing(struct userdata *);
 static void schedule_card_check(struct userdata *, pa_card *);
+static void schedule_multiplex_destruction(struct userdata *, pa_muxnode *);
 
 
 static void pa_hashmap_node_free(void *node, void *u)
@@ -1123,7 +1129,7 @@ static void destroy_node(struct userdata *u, mir_node *node)
 
         mir_constrain_remove_node(u, node);
 
-        pa_multiplex_destroy(u->multiplex, u->core, node->mux);
+        schedule_multiplex_destruction(u, node->mux);
         
         mir_node_destroy(u, node);
     }    
@@ -1422,8 +1428,8 @@ static void card_check_cb(pa_mainloop_api *m, void *d)
     (void)m;
 
     pa_assert(cc);
-    pa_assert((u = cc->u));
-    pa_assert((core = u->core));
+    pa_assert_se((u = cc->u));
+    pa_assert_se((core = u->core));
 
     pa_log_debug("card check starts");
 
@@ -1474,6 +1480,47 @@ static void schedule_card_check(struct userdata *u, pa_card *card)
     cc->index = card->index;
 
     pa_mainloop_api_once(core->mainloop, card_check_cb, cc);
+}
+
+
+static void multiplex_destructor_cb(pa_mainloop_api *m, void *d)
+{
+    mux_destructor_t *md = d;
+    struct userdata  *u;
+    pa_core          *core;
+    pa_muxnode       *mux;
+
+    (void)m;
+
+    pa_assert(md);
+    pa_assert_se((u = md->u));
+    pa_assert_se((core = u->core));
+    pa_assert_se((mux = md->mux));
+
+    pa_log_debug("multiplex destruction starts");
+
+    pa_multiplex_destroy(u->multiplex, u->core, mux);
+
+    pa_xfree(md);
+}
+
+static void schedule_multiplex_destruction(struct userdata *u, pa_muxnode *mux)
+{
+    pa_core *core;
+    mux_destructor_t *md;
+
+    pa_assert(u);
+    pa_assert_se((core = u->core));
+
+    if (mux) {
+        pa_log_debug("scheduling multiplex destruction");
+
+        md = pa_xnew0(mux_destructor_t, 1);
+        md->u = u;
+        md->mux = mux;
+        
+        pa_mainloop_api_once(core->mainloop, multiplex_destructor_cb, md);
+    }
 }
 
                                   
