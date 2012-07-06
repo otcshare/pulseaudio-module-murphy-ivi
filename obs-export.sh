@@ -10,10 +10,11 @@
 #      OBS, etc...
 
 
-PKG="$(basename `pwd` | tr [:upper:] [:lower:])"
-UPSTREAM_BASE="HEAD"
+PKG="$(basename `pwd`)"
+UPSTREAM_BASE="upstream"
 VERSION="`date +'%Y%m%d'`"
-
+HEAD="HEAD"
+MODE=gerrit
 
 while [ "${1#-}" != "$1" -a -n "$1" ]; do
     case $1 in
@@ -25,50 +26,92 @@ while [ "${1#-}" != "$1" -a -n "$1" ]; do
             VERSION="$2"
             shift 2
 	    ;;
-        --base|-b)
+        --base|-B|-b)
             UPSTREAM_BASE="$2"
             shift 2
             ;;
+        --head|-H)
+            HEAD="$2"
+            shift 2
+          ;;
+        --obs|-o)
+            MODE="obs"
+            shift 1
+          ;;
         --help|-h)
-           echo "usage: $0 [-n <name>][-v <version>][-b <upstream-base>]"
+           echo "usage: $0 [options], where the possible options are"
+           echo "  -n <name>           name of your package"
+           echo "  -v <version>        version to in rpm/SPEC file"
+           echo "  -B <upstream-base>  name or SHA1 of baseline"
+           echo "  -H <taget-head>     name or SHA1 of release HEAD"
+           echo "  --obs               include tarball for OBS"
            echo ""
            echo "<name> is the name of the package, <version> is the version"
            echo "you want to export to OBS, and <upstream-base> is the name of"
            echo "the upstream git branch or the SHA1 you want to generate your"
-           echo "OBS tarball from and base your patches on top of. The output"
-           echo "will be generated in a directory called obs-$VERSION."
+           echo "release from and base your patches on top of. On OBS mode the"
+           echo "output will be generated in a directory called obs-$VERSION."
+           echo "Otherwise in gerrit mode, the output will be generated in a"
+           echo "directory called packaging."
 	   echo ""
            echo "E.g.:"
-           echo "  $0 -n $PKG -v 2.0 -b $PKG-upstream"
+           echo "  $0 -n pulseaudio -v 2.0 -B pulseaudio-2.0 -H tizen"
            echo ""
-           echo "This will produce an OBS export with version 2.0 against the"
-           echo "SHA1 $PKG-2.0 and place the result in obs-2.0."
+           echo "This will produce a gerrit export with version 2.0 against the"
+           echo "SHA1 pulseaudio-2.0, producing patches up till tizen and"
+           echo "place the result in a directory called packaging."
            exit 0
            ;;
-        *) echo "usage: $0 [-n <name>][-v <version>][-b <upstream-base>]"
+        --debug|-d)
+           set -x
+           ;;
+        *) echo "usage: $0 [-n <name>][-v <version>][--obs]"
+           echo "          [-b <upstream-base>] [-H <head>"
            exit 1
            ;;
     esac
 done
 
-echo "PKG=$PKG"
-echo "VERSION=$VERSION"
-echo "UPSTREAM_BASE=$UPSTREAM_BASE"
+case $MODE in
+    gerrit)
+        TARBALL=""
+        DIR=packaging
+        ;;
+    obs)
+        TARBALL=$PKG-$VERSION.tar
+        DIR="obs-$VERSION"
+        ;;
+    *)
+        echo "invalid mode: $MODE"
+        exit 1
+        ;;
+esac
 
-rm -fr obs-$VERSION
-mkdir obs-$VERSION && \
-    git archive --format=tar --prefix=$PKG-$VERSION/ $UPSTREAM_BASE \
-        > obs-$VERSION/$PKG-$VERSION.tar && \
-    gzip obs-$VERSION/$PKG-$VERSION.tar && \
-cd obs-$VERSION && \
-    git format-patch -n $UPSTREAM_BASE && \
+echo "Package name: $PKG"
+echo "Package version: $VERSION"
+echo "Package baseline: $UPSTREAM_BASE"
+echo "Package head: $HEAD"
+echo "Output directory: $DIR"
+
+rm -fr $DIR
+mkdir $DIR
+
+if [ -n "$TARBALL" ]; then
+    echo "Generating tarball..."
+        git archive --format=tar --prefix=$PKG-$VERSION/ $UPSTREAM_BASE \
+            > $DIR/$TARBALL && \
+        gzip $DIR/$TARBALL
+fi
+
+echo "Generating patches, creating spec file..."
+cd $DIR && \
+    git format-patch -n $UPSTREAM_BASE..$HEAD && \
     cat ../$PKG.spec.in | sed "s/@VERSION@/$VERSION/g" > $PKG.spec.in && \
-cd -
+cd - >& /dev/null
 
-cd obs-$VERSION
-patchlist="`ls *.patch 2>/dev/null`"
-[ "$patchlist" = "*.patch" ] && patchlist=""
-cat $PKG.spec.in | while read line; do
+cd $DIR
+patchlist="`ls *.patch`"
+cat $PKG.spec.in | while read -r line; do
     case $line in
         @DECLARE_PATCHES@)
             i=0
@@ -89,5 +132,6 @@ cat $PKG.spec.in | while read line; do
             ;;
     esac
 done > $PKG.spec
-cd -
-rm -f obs-$VERSION/$PKG.spec.in
+cd - >& /dev/null
+
+rm -f $DIR/$PKG.spec.in
