@@ -15,6 +15,8 @@ UPSTREAM_BASE="upstream"
 VERSION="`date +'%Y%m%d'`"
 HEAD="HEAD"
 MODE=gerrit
+RELEASE=no
+AUTHOR="Policy Team <policy.team@intel.com>"
 
 while [ "${1#-}" != "$1" -a -n "$1" ]; do
     case $1 in
@@ -64,6 +66,14 @@ while [ "${1#-}" != "$1" -a -n "$1" ]; do
            ;;
         --debug|-d)
            set -x
+           ;;
+        --big-hammer|--release|-r)
+           RELEASE=yes
+           shift 1
+           ;;
+        --author|-a)
+           AUTHOR="$2"
+           shift 2
            ;;
         *) echo "usage: $0 [-n <name>][-v <version>][--obs]"
            echo "          [-b <upstream-base>] [-H <head>"
@@ -135,3 +145,38 @@ done > $PKG.spec
 cd - >& /dev/null
 
 rm -f $DIR/$PKG.spec.in
+
+if [ "$MODE" = "gerrit" -a "$RELEASE" = "yes" ]; then
+    stamp="$(date -u +%F.%H%M%S)"
+    branch="gerrit-release-$stamp"
+    tag="build/$stamp"
+    chlog=packaging/$PKG.changes
+
+    echo "Preparing release branch $branch with tag $tag..."
+
+    git branch $branch $UPSTREAM_BASE && \
+        git checkout $branch && \
+        git add packaging && \
+        git commit -m "release: added packaging for gerrit." packaging && \
+        echo "* $(date '+%a %b %d %H:%M:%S %Z %Y') $AUTHOR - $VERSION" \
+            > $chlog && \
+        echo "- release: releasing $VERSION..." >> $chlog && \
+            git add $chlog &&
+        echo "" && \
+        echo "Okay, branch $branch is prepared for release." && \
+        echo "To proceed with the release, please" && \
+        echo "" && \
+        echo "  1) vi $chlog (and add a real changelog entry)" && \
+        echo "  2) git commit -m \"release: updated changelog.\" $chlog" && \
+        echo "  3) git tag -a -m \"release: tagged release.\" $tag HEAD" && \
+        echo "  4) git push --force tzgerrit HEAD^:refs/heads/master" && \
+        echo "  5) git push tzgerrit HEAD:refs/for/master $tag"
+
+    if [ "$?" = "0" ]; then
+        echo "Done."
+    else
+        echo "Failed to prepare release..."
+        git branch -D $branch
+        exit 1
+    fi
+fi
