@@ -57,7 +57,7 @@ void pa_routerif_done(struct userdata *u)
 {
     pa_routerif *routerif;
 
-    if (u && u->routerif) {
+    if (u && (routerif = u->routerif)) {
         if (routerif->sock >= 0)
             close(routerif->sock);
 
