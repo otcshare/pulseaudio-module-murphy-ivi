@@ -558,7 +558,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
                                      pa_sink_input_new_data *data)
 {
     pa_core       *core;
-    pa_module     *module;
+    pa_module     *m;
     pa_proplist   *pl;
     pa_discover   *discover;
     mir_node_type  type;
@@ -570,9 +570,8 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = data->proplist));
-    pa_assert_se((module = data->module));
 
-    if (pa_streq(module->name, "module-combine-sink"))
+    if ((m = data->module) && pa_streq(m->name, "module-combine-sink"))
         type = mir_node_type_unknown;
     else {
         type = pa_classify_guess_stream_node_type(pl);
