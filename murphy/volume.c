@@ -196,8 +196,10 @@ double mir_volume_apply_limits(struct userdata *u,
     pa_assert(u);
     pa_assert_se((volume = u->volume));
 
-    if (class < 0 || class >= volume->classlen)
-        attenuation = -90.0;
+    if (class < 0 || class >= volume->classlen) {
+        if (class < 0 || class >= mir_application_class_end)
+            attenuation = -90.0;
+    }
     else {
         /* generic limits */
         attenuation = apply_table(attenuation, &volume->genlim, u,class,node); 
