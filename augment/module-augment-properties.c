@@ -100,6 +100,7 @@ struct userdata {
     pa_hashmap *cache;
     pa_hook_slot *client_new_slot, *client_proplist_changed_slot, *sink_input_new_slot;
     pa_hashmap *sink_input_rules;
+    pa_client *directory_watch_client;
 };
 
 static void rule_free(struct rule *r) {
@@ -514,6 +515,9 @@ static pa_hook_result_t process_sink_input(
 
     possible = filter_by_client(u->sink_input_rules, client);
 
+    if (!possible)
+        return PA_HOOK_OK;
+
     /* size of possible must be at least one, or otherwise we wouldn't be here */
 
     if (possible[0] == NULL) {
@@ -630,8 +634,8 @@ static pa_hook_result_t sink_input_new_cb(
     pa_assert(new_data);
     pa_assert(u);
 
-    /* TODO: consider running update_sink_input_rules here to avoid using inotify
-       or similar to notice changed/added/removed files. */
+    if (!new_data->client)
+        return PA_HOOK_OK;
 
     if (!u->sink_input_rules)
         return PA_HOOK_OK;
@@ -763,6 +767,50 @@ static pa_hashmap *update_sink_input_rules() {
     return rules;
 }
 
+static void send_event(pa_client *c, const char *evt, pa_proplist *d) {
+
+    struct userdata *u = c->userdata;
+
+    const char *action = pa_proplist_gets(d, "action");
+    const char *dir = pa_proplist_gets(d, "directory");
+    const char *file = pa_proplist_gets(d, "file");
+
+    pa_log_debug("received event '%s': action: %s, dir: %s, file: %s", evt, action, dir, file);
+
+    /* update the rules */
+    pa_xfree(u->sink_input_rules);
+    u->sink_input_rules = update_sink_input_rules();
+}
+
+static pa_client *create_directory_watch_client(pa_module *m, const char *directory, struct userdata *u) {
+    pa_client_new_data data;
+    pa_client *c;
+
+    /* Create a virtual client for triggering the directory callbacks. The
+       protocol is a property list. */
+
+    pa_client_new_data_init(&data);
+    data.module = m;
+    data.driver = __FILE__;
+    pa_proplist_sets(data.proplist, PA_PROP_APPLICATION_NAME, "Directory watch client");
+    pa_proplist_sets(data.proplist, "type", "directory-watch");
+    pa_proplist_sets(data.proplist, "dir-watch.directory", directory);
+
+    c = pa_client_new(m->core, &data);
+
+    pa_client_new_data_done(&data);
+
+    if (!c) {
+        pa_log_error("Failed to create directory watch client");
+        return NULL;
+    }
+
+    c->send_event = send_event;
+    c->userdata = u;
+
+    return c;
+}
+
 int pa__init(pa_module *m) {
     pa_modargs *ma = NULL;
     struct userdata *u;
@@ -779,6 +827,11 @@ int pa__init(pa_module *m) {
     u->sink_input_rules = update_sink_input_rules();
 
     u->cache = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
+
+    u->directory_watch_client = create_directory_watch_client(m, SINK_INPUT_RULE_DIR, u);
+    if (!u->directory_watch_client)
+        goto fail;
+
     u->client_new_slot = pa_hook_connect(&m->core->hooks[PA_CORE_HOOK_CLIENT_NEW], PA_HOOK_EARLY, (pa_hook_cb_t) client_new_cb, u);
     u->client_proplist_changed_slot = pa_hook_connect(&m->core->hooks[PA_CORE_HOOK_CLIENT_PROPLIST_CHANGED], PA_HOOK_EARLY, (pa_hook_cb_t) client_proplist_changed_cb, u);
     u->sink_input_new_slot = pa_hook_connect(&m->core->hooks[PA_CORE_HOOK_SINK_INPUT_NEW], PA_HOOK_EARLY, (pa_hook_cb_t) sink_input_new_cb, u);
@@ -823,6 +876,9 @@ void pa__done(pa_module *m) {
 
     if (u->sink_input_rules)
         pa_hashmap_free(u->sink_input_rules, (pa_free2_cb_t) sink_input_rule_file_free, NULL);
+
+    if (u->directory_watch_client)
+        pa_client_free(u->directory_watch_client);
 
     pa_xfree(u);
 }
