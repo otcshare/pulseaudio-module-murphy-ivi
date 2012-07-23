@@ -1,4 +1,4 @@
-SUBDIRS = murphy combine doc
+SUBDIRS = murphy combine augment doc
 
 MAINTAINERCLEANFILES = \
         Makefile.in src/Makefile.in config.h.in configure \
