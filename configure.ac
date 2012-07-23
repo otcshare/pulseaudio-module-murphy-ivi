@@ -159,6 +159,7 @@ AC_CONFIG_FILES([
 	Makefile
 	murphy/Makefile
         combine/Makefile
+        augment/Makefile
         doc/Makefile
         doc/murphy-audio/Makefile
         doc/murphy-audio/db/Makefile
