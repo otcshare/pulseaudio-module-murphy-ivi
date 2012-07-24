@@ -492,15 +492,18 @@ static pa_bool_t set_port(struct userdata *u, mir_node *node)
     pa_core   *core;
     pa_sink   *sink;
     pa_source *source;
-    void      *data;
     pa_device_port *port;
     mir_node  *oldnode;
-    uint32_t   paidx;
+    void      *data  = NULL;
+    uint32_t   paidx = PA_IDXSET_INVALID;
 
     pa_assert(u);
     pa_assert(node);
     pa_assert(node->paname);
     pa_assert_se((core = u->core));
+
+    if (node->direction != mir_input && node->direction != mir_output)
+        return FALSE;
 
     if (node->implement != mir_device)
         return TRUE;
