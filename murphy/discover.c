@@ -48,6 +48,19 @@
 
 #define ACTIVE_PORT       NULL
 
+/* Bluetooth service class */
+#define BIT(x)    (1U << (x))
+
+#define BT_SERVICE_MASK          0xffe
+#define BT_SERVICE_INFORMATION   BIT(23) /**< WEB-server, WAP-server, etc */
+#define BT_SERVICE_TELEPHONY     BIT(22) /**< Modem, Headset, etc*/
+#define BT_SERVICE_AUDIO         BIT(21) /**< Speaker, Microphone, Headset */
+#define BT_SERVICE_OBJECT_XFER   BIT(20) /**< v-Inbox, v-Folder, etc */
+#define BT_SERVICE_CAPTURING     BIT(19) /**< Scanner, Microphone, etc */
+#define BT_SERVICE_RENDERING     BIT(18) /**< Printing, Speaker, etc */
+#define BT_SERVICE_NETWORKING    BIT(17) /**< LAN, Ad hoc, etc */
+#define BT_SERVICE_POSITIONING   BIT(16) /**< Location identification */
+
 
 typedef struct {
     struct userdata *u;

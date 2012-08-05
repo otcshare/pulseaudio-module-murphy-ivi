@@ -241,8 +241,10 @@ const char *mir_node_type_str(mir_node_type type)
     case mir_wired_headset:       return "Wired Headset";
     case mir_wired_headphone:     return "Wired Headphone";
     case mir_usb_headset:         return "USB Headset";
-    case mir_bluetooth_sco:       return "Bluetooth Handsfree";
-    case mir_bluetooth_a2dp:      return "Bluetooth Stereo";
+    case mir_bluetooth_sco:       return "Bluetooth Mono Handsfree";
+    case mir_bluetooth_a2dp:      return "Bluetooth Stereo Headphone";
+    case mir_bluetooth_source:    return "Bluetooth Source";
+    case mir_bluetooth_sink:      return "Bluetooth Sink";
     default:                      return "<user defined>";
     }
 }

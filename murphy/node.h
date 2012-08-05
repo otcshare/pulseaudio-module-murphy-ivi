@@ -79,6 +79,8 @@ enum mir_node_type {
     mir_usb_headphone,
     mir_bluetooth_sco,
     mir_bluetooth_a2dp,
+    mir_bluetooth_source,
+    mir_bluetooth_sink,
     mir_device_class_end,
 
     /* extensions */

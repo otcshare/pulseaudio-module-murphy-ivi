@@ -36,12 +36,18 @@ void pa_classify_node_by_card(mir_node        *node,
 {
     const char *bus;
     const char *form;
-    
+    /*
+    const char *desc;
+    */
+
     pa_assert(node);
     pa_assert(card);
 
     bus  = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS);
     form = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_FORM_FACTOR);
+    /*
+    desc = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_DESCRIPTION);
+    */
 
     if (form) {
         if (!strcasecmp(form, "internal")) {
@@ -71,7 +77,7 @@ void pa_classify_node_by_card(mir_node        *node,
                 else if (!strcasecmp(bus,"bluetooth")) {
                     if (prof && !strcmp(prof->name, "a2dp"))
                         node->type = mir_bluetooth_a2dp;
-                    else 
+                    else
                         node->type = mir_bluetooth_sco;
                 }
                 else {
@@ -101,6 +107,12 @@ void pa_classify_node_by_card(mir_node        *node,
         if (port && !strcasecmp(bus, "pci")) {
             pa_classify_guess_device_node_type_and_name(node, port->name,
                                                         port->description);
+        }
+        else if (prof && !strcasecmp(bus, "bluetooth")) {
+            if (!strcmp(prof->name, "a2dp_source"))
+                node->type = mir_bluetooth_source;
+            else if (!strcmp(prof->name, "a2dp_sink"))
+                node->type = mir_bluetooth_sink;
         }
     }
 
@@ -144,6 +156,7 @@ void pa_classify_node_by_card(mir_node        *node,
         case mir_jack:
         case mir_spdif:
         case mir_hdmi:
+        case mir_bluetooth_sink:
             node->privacy = mir_privacy_unknown;
             break;
         } /* switch */
