@@ -87,6 +87,7 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     node->paname    = pa_xstrdup(data->paname);
     node->paidx     = data->paidx;
     node->mux       = data->mux;
+    node->loop      = data->loop;
     node->stamp     = data->stamp;
     MIR_DLIST_INIT(node->rtentries);
     MIR_DLIST_INIT(node->constrains);
@@ -146,6 +147,7 @@ int mir_node_print(mir_node *node, char *buf, int len)
 {
     char *p, *e;
     char mux[256];
+    char loop[256];
     char constr[512];
 
     pa_assert(node);
@@ -153,6 +155,7 @@ int mir_node_print(mir_node *node, char *buf, int len)
     pa_assert(len > 0);
 
     pa_multiplex_print(node->mux, mux, sizeof(mux));
+    pa_loopback_print(node->loop, loop, sizeof(loop));
     mir_constrain_print(node, constr, sizeof(constr));
 
     e = (p = buf) + len;
@@ -179,6 +182,7 @@ int mir_node_print(mir_node *node, char *buf, int len)
                                       node->pacard.profile : "");
     PRINT("   paport        : '%s'",  node->paport ? node->paport : "");
     PRINT("   mux           : %s"  ,  mux);
+    PRINT("   loop          : %s"  ,  loop);
     PRINT("   constrain     : %s"  ,  constr);
     PRINT("   stamp         : %u"  ,  node->stamp);
 
