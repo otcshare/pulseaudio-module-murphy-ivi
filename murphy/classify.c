@@ -49,6 +49,8 @@ void pa_classify_node_by_card(mir_node        *node,
     desc = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_DESCRIPTION);
     */
 
+    node->type = mir_node_type_unknown;
+
     if (form) {
         if (!strcasecmp(form, "internal")) {
             node->location = mir_external;
@@ -109,7 +111,9 @@ void pa_classify_node_by_card(mir_node        *node,
                                                         port->description);
         }
         else if (prof && !strcasecmp(bus, "bluetooth")) {
-            if (!strcmp(prof->name, "a2dp_source"))
+            if (!strcmp(prof->name, "hfgw"))
+                node->type = mir_bluetooth_carkit;
+            else if (!strcmp(prof->name, "a2dp_source"))
                 node->type = mir_bluetooth_source;
             else if (!strcmp(prof->name, "a2dp_sink"))
                 node->type = mir_bluetooth_sink;
