@@ -142,10 +142,12 @@ pa_muxnode *pa_multiplex_find(pa_multiplex *multiplex, uint32_t sink_index)
 {
     pa_muxnode *mux;
 
-    PA_LLIST_FOREACH(mux, multiplex->muxnodes) {
-        if (sink_index == mux->sink_index) {
-            pa_log_debug("muxnode found for sink %u", sink_index);
-            return mux;
+    if (sink_index != PA_IDXSET_INVALID) {
+        PA_LLIST_FOREACH(mux, multiplex->muxnodes) {
+            if (sink_index == mux->sink_index) {
+                pa_log_debug("muxnode found for sink %u", sink_index);
+                return mux;
+            }
         }
     }
 

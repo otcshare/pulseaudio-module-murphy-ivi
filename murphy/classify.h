@@ -32,6 +32,7 @@ mir_node_type pa_classify_guess_stream_node_type(pa_proplist *);
 
 pa_bool_t pa_classify_multiplex_stream(mir_node *);
 
+const char *pa_classify_loopback_stream(mir_node *);
 
 #endif  /* foomirclassifyfoo */
 

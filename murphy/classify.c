@@ -219,14 +219,15 @@ mir_node_type pa_classify_guess_stream_node_type(pa_proplist *pl)
     } map_t;
 
     static map_t role_map[] = {
-        {"video"    , mir_player   },
-        {"music"    , mir_player   },
-        {"game"     , mir_game     },
-        {"event"    , mir_event    },
-	{"navigator", mir_navigator},
-        {"phone"    , mir_phone    },
-        {"animation", mir_browser  },
-        {"test"     , mir_player   },
+        {"video"    , mir_player    },
+        {"music"    , mir_player    },
+        {"game"     , mir_game      },
+        {"event"    , mir_event     },
+	{"navigator", mir_navigator },
+        {"phone"    , mir_phone     },
+        {"carkit"   , mir_phone     },
+        {"animation", mir_browser   },
+        {"test"     , mir_player    },
         {NULL, mir_node_type_unknown}
     };
 
@@ -289,8 +290,6 @@ pa_bool_t pa_classify_multiplex_stream(mir_node *node)
 
     pa_assert(node);
 
-    //return FALSE;
-
     if (node->implement == mir_stream && node->direction == mir_input) {
         class = node->type;
 
@@ -302,4 +301,29 @@ pa_bool_t pa_classify_multiplex_stream(mir_node *node)
     }
 
     return FALSE;
+}
+
+const char *pa_classify_loopback_stream(mir_node *node)
+{
+    const char *role[mir_device_class_end - mir_device_class_begin] = {
+        /*
+        [ mir_bluetooth_sco    - mir_device_class_begin ] = "phone" ,
+        [ mir_bluetooth_carkit - mir_device_class_begin ] = "carkit",
+        */
+        [ mir_bluetooth_source - mir_device_class_begin ] = "music" ,
+    };
+
+    int class;
+
+    pa_assert(node);
+
+    if (node->implement == mir_device && node->direction == mir_input) {
+        class = node->type;
+
+        if (class >= mir_device_class_begin && class < mir_device_class_end) {
+            return role[class - mir_device_class_begin];
+        }
+    }
+
+    return NULL;
 }

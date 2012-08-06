@@ -39,6 +39,7 @@
 #include "router.h"
 #include "constrain.h"
 #include "multiplex.h"
+#include "loopback.h"
 #include "fader.h"
 #include "classify.h"
 #include "utils.h"
@@ -67,7 +68,14 @@ typedef struct {
     uint32_t index;
 } card_check_t;
 
-static const char combine_pattern[] = "Simultaneous output on ";
+typedef struct {
+    struct userdata *u;
+    pa_muxnode *mux;
+    pa_loopnode *loop;
+} source_cleanup_t;
+
+static const char combine_pattern[]  = "Simultaneous output on ";
+static const char loopback_pattern[] = "Loopback from ";
 
 static void handle_alsa_card(struct userdata *, pa_card *);
 static void handle_bluetooth_card(struct userdata *, pa_card *);
@@ -96,6 +104,7 @@ static mir_node_type get_stream_routing_class(pa_proplist *);
 
 static void schedule_deferred_routing(struct userdata *);
 static void schedule_card_check(struct userdata *, pa_card *);
+static void schedule_source_cleanup(struct userdata *, mir_node *);
 
 
 static void pa_hashmap_node_free(void *node, void *u)
@@ -442,14 +451,18 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
     mir_node       *node;
     pa_card        *card;
     char           *key;
-    char            buf[256];
+    char            kbf[256];
+    char            nbf[2048];
+    const char     *loopback_role;
+    uint32_t        si;
+    pa_sink        *ns;
 
     pa_assert(u);
     pa_assert(source);
     pa_assert_se((discover = u->discover));
 
     if ((card = source->card)) {
-        if (!(key = node_key(u,mir_input,source,ACTIVE_PORT,buf,sizeof(buf))))
+        if (!(key = node_key(u,mir_input,source,ACTIVE_PORT,kbf,sizeof(kbf))))
             return;
         if (!(node = pa_discover_find_node_by_key(u, key))) {
             pa_log_debug("can't find node for source (key '%s')", key);
@@ -459,6 +472,22 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
                      node->amname);
         node->paidx = source->index;
         pa_discover_add_node_to_ptr_hash(u, source, node);
+        if ((loopback_role = pa_classify_loopback_stream(node))) {
+            if (!(ns = pa_utils_get_null_sink(u))) {
+                pa_log("Can't load loopback module: no initial null sink");
+                return;
+            }
+            node->loop = pa_loopback_create(u->loopback, u->core,
+                                            source->index, ns->index,
+                                            loopback_role);
+            if (node->loop) {
+                si = pa_loopback_get_sink_index(u->core, node->loop);
+                node->mux = pa_multiplex_find(u->multiplex, si);
+            }
+
+            mir_node_print(node, nbf, sizeof(nbf));
+            pa_log_debug("updated node:\n%s", nbf);
+        }
     }
 }
 
@@ -479,6 +508,7 @@ void pa_discover_remove_source(struct userdata *u, pa_source *source)
         pa_log_debug("can't find node for source (name '%s')", name);
     else {
         pa_log_debug("node found. Reseting source data");
+        schedule_source_cleanup(u, node);
         node->paidx = PA_IDXSET_INVALID;
         pa_hashmap_remove(discover->nodes.byptr, source);
     }
@@ -505,11 +535,15 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = sinp->proplist));
     
-    if ((media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME)) &&
-        !strncmp(media, combine_pattern, sizeof(combine_pattern)-1))
-    {
-        pa_log_debug("Seems to be a combine stream. Nothing to do ...");
-        return;
+    if ((media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME))) {
+        if (!strncmp(media, combine_pattern, sizeof(combine_pattern)-1)) {
+            pa_log_debug("Seems to be a combine stream. Nothing to do ...");
+            return;
+        }
+        if (!strncmp(media, loopback_pattern, sizeof(loopback_pattern)-1)) {
+            pa_log_debug("Seems to be a loopback stream. Nothing to do ...");
+            return;
+        }
     }
 
     name = pa_utils_get_sink_input_name(sinp);
@@ -574,9 +608,10 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     pa_module     *m;
     pa_proplist   *pl;
     pa_discover   *discover;
-    mir_node_type  type;
     mir_node       fake;
     pa_sink       *sink;
+    const char    *mnam;
+    mir_node_type  type;
     
     pa_assert(u);
     pa_assert(data);
@@ -584,9 +619,13 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = data->proplist));
 
-    if ((m = data->module) && pa_streq(m->name, "module-combine-sink"))
+    mnam = (m = data->module) ? m->name : "";
+
+    if (pa_streq(mnam, "module-combine-sink"))
         type = mir_node_type_unknown;
     else {
+        if (pa_streq(mnam, "module-loopback"))
+            data->sink = NULL;
         type = pa_classify_guess_stream_node_type(pl);
         pa_utils_set_stream_routing_properties(pl, type, data->sink);
     }
@@ -632,11 +671,15 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     pa_assert_se((pl = sinp->proplist));
 
 
-    if ((media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME)) &&
-        !strncmp(media, combine_pattern, sizeof(combine_pattern)-1))
-    {
-        pa_log_debug("New stream is a combine stream. Nothing to do ...");
-        return;
+    if ((media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME))) {
+        if (!strncmp(media, combine_pattern, sizeof(combine_pattern)-1)) {
+            pa_log_debug("New stream is a combine stream. Nothing to do ...");
+            return;
+        }
+        if (!strncmp(media, loopback_pattern, sizeof(loopback_pattern)-1)) {
+            pa_log_debug("New stream is a loopback stream. Nothing to do ...");
+            return;
+        }
     }
 
     name = pa_utils_get_sink_input_name(sinp);
@@ -1140,6 +1183,7 @@ static void destroy_node(struct userdata *u, mir_node *node)
 
         mir_constrain_remove_node(u, node);
 
+        pa_loopback_destroy(u->loopback, u->core, node->loop);
         pa_multiplex_destroy(u->multiplex, u->core, node->mux);
         
         mir_node_destroy(u, node);
@@ -1341,8 +1385,7 @@ static pa_sink *make_output_prerouting(struct userdata *u,
     pa_assert(chmap);
     pa_assert_se((core = u->core));
 
-    
-    
+        
     target = mir_router_make_prerouting(u, data);
 
     if (!target)
@@ -1494,6 +1537,52 @@ static void schedule_card_check(struct userdata *u, pa_card *card)
 }
 
                                   
+static void source_cleanup_cb(pa_mainloop_api *m, void *d)
+{
+    source_cleanup_t *sc = d;
+    struct userdata *u;
+    pa_core *core;
+
+    (void)m;
+
+    pa_assert(sc);
+    pa_assert((u = sc->u));
+    pa_assert((core = u->core));
+
+    pa_log_debug("source cleanup starts");
+
+    pa_loopback_destroy(u->loopback, u->core, sc->loop);
+    pa_multiplex_destroy(u->multiplex, u->core, sc->mux);
+
+    pa_log_debug("source cleanup ends");
+    
+    pa_xfree(sc);
+}
+
+
+static void schedule_source_cleanup(struct userdata *u, mir_node *node)
+{
+    pa_core *core;
+    source_cleanup_t *sc;
+
+    pa_assert(u);
+    pa_assert(node);
+    pa_assert_se((core = u->core));
+
+    pa_log_debug("scheduling source cleanup");
+
+    sc = pa_xnew0(source_cleanup_t, 1);
+    sc->u = u;
+    sc->mux = node->mux;
+    sc->loop = node->loop;
+
+    node->mux = NULL;
+    node->loop = NULL;
+
+    pa_mainloop_api_once(core->mainloop, source_cleanup_cb, sc);
+}
+
+
 /*
  * Local Variables:
  * c-basic-offset: 4

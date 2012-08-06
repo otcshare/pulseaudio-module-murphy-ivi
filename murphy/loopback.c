@@ -30,7 +30,7 @@
 #include <pulsecore/sink.h>
 #include <pulsecore/sink-input.h>
 
-#include <combine/userdata.h>
+struct userdata;
 
 #include "loopback.h"
 #include "utils.h"
@@ -58,7 +58,8 @@ void pa_loopback_done(pa_loopback *loopback, pa_core *core)
 pa_loopnode *pa_loopback_create(pa_loopback   *loopback,
                                 pa_core       *core,
                                 uint32_t       source_index,
-                                uint32_t       sink_index)
+                                uint32_t       sink_index,
+                                const char    *media_role)
 {
     static char *modnam = "module-loopback";
 
@@ -83,8 +84,15 @@ pa_loopnode *pa_loopback_create(pa_loopback   *loopback,
         return NULL;
     }
 
-    snprintf(args, sizeof(args), "source=\"%s\" sink=\"%s\"",
-             source->name, sink->name);
+    if (!media_role)
+        media_role = "music";
+
+    snprintf(args, sizeof(args), "source=\"%s\" sink=\"%s\" "
+             "sink_input_properties=%s=\"%s\"",
+             source->name, sink->name,
+             PA_PROP_MEDIA_ROLE, media_role);
+
+    pa_log_debug("loading %s %s", modnam, args);
 
     if (!(module = pa_module_load(core, modnam, args))) {
         pa_log("failed to load module '%s %s'. can't loopback", modnam, args);
@@ -131,7 +139,22 @@ void pa_loopback_destroy(pa_loopback *loopback,
     }
 }
 
+uint32_t pa_loopback_get_sink_index(pa_core *core, pa_loopnode *loop)
+{
+    pa_sink_input *sink_input;
+    pa_sink *sink;
 
+    pa_assert(core);
+    pa_assert(loop);
+
+    sink_input = pa_idxset_get_by_index(core->sink_inputs,
+                                        loop->sink_input_index);
+
+    if (sink_input && (sink = sink_input->sink))
+        return sink->index;
+
+    return PA_IDXSET_INVALID;
+}
 
 int pa_loopback_print(pa_loopnode *loop, char *buf, int len)
 {
