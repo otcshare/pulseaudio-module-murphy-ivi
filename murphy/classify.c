@@ -111,7 +111,11 @@ void pa_classify_node_by_card(mir_node        *node,
                                                         port->description);
         }
         else if (prof && !strcasecmp(bus, "bluetooth")) {
-            if (!strcmp(prof->name, "hfgw"))
+            if (!strcmp(prof->name, "a2dp"))
+                node->type = mir_bluetooth_a2dp;
+            else if (!strcmp(prof->name, "hsp"))
+                node->type = mir_bluetooth_sco;
+            else if (!strcmp(prof->name, "hfgw"))
                 node->type = mir_bluetooth_carkit;
             else if (!strcmp(prof->name, "a2dp_source"))
                 node->type = mir_bluetooth_source;
