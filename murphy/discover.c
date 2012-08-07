@@ -74,6 +74,11 @@ typedef struct {
     pa_loopnode *loop;
 } source_cleanup_t;
 
+typedef struct {
+    struct userdata *u;
+    uint32_t index;
+} stream_uncork_t;
+
 static const char combine_pattern[]  = "Simultaneous output on ";
 static const char loopback_pattern[] = "Loopback from ";
 
@@ -106,7 +111,7 @@ static mir_node_type get_stream_routing_class(pa_proplist *);
 static void schedule_deferred_routing(struct userdata *);
 static void schedule_card_check(struct userdata *, pa_card *);
 static void schedule_source_cleanup(struct userdata *, mir_node *);
-
+static void schedule_stream_uncorking(struct userdata *, pa_sink *);
 
 static void pa_hashmap_node_free(void *node, void *u)
 {
@@ -648,6 +653,13 @@ void pa_discover_preroute_sink_input(struct userdata *u,
         sink = make_output_prerouting(u, &fake, &data->channel_map, role,NULL);
 
         if (sink) {
+#if 0
+            if (fake.mux && !(data->flags & PA_SINK_INPUT_START_CORKED)) {
+                data->flags |= PA_SINK_INPUT_START_CORKED;
+                schedule_stream_uncorking(u, sink);
+            }
+#endif
+
             if (!pa_sink_input_new_data_set_sink(data, sink, FALSE))
                 pa_log("can't set sink %d for new sink-input", sink->index);
         }
@@ -1588,6 +1600,62 @@ static void schedule_source_cleanup(struct userdata *u, mir_node *node)
     node->loop = NULL;
 
     pa_mainloop_api_once(core->mainloop, source_cleanup_cb, sc);
+}
+
+
+static void stream_uncork_cb(pa_mainloop_api *m, void *d)
+{
+    stream_uncork_t *suc = d;
+    struct userdata *u;
+    pa_core *core;
+    pa_sink *sink;
+    pa_sink_input *sinp;
+    uint32_t index;
+
+    (void)m;
+
+    pa_assert(suc);
+    pa_assert((u = suc->u));
+    pa_assert((core = u->core));
+
+    pa_log_debug("start uncorking stream");
+
+    if (!(sink = pa_idxset_get_by_index(core->sinks, suc->index))) {
+        pa_log_debug("sink.%d gone", suc->index);
+        goto out;
+    }
+
+    if (!(sinp = pa_idxset_first(core->sink_inputs, &index))) {
+        pa_log_debug("sink_input is gone");
+        goto out;
+    }
+
+    pa_sink_input_cork(sinp, FALSE);
+
+    pa_log_debug("stream.%u uncorked", sinp->index);
+
+ out:
+    
+    pa_xfree(suc);
+}
+
+
+static void schedule_stream_uncorking(struct userdata *u, pa_sink *sink)
+{
+    pa_core *core;
+    stream_uncork_t *suc;
+
+    pa_assert(u);
+    pa_assert(sink);
+    pa_assert_se((core = u->core));
+
+    pa_log_debug("scheduling stream uncorking");
+
+    suc = pa_xnew0(stream_uncork_t, 1);
+    suc->u = u;
+    suc->index = sink->index;
+
+    pa_mainloop_api_once(core->mainloop, stream_uncork_cb, suc);
 }
 
 

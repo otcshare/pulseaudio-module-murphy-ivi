@@ -36,7 +36,7 @@
 #include "utils.h"
 
 #ifndef DEFAULT_RESAMPLER
-#define DEFAULT_RESAMPLER "speex-float-3"
+#define DEFAULT_RESAMPLER "speex-fixed-3"
 #endif
 
 
@@ -80,6 +80,7 @@ pa_muxnode *pa_multiplex_create(pa_multiplex   *multiplex,
     pa_module       *module;
     char             args[512];
     uint32_t         idx;
+    uint32_t         channels;
 
     pa_assert(core);
 
@@ -92,8 +93,10 @@ pa_muxnode *pa_multiplex_create(pa_multiplex   *multiplex,
         return NULL;
     }
 
+    channels = chmap->channels ? chmap->channels : sink->channel_map.channels;
+
     snprintf(args, sizeof(args), "slaves=\"%s\" resample_method=\"%s\" "
-             "channels=%u", sink->name, resampler, chmap->channels);
+             "channels=%u", sink->name, resampler, channels);
 
     if (!(module = pa_module_load(core, modnam, args))) {
         pa_log("failed to load module '%s %s'. can't multiplex", modnam, args);
