@@ -39,6 +39,7 @@
 #include "loopback.h"
 #include "discover.h"
 #include "utils.h"
+#include "classify.h"
 
 static pa_bool_t setup_explicit_link_from_stream_to_device(struct userdata *,
                                                            mir_node *,
@@ -426,6 +427,7 @@ static pa_bool_t setup_default_link_from_device_to_device(struct userdata *u,
     pa_sink_input *sinp;
     pa_muxnode    *mux;
     pa_loopnode   *loop;
+    mir_node_type  type;
     int            n;
 
     pa_assert(u);
@@ -475,7 +477,9 @@ static pa_bool_t setup_default_link_from_device_to_device(struct userdata *u,
                 return TRUE; /* the routing is a success */
             }
 
-            if (!pa_multiplex_add_default_route(core, mux,sink, from->type)) {
+            type = pa_classify_guess_application_class(from);
+
+            if (!pa_multiplex_add_default_route(core, mux,sink, type)) {
                 pa_log_debug("failed to add default route on mux %d",
                              mux->module_index);
                 mux->defstream_index = PA_IDXSET_INVALID;
