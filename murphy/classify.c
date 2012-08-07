@@ -277,6 +277,29 @@ mir_node_type pa_classify_guess_stream_node_type(pa_proplist *pl)
     return btype;
 }
 
+mir_node_type pa_classify_guess_application_class(mir_node *node)
+{
+    mir_node_type class;
+
+    pa_assert(node);
+
+    if (node->implement == mir_stream)
+        class = node->type;
+    else {
+        if (node->direction == mir_output)
+            class = mir_node_type_unknown;
+        else {
+            switch (node->type) {
+            default:                    class = mir_node_type_unknown;   break;
+            case mir_bluetooth_carkit:  class = mir_phone;               break;
+            case mir_bluetooth_source:  class = mir_player;              break;
+            }
+        }
+    }
+
+    return class;
+}
+
 
 pa_bool_t pa_classify_multiplex_stream(mir_node *node)
 {
@@ -327,3 +350,4 @@ const char *pa_classify_loopback_stream(mir_node *node)
 
     return NULL;
 }
+
