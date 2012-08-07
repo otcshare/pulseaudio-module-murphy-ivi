@@ -97,7 +97,8 @@ static char *node_key(struct userdata *, mir_direction,
                       void *, pa_device_port *, char *, size_t);
 
 static pa_sink *make_output_prerouting(struct userdata *, mir_node *,
-                                       pa_channel_map *, mir_node **);
+                                       pa_channel_map *, const char *,
+                                       mir_node **);
 
 static mir_node_type get_stream_routing_class(pa_proplist *);
 
@@ -528,6 +529,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     mir_node      *target;
     char           key[256];
     pa_sink       *sink;
+    const char    *role;
 
     pa_assert(u);
     pa_assert(sinp);
@@ -582,7 +584,8 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
      * possibly overwiriting the orginal app request :(
      */
     /* this will set data.mux */
-    sink = make_output_prerouting(u, &data, &sinp->channel_map, &target);
+    role = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_ROLE);
+    sink = make_output_prerouting(u, &data, &sinp->channel_map, role, &target);
 
     node = create_node(u, &data, NULL);
     pa_assert(node);
@@ -611,6 +614,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     mir_node       fake;
     pa_sink       *sink;
     const char    *mnam;
+    const char    *role;
     mir_node_type  type;
     
     pa_assert(u);
@@ -640,7 +644,10 @@ void pa_discover_preroute_sink_input(struct userdata *u,
         fake.available = TRUE;
         fake.amname    = "<preroute>";
 
-        if ((sink = make_output_prerouting(u,&fake,&data->channel_map,NULL))) {
+        role = pa_proplist_gets(data->proplist, PA_PROP_MEDIA_ROLE);
+        sink = make_output_prerouting(u, &fake, &data->channel_map, role,NULL);
+
+        if (sink) {
             if (!pa_sink_input_new_data_set_sink(data, sink, FALSE))
                 pa_log("can't set sink %d for new sink-input", sink->index);
         }
@@ -1374,6 +1381,7 @@ static char *node_key(struct userdata *u, mir_direction direction,
 static pa_sink *make_output_prerouting(struct userdata *u,
                                        mir_node        *data,
                                        pa_channel_map  *chmap,
+                                       const char      *media_role,
                                        mir_node       **target_ret)
 {
     pa_core    *core;
@@ -1399,7 +1407,7 @@ static pa_sink *make_output_prerouting(struct userdata *u,
             if (pa_classify_multiplex_stream(data)) {
                 data->mux = pa_multiplex_create(u->multiplex, core,
                                                 sink->index, chmap, NULL,
-                                                data->type);
+                                                media_role, data->type);
                 if (data->mux) {
                     sink = pa_idxset_get_by_index(core->sinks,
                                                   data->mux->sink_index);
