@@ -44,7 +44,8 @@ pa_multiplex *pa_multiplex_init(void);
 void pa_multiplex_done(pa_multiplex *, pa_core *);
 
 pa_muxnode *pa_multiplex_create(pa_multiplex *, pa_core *, uint32_t,
-                                pa_channel_map *, const char *, int);
+                                pa_channel_map *, const char *, const char *,
+                                int);
 void pa_multiplex_destroy(pa_multiplex *, pa_core *, pa_muxnode *);
 
 pa_muxnode *pa_multiplex_find(pa_multiplex *, uint32_t);

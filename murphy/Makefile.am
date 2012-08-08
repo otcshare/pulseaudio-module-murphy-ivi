@@ -20,6 +20,7 @@ module_murphy_ivi_la_SOURCES = \
 			switch.c \
 			fader.c \
 			multiplex.c \
+			loopback.c \
 			volume.c \
 			audiomgr.c \
 			$(ROUTERIF) \

@@ -34,6 +34,7 @@
 #include "volume.h"
 #include "fader.h"
 #include "utils.h"
+#include "classify.h"
 
 
 static void rtgroup_destroy(struct userdata *, mir_rtgroup *);
@@ -203,6 +204,7 @@ pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *u,
 }
 
 
+#if 0
 void mir_router_register_node(struct userdata *u, mir_node *node)
 {
     pa_router   *router;
@@ -241,6 +243,50 @@ void mir_router_register_node(struct userdata *u, mir_node *node)
         return;
     }
 }
+#endif
+
+void mir_router_register_node(struct userdata *u, mir_node *node)
+{
+    pa_router   *router;
+    mir_rtgroup *rtg;
+    void        *state;
+    int          priority;
+    mir_node    *before;
+
+    pa_assert(u);
+    pa_assert(node);
+    pa_assert_se((router = u->router));
+    
+    if (node->direction == mir_output) {
+        if (node->implement == mir_device) {
+            PA_HASHMAP_FOREACH(rtg, router->rtgroups, state) {
+                add_rtentry(u, rtg, node);
+            }
+        }
+        return;
+    }
+
+    
+    if (node->direction == mir_input) {
+        if (node->implement == mir_device &&
+            !pa_classify_loopback_stream(node))
+            return;
+
+        priority = node_priority(u, node);
+            
+        MIR_DLIST_FOR_EACH(mir_node, rtentries, before, &router->nodlist) {
+            if (priority < node_priority(u, before)) {
+                MIR_DLIST_INSERT_BEFORE(mir_node, rtentries, node,
+                                        &before->rtentries);
+                return;
+            }
+        }
+            
+        MIR_DLIST_APPEND(mir_node, rtentries, node, &router->nodlist);
+
+        return;
+    }
+}
 
 void mir_router_unregister_node(struct userdata *u, mir_node *node)
 {
@@ -251,14 +297,14 @@ void mir_router_unregister_node(struct userdata *u, mir_node *node)
     pa_assert(node);
     pa_assert_se((router = u->router));
 
-    if (node->implement == mir_device && node->direction == mir_output) {
+    if (node->direction == mir_output && node->implement == mir_device) {
         MIR_DLIST_FOR_EACH_SAFE(mir_rtentry,nodchain, rte,n, &node->rtentries){
             remove_rtentry(u, rte);
         }
         return;
     }
 
-    if (node->implement == mir_stream && node->direction == mir_input) {
+    if (node->direction == mir_input) {
         MIR_DLIST_UNLINK(mir_node, rtentries, node);
         return;
     }
@@ -384,6 +430,13 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
     make_explicit_routes(u, stamp);
 
     MIR_DLIST_FOR_EACH_BACKWARD(mir_node, rtentries, from, &router->nodlist) {
+        if (from->implement == mir_device) {
+            if (from->direction == mir_output)
+                continue;       /* we should never get here */
+            if (!from->mux && !from->loop)
+                continue;       /* skip not looped back input nodes */
+        }
+
         if (priority >= node_priority(u, from)) {
             if ((target = find_default_route(u, data, stamp))) {
                 mir_switch_setup_link(u, NULL, target, FALSE);
@@ -431,6 +484,13 @@ void mir_router_make_routing(struct userdata *u)
     make_explicit_routes(u, stamp);
 
     MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, from, &router->nodlist) {
+        if (from->implement == mir_device) {
+            if (from->direction == mir_output)
+                continue;       /* we should never get here */
+            if (!from->mux && !from->loop)
+                continue;       /* skip not looped back input nodes */
+        }
+
         if (from->stamp >= stamp)
             continue;
 
@@ -670,7 +730,7 @@ static mir_node *find_default_route(struct userdata *u,
                                     uint32_t         stamp)
 {
     pa_router     *router = u->router;
-    mir_node_type  class  = from->type;
+    mir_node_type  class  = pa_classify_guess_application_class(from);
     mir_node      *to;
     mir_rtgroup   *rtg;
     mir_rtentry   *rte;
@@ -755,18 +815,19 @@ static int node_priority(struct userdata *u, mir_node *node)
 {
     pa_router *router;
     mir_node_type type;
+    int class;
 
     pa_assert(u);
     pa_assert(node);
     pa_assert_se((router = u->router));
     pa_assert(router->priormap);
 
-    type = node->type;
+    class = pa_classify_guess_application_class(node);
 
-    if (type < 0 || type >= router->maplen)
+    if (class < 0 || class >= router->maplen)
         return 0;
 
-    return router->priormap[type];
+    return router->priormap[class];
 }
 
 

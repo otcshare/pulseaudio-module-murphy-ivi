@@ -36,17 +36,24 @@
 #include "switch.h"
 #include "node.h"
 #include "multiplex.h"
+#include "loopback.h"
 #include "discover.h"
 #include "utils.h"
+#include "classify.h"
 
 static pa_bool_t setup_explicit_link_from_stream_to_device(struct userdata *,
-                                                           mir_node *, mir_node *);
-static pa_bool_t teardown_explicit_link_from_stream_to_device(struct userdata *,
-                                                              mir_node *, mir_node *);
+                                                           mir_node *,
+                                                           mir_node *);
+static pa_bool_t teardown_explicit_link_from_stream_to_device(struct userdata*,
+                                                              mir_node *,
+                                                              mir_node *);
 
 static pa_bool_t setup_default_link_from_stream_to_device(struct userdata *,
-                                                          mir_node *, mir_node *);
-
+                                                          mir_node *,
+                                                          mir_node *);
+static pa_bool_t setup_default_link_from_device_to_device(struct userdata *,
+                                                          mir_node *,
+                                                          mir_node *);
 
 static pa_sink *setup_device_output(struct userdata *, mir_node *);
 
@@ -126,8 +133,8 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
                     break;
 
                 case mir_device:
-                    pa_log("%s: default device -> device route is "
-                           "not supported", __FILE__);
+                    if (!setup_default_link_from_device_to_device(u, from, to))
+                        return FALSE;
                     break;
 
                 default:
@@ -403,6 +410,120 @@ static pa_bool_t setup_default_link_from_stream_to_device(struct userdata *u,
 
         pa_log_debug("direct route: sink-input.%d -> sink.%d",
                      sinp->index, sink->index);
+
+        if (pa_sink_input_move_to(sinp, sink, FALSE) < 0)
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
+static pa_bool_t setup_default_link_from_device_to_device(struct userdata *u,
+                                                          mir_node *from,
+                                                          mir_node *to)
+{
+    pa_core       *core;
+    pa_sink       *sink;
+    pa_sink_input *sinp;
+    pa_muxnode    *mux;
+    pa_loopnode   *loop;
+    mir_node_type  type;
+    int            n;
+
+    pa_assert(u);
+    pa_assert(from);
+    pa_assert(to);
+    pa_assert((core = u->core));
+
+    if (!(loop = from->loop)) {
+        pa_log_debug("source is not looped back");
+        return FALSE;
+    }
+
+    if (!(sink = setup_device_output(u, to)))
+        return FALSE;
+
+    if ((mux = from->mux)) {
+        if (mux->defstream_index == PA_IDXSET_INVALID) {
+            if ((n = pa_multiplex_no_of_routes(core, mux)) < 0)
+                return FALSE;
+            else if (n > 0) {
+                pa_log_debug("currently mux %u has no default route",
+                             mux->module_index);
+                return TRUE;
+            }
+            sinp = NULL;
+        }
+        else {
+            sinp = pa_idxset_get_by_index(core->sink_inputs,
+                                          mux->defstream_index);
+        }
+
+        if (!sinp) {
+            /*
+             * we supposed to have a default stream but the sink-input
+             * on the combine side is not existing any more. This can
+             * happen, for instance, if the sink, where it was connected,
+             * died for some reason.
+             */
+            pa_log_debug("supposed to have a default stream on multiplex "
+                         "%u but non was found. Trying to make one",
+                         mux->module_index);
+            if (pa_multiplex_duplicate_route(core, mux, sinp, sink)) {
+                pa_log_debug("the default stream on mux %u would be a "
+                             "duplicate to an explicit route. "
+                             "Removing it ...", mux->module_index);
+                mux->defstream_index = PA_IDXSET_INVALID;
+                return TRUE; /* the routing is a success */
+            }
+
+            type = pa_classify_guess_application_class(from);
+
+            if (!pa_multiplex_add_default_route(core, mux,sink, type)) {
+                pa_log_debug("failed to add default route on mux %d",
+                             mux->module_index);
+                mux->defstream_index = PA_IDXSET_INVALID;
+                return FALSE;
+            }
+        }
+        else if (pa_multiplex_duplicate_route(core, mux, sinp, sink)) {
+            pa_log_debug("the default stream on mux %u would be a duplicate "
+                         "to an explicit route. Removing it ...",
+                         mux->module_index);
+            return TRUE;        /* the routing is a success */
+        }
+            
+        if (sinp) {
+            pa_log_debug("multiplex route: source.%d -> "
+                         "(source-output - sink-input %d) -> (sink.%d - "
+                         "sink-input.%d) -> sink.%d", from->paidx,
+                         loop->sink_input_index,
+                         mux->sink_index, sinp->index, sink->index);
+        }
+        else {
+            pa_log_debug("multiplex route: source.%d -> "
+                         "(source-output - sink-input.%d) -> (sink.%d - "
+                         "sink-input) -> sink.%d", from->paidx,
+                         loop->sink_input_index, 
+                         mux->sink_index, sink->index);
+        }
+
+        if (!pa_multiplex_change_default_route(core, mux, sink))
+            return FALSE;
+    }
+    else {
+        sinp = pa_idxset_get_by_index(core->sink_inputs,
+                                      loop->sink_input_index);
+
+        if (!sinp) {
+            pa_log_debug("can't find looped back sink input for '%s'",
+                         from->amname);
+            return FALSE;
+        }
+
+        pa_log_debug("loopback route: source.%d -> (source-output - "
+                     "sink-input.%d) -> sink.%d",
+                     from->paidx, sinp->index, sink->index);
 
         if (pa_sink_input_move_to(sinp, sink, FALSE) < 0)
             return FALSE;
