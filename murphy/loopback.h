@@ -17,26 +17,41 @@
  * MA 02110-1301 USA.
  *
  */
-#ifndef foomirclassifyfoo
-#define foomirclassifyfoo
+#ifndef fooloopbackfoo
+#define fooloopbackfoo
 
-#include <sys/types.h>
+#include <pulsecore/core.h>
+#include <pulsecore/sink-input.h>
 
-#include "userdata.h"
+#include "list.h"
 
-void pa_classify_node_by_card(mir_node *, pa_card *, pa_card_profile *,
-                              pa_device_port *);
-void pa_classify_guess_device_node_type_and_name(mir_node*, const char *,
-                                                 const char *);
-mir_node_type pa_classify_guess_stream_node_type(pa_proplist *);
-mir_node_type pa_classify_guess_application_class(mir_node *);
+typedef struct pa_loopnode pa_loopnode;
 
-pa_bool_t pa_classify_multiplex_stream(mir_node *);
+typedef struct pa_loopback {
+    PA_LLIST_HEAD(pa_loopnode, loopnodes);
+} pa_loopback;
 
-const char *pa_classify_loopback_stream(mir_node *);
 
-#endif  /* foomirclassifyfoo */
+struct pa_loopnode {
+    PA_LLIST_FIELDS(pa_loopnode);
+    uint32_t   module_index;
+    uint32_t   sink_input_index;
+};
 
+pa_loopback *pa_loopback_init(void);
+
+void pa_loopback_done(pa_loopback *, pa_core *);
+
+pa_loopnode *pa_loopback_create(pa_loopback *, pa_core *, uint32_t, uint32_t,
+                                const char *);
+void pa_loopback_destroy(pa_loopback *, pa_core *, pa_loopnode *);
+
+uint32_t pa_loopback_get_sink_index(pa_core *, pa_loopnode *);
+
+int pa_loopback_print(pa_loopnode *, char *, int);
+
+
+#endif /* fooloopbackfoo */
 
 /*
  * Local Variables:

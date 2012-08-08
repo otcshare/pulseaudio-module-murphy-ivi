@@ -24,6 +24,7 @@
 #include <pulsecore/core.h>
 
 #include "multiplex.h"
+#include "loopback.h"
 
 #define DIM(a) (sizeof(a)/sizeof((a)[0]))
 
@@ -98,6 +99,7 @@ struct userdata {
     pa_router     *router;
     pa_constrain  *constrain;
     pa_multiplex  *multiplex;
+    pa_loopback   *loopback;
     pa_mir_volume *volume;
     pa_mir_config *config;
     pa_mir_state   state;

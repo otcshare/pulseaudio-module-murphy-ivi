@@ -25,6 +25,7 @@
 #include "userdata.h"
 #include "list.h"
 #include "multiplex.h"
+#include "loopback.h"
 #include "volume.h"
 
 #define AM_ID_INVALID  65535
@@ -78,6 +79,9 @@ enum mir_node_type {
     mir_usb_headphone,
     mir_bluetooth_sco,
     mir_bluetooth_a2dp,
+    mir_bluetooth_carkit,
+    mir_bluetooth_source,
+    mir_bluetooth_sink,
     mir_device_class_end,
 
     /* extensions */
@@ -127,6 +131,7 @@ struct mir_node {
     pa_node_card   pacard;    /**< pulse card related data, if any  */
     char          *paport;    /**< sink or source port if applies */
     pa_muxnode    *mux;       /**< for multiplexable input streams only */
+    pa_loopnode   *loop;      /**< for looped back sources only */
     mir_dlist      rtentries; /**< for devices: listhead of nodchain,
                                    for streams: priority link (head is in
                                                                pa_router )
