@@ -225,7 +225,10 @@ void pa_discover_remove_card(struct userdata *u, pa_card *card)
 
 void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 {
+    pa_core         *core;
     pa_card_profile *prof;
+    pa_sink         *sink;
+    pa_source       *source;
     pa_discover     *discover;
     const char      *bus;
     pa_bool_t        pci;
@@ -234,9 +237,11 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
     uint32_t         stamp;
     mir_node        *node;
     void            *state;
+    uint32_t         index;
     
     pa_assert(u);
     pa_assert(card);
+    pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
 
 
@@ -254,6 +259,24 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
     if (!pci && !usb && !bluetooth) {
         pa_log_debug("ignoring profile change on card '%s' due to unsupported "
                      "bus type '%s'", pa_utils_get_card_name(card), bus);
+        u->state.sink = u->state.source = PA_IDXSET_INVALID;
+        return;
+    }
+
+    if ((index = u->state.sink) != PA_IDXSET_INVALID) {
+        if ((sink = pa_idxset_get_by_index(core->sinks, index)))
+            pa_discover_add_sink(u, sink, TRUE);
+        else
+            pa_log_debug("sink.%u is gone", index);
+        u->state.sink = PA_IDXSET_INVALID;
+    }
+
+    if ((index = u->state.source) != PA_IDXSET_INVALID) {
+        if ((source = pa_idxset_get_by_index(core->sources, index)))
+            pa_discover_add_source(u, source);
+        else
+            pa_log_debug("source.%u is gone", index);
+        u->state.source = PA_IDXSET_INVALID;
     }
 
     if (bluetooth) {
@@ -368,7 +391,10 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         if (!(key = node_key(u, mir_output,sink,ACTIVE_PORT, buf,sizeof(buf))))
             return;
         if (!(node = pa_discover_find_node_by_key(u, key))) {
-            pa_log_debug("can't find node for sink (key '%s')", key);
+            if (u->state.profile)
+                pa_log_debug("can't find node for sink (key '%s')", key);
+            else
+                u->state.sink = sink->index;
             return;
         }
         pa_log_debug("node for '%s' found (key %s). Updating with sink data",
@@ -471,7 +497,10 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
         if (!(key = node_key(u,mir_input,source,ACTIVE_PORT,kbf,sizeof(kbf))))
             return;
         if (!(node = pa_discover_find_node_by_key(u, key))) {
-            pa_log_debug("can't find node for source (key '%s')", key);
+            if (u->state.profile)
+                pa_log_debug("can't find node for source (key '%s')", key);
+            else
+                u->state.source = source->index;
             return;
         }
         pa_log_debug("node for '%s' found. Updating with source data",

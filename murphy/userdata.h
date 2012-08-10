@@ -84,6 +84,8 @@ typedef struct {
                            name. Otherwise it is NULL. When sink tracking
                            hooks called the card's active_profile still
                            points to the old profile */
+    uint32_t sink;
+    uint32_t source;
 } pa_mir_state;
 
 
