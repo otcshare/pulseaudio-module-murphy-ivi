@@ -516,8 +516,11 @@ pa_bool_t mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
     pa_assert(rtg);
     pa_assert(node);
 
-    accept = (node->type >= mir_device_class_begin &&
-              node->type < mir_device_class_end);
+    if (node->type == mir_bluetooth_carkit)
+        accept = FALSE;
+    else
+        accept = (node->type >= mir_device_class_begin &&
+                  node->type < mir_device_class_end);
         
     return accept;
 }
@@ -535,11 +538,12 @@ pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
     class = node->type;
 
     if (class >= mir_device_class_begin &&  class < mir_device_class_end) {
-        if (class != mir_bluetooth_a2dp  &&
-            class != mir_usb_headphone   &&
-            class != mir_wired_headphone &&
-            class != mir_hdmi            &&
-            class != mir_spdif             )
+        if (class != mir_bluetooth_a2dp   &&
+            class != mir_usb_headphone    &&
+            class != mir_wired_headphone  &&
+            class != mir_hdmi             &&
+            class != mir_spdif            &&
+            class != mir_bluetooth_carkit   )
         {
             return TRUE;
         }

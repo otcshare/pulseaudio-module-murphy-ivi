@@ -333,10 +333,7 @@ pa_bool_t pa_classify_multiplex_stream(mir_node *node)
 const char *pa_classify_loopback_stream(mir_node *node)
 {
     const char *role[mir_device_class_end - mir_device_class_begin] = {
-        /*
-        [ mir_bluetooth_sco    - mir_device_class_begin ] = "phone" ,
-        [ mir_bluetooth_carkit - mir_device_class_begin ] = "carkit",
-        */
+        [ mir_bluetooth_carkit - mir_device_class_begin ] = "phone",
         [ mir_bluetooth_source - mir_device_class_begin ] = "music" ,
     };
 
