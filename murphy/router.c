@@ -204,46 +204,6 @@ pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *u,
 }
 
 
-#if 0
-void mir_router_register_node(struct userdata *u, mir_node *node)
-{
-    pa_router   *router;
-    mir_rtgroup *rtg;
-    void        *state;
-    int          priority;
-    mir_node    *before;
-
-    pa_assert(u);
-    pa_assert(node);
-    pa_assert_se((router = u->router));
-    
-    if (node->implement == mir_device) {
-        if (node->direction == mir_output) {
-            PA_HASHMAP_FOREACH(rtg, router->rtgroups, state) {
-                add_rtentry(u, rtg, node);
-            }
-        }
-        return;
-    }
-    
-    if (node->implement == mir_stream) {
-        if (node->direction == mir_input) {
-            priority = node_priority(u, node);
-            
-            MIR_DLIST_FOR_EACH(mir_node, rtentries, before, &router->nodlist) {
-                if (priority < node_priority(u, before)) {
-                    MIR_DLIST_INSERT_BEFORE(mir_node, rtentries, node,
-                                            &before->rtentries);
-                    return;
-                }
-            }
-            
-            MIR_DLIST_APPEND(mir_node, rtentries, node, &router->nodlist);
-        }
-        return;
-    }
-}
-#endif
 
 void mir_router_register_node(struct userdata *u, mir_node *node)
 {
