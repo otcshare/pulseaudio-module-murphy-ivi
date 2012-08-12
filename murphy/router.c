@@ -755,8 +755,6 @@ static mir_node *find_default_route(struct userdata *u,
     mir_rtgroup   *rtg;
     mir_rtentry   *rte;
 
-    pa_assert(start->implement == mir_stream);
-
     if (class < 0 || class > router->maplen) {
         pa_log_debug("can't route '%s': class %d is out of range (0 - %d)",
                      start->amname, class, router->maplen);
