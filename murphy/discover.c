@@ -431,7 +431,8 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         }
         else {
             pa_xfree(data.key); /* for now */
-            pa_log_info("currently we do not support statically loaded sinks");
+            pa_log_info("currently we do not support "
+                        "statically loaded sinks");
             return;
         }
 
@@ -488,6 +489,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
     const char     *loopback_role;
     uint32_t        si;
     pa_sink        *ns;
+    mir_node        data;
 
     pa_assert(u);
     pa_assert(source);
@@ -523,6 +525,31 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
             mir_node_print(node, nbf, sizeof(nbf));
             pa_log_debug("updated node:\n%s", nbf);
         }
+    }
+    else {
+        memset(&data, 0, sizeof(data));
+        data.key = pa_xstrdup(source->name);
+        data.direction = mir_input;
+        data.implement = mir_device;
+        data.channels  = source->channel_map.channels;
+
+        if (source == pa_utils_get_null_source(u)) {
+            data.visible = FALSE;
+            data.available = TRUE;
+            data.type = mir_null;
+            data.amname = pa_xstrdup("Silent");
+            data.amid = AM_ID_INVALID;
+            data.paname = pa_xstrdup(source->name);
+            data.paidx = source->index;
+        }
+        else {
+            pa_xfree(data.key); /* for now */
+            pa_log_info("currently we do not support "
+                        "statically loaded sources");
+            return;
+        }
+
+        create_node(u, &data, NULL);
     }
 }
 
@@ -676,7 +703,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
         fake.type      = type;
         fake.visible   = TRUE;
         fake.available = TRUE;
-        fake.amname    = "<preroute>";
+        fake.amname    = "<preroute sink-input>";
 
         role = pa_proplist_gets(data->proplist, PA_PROP_MEDIA_ROLE);
         sink = make_output_prerouting(u, &fake, &data->channel_map, role,NULL);

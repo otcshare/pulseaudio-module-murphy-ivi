@@ -28,7 +28,7 @@ struct pa_null_sink;
 struct pa_null_sink *pa_utils_create_null_sink(struct userdata *,const char *);
 void pa_utils_destroy_null_sink(struct userdata *);
 pa_sink *pa_utils_get_null_sink(struct userdata *);
-
+pa_source *pa_utils_get_null_source(struct userdata *);
 
 char *pa_utils_get_card_name(pa_card *);
 char *pa_utils_get_sink_name(pa_sink *);

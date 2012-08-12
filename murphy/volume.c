@@ -148,6 +148,7 @@ void mir_volume_add_limiting_class(struct userdata *u,
     pa_mir_volume *volume;
     mir_vlim      *vlim;
     int           *classes;
+    size_t         classes_size;
     size_t         i;
 
     pa_assert(u);
@@ -155,28 +156,34 @@ void mir_volume_add_limiting_class(struct userdata *u,
     pa_assert_se((volume = u->volume));
     pa_assert(class >= 0);
 
-    vlim = &node->vlim;
+    if (node->implement == mir_device && node->direction == mir_output) {
 
-    reset_outdated_volume_limit(vlim, stamp);
+        vlim = &node->vlim;
 
-    if (class < volume->classlen && volume->classlim[class].nentry > 0) {
-        for (i = 0;   i < vlim->nclass;   i++) {
-            if (class == vlim->classes[i])
-                return; /* it is already registered */
+        reset_outdated_volume_limit(vlim, stamp);
+
+        if (class < volume->classlen && volume->classlim[class].nentry > 0) {
+            for (i = 0;   i < vlim->nclass;   i++) {
+                if (class == vlim->classes[i])
+                    return; /* it is already registered */
+            }
+
+            pa_log_debug("add limiting class %d (%s) to node '%s'",
+                         class, mir_node_type_str(class), node->amname);
+
+            if (vlim->nclass < vlim->maxentry)
+                classes = vlim->classes;
+            else {
+                classes_size = sizeof(int *) * vlim->maxentry;
+
+                vlim->maxentry += VLIM_CLASS_ALLOC_BUCKET;
+                vlim->classes   = realloc(vlim->classes, classes_size);
+
+                pa_assert_se((classes = vlim->classes));
+            }
+
+            vlim->classes[vlim->nclass++] = class;
         }
-
-        pa_log_debug("add limiting class %d (%s) to node '%s'",
-                     class, mir_node_type_str(class), node->amname);
-
-        if (vlim->nclass < vlim->maxentry)
-            classes = vlim->classes;
-        else {
-            vlim->maxentry += VLIM_CLASS_ALLOC_BUCKET;
-            vlim->classes = realloc(vlim->classes,sizeof(int*)*vlim->maxentry);
-            pa_assert_se((classes = vlim->classes));
-        }
-
-        vlim->classes[vlim->nclass++] = class;
     }
 }
 

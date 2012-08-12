@@ -131,6 +131,13 @@ pa_sink *pa_utils_get_null_sink(struct userdata *u)
     return pa_idxset_get_by_index(core->sinks, ns->sink_index);
 }
 
+pa_source *pa_utils_get_null_source(struct userdata *u)
+{
+    pa_sink *ns = pa_utils_get_null_sink(u);
+
+    return ns ? ns->monitor_source : NULL;
+}
+
 
 
 char *pa_utils_get_card_name(pa_card *card)
