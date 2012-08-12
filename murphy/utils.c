@@ -243,6 +243,28 @@ int pa_utils_get_stream_class(pa_proplist *pl)
     return (int)clid;
 }
 
+mir_node *pa_utils_get_node_from_stream(struct userdata *u,pa_sink_input *sinp)
+{
+    mir_node *node;
+    const char *index_str;
+    uint32_t index = PA_IDXSET_INVALID;
+    char *e;
+
+    pa_assert(u);
+    pa_assert(sinp);
+
+    if ((index_str = pa_proplist_gets(sinp->proplist, PA_PROP_NODE_INDEX))) {
+        index = strtoul(index_str, &e, 10);
+        if (e != index_str && *e == '\0') {
+            if ((node = mir_node_find_by_index(u, index)))
+                return node;
+
+            pa_log_debug("can't find find node for sink-input.%u",sinp->index);
+        }
+    }
+
+    return NULL;
+}
 
 static char *sink_input_name(pa_proplist *pl)
 {

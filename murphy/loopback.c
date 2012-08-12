@@ -30,7 +30,7 @@
 #include <pulsecore/sink.h>
 #include <pulsecore/sink-input.h>
 
-struct userdata;
+#include "userdata.h"
 
 #include "loopback.h"
 #include "utils.h"
@@ -57,6 +57,7 @@ void pa_loopback_done(pa_loopback *loopback, pa_core *core)
 
 pa_loopnode *pa_loopback_create(pa_loopback   *loopback,
                                 pa_core       *core,
+                                uint32_t       node_index,
                                 uint32_t       source_index,
                                 uint32_t       sink_index,
                                 const char    *media_role)
@@ -88,9 +89,10 @@ pa_loopnode *pa_loopback_create(pa_loopback   *loopback,
         media_role = "music";
 
     snprintf(args, sizeof(args), "source=\"%s\" sink=\"%s\" "
-             "sink_input_properties=%s=\"%s\"",
+             "sink_input_properties=\"%s=%s %s=%u\"",
              source->name, sink->name,
-             PA_PROP_MEDIA_ROLE, media_role);
+             PA_PROP_MEDIA_ROLE, media_role,
+             PA_PROP_NODE_INDEX, node_index);
 
     pa_log_debug("loading %s %s", modnam, args);
 
@@ -115,6 +117,7 @@ pa_loopnode *pa_loopback_create(pa_loopback   *loopback,
 
     loop = pa_xnew0(pa_loopnode, 1);
     loop->module_index = module->index;
+    loop->node_index = node_index;
     loop->sink_input_index = sink_input->index;
 
     PA_LLIST_PREPEND(pa_loopnode, loopback->loopnodes, loop);

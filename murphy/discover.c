@@ -480,6 +480,7 @@ void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
 
 void pa_discover_add_source(struct userdata *u, pa_source *source)
 {
+    pa_core        *core;
     pa_discover    *discover;
     mir_node       *node;
     pa_card        *card;
@@ -487,12 +488,13 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
     char            kbf[256];
     char            nbf[2048];
     const char     *loopback_role;
-    uint32_t        si;
+    uint32_t        sink_index;
     pa_sink        *ns;
     mir_node        data;
 
     pa_assert(u);
     pa_assert(source);
+    pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
 
     if ((card = source->card)) {
@@ -514,12 +516,12 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
                 pa_log("Can't load loopback module: no initial null sink");
                 return;
             }
-            node->loop = pa_loopback_create(u->loopback, u->core,
+            node->loop = pa_loopback_create(u->loopback, core, node->index,
                                             source->index, ns->index,
                                             loopback_role);
             if (node->loop) {
-                si = pa_loopback_get_sink_index(u->core, node->loop);
-                node->mux = pa_multiplex_find(u->multiplex, si);
+                sink_index = pa_loopback_get_sink_index(core, node->loop);
+                node->mux = pa_multiplex_find(u->multiplex, sink_index);
             }
 
             mir_node_print(node, nbf, sizeof(nbf));
@@ -745,71 +747,79 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = sinp->proplist));
 
+    if (!(media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME)))
+        media = "<unknown>";
 
-    if ((media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME))) {
-        if (!strncmp(media, combine_pattern, sizeof(combine_pattern)-1)) {
-            pa_log_debug("New stream is a combine stream. Nothing to do ...");
-            return;
-        }
-        if (!strncmp(media, loopback_pattern, sizeof(loopback_pattern)-1)) {
-            pa_log_debug("New stream is a loopback stream. Nothing to do ...");
-            return;
-        }
-    }
-
-    name = pa_utils_get_sink_input_name(sinp);
-
-    pa_log_debug("dealing with new stream '%s'", name);
-
-    if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
-        if (!(type = pa_classify_guess_stream_node_type(pl))) {
-            pa_log_debug("cant find stream class for '%s'. "
-                         "Leaving it alone", name);
-            return;
-        }
-
-        pa_utils_set_stream_routing_properties(pl, type, NULL);
-
-        /* if needed, make some post-routing here */
-    }
-
-    /* we need to add this to main hashmap as that is used for loop
-       through on all nodes. */
-    snprintf(key, sizeof(key), "stream_input.%d", sinp->index);
-
-    memset(&data, 0, sizeof(data));
-    data.key       = key;
-    data.direction = mir_input;
-    data.implement = mir_stream;
-    data.channels  = sinp->channel_map.channels;
-    data.type      = type;
-    data.visible   = TRUE;
-    data.available = TRUE;
-    data.amname    = name;
-    data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
-    data.amid      = AM_ID_INVALID;
-    data.paname    = name;
-    data.paidx     = sinp->index;
-    data.mux       = pa_multiplex_find(u->multiplex, sinp->sink->index);
-
-    node = create_node(u, &data, &created);
-
-    pa_assert(node);
-
-    if (!created) {
-        pa_log("%s: confused with stream. '%s' did exists",
-               __FILE__, node->amname);
+    if (!strncmp(media, combine_pattern, sizeof(combine_pattern)-1)) {
+        pa_log_debug("New stream is a combine stream. Nothing to do ...");
         return;
-    }
+    } else if (!strncmp(media, loopback_pattern, sizeof(loopback_pattern)-1)) {
+        pa_log_debug("New stream is a loopback stream");
 
-    pa_discover_add_node_to_ptr_hash(u, sinp, node);
+        if ((node = pa_utils_get_node_from_stream(u, sinp)))
+            pa_log_debug("loopback stream node '%s' found", node->amname); 
+        else {
+            pa_log_debug("can't find node for the loopback stream");
+            return;
+        }
 
-    if (!data.mux)
         s = sinp->sink;
+    }
     else {
-        csinp = pa_idxset_get_by_index(core->sink_inputs,
-                                       data.mux->defstream_index);
-        s = csinp ? csinp->sink : NULL;
+        name = pa_utils_get_sink_input_name(sinp);
+
+        pa_log_debug("dealing with new stream '%s'", name);
+        
+        if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
+            if (!(type = pa_classify_guess_stream_node_type(pl))) {
+                pa_log_debug("cant find stream class for '%s'. "
+                             "Leaving it alone", name);
+                return;
+            }
+            
+            pa_utils_set_stream_routing_properties(pl, type, NULL);
+            
+            /* if needed, make some post-routing here */
+        }
+        
+        /* we need to add this to main hashmap as that is used for loop
+           through on all nodes. */
+        snprintf(key, sizeof(key), "stream_input.%d", sinp->index);
+        
+        memset(&data, 0, sizeof(data));
+        data.key       = key;
+        data.direction = mir_input;
+        data.implement = mir_stream;
+        data.channels  = sinp->channel_map.channels;
+        data.type      = type;
+        data.visible   = TRUE;
+        data.available = TRUE;
+        data.amname    = name;
+        data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
+        data.amid      = AM_ID_INVALID;
+        data.paname    = name;
+        data.paidx     = sinp->index;
+        data.mux       = pa_multiplex_find(u->multiplex, sinp->sink->index);
+        
+        node = create_node(u, &data, &created);
+
+        pa_assert(node);
+
+        if (!created) {
+            pa_log("%s: confused with stream. '%s' did exists",
+                   __FILE__, node->amname);
+            return;
+        }
+
+        pa_discover_add_node_to_ptr_hash(u, sinp, node);
+        
+        if (!data.mux)
+            s = sinp->sink;
+        else {
+            csinp = pa_idxset_get_by_index(core->sink_inputs,
+                                           data.mux->defstream_index);
+            s = csinp ? csinp->sink : NULL;
+        }
     }
        
     if (s)
@@ -822,7 +832,6 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
                      node->amname, snod->amname);
         /* FIXME: and actually do it ... */
 
-
         pa_fader_apply_volume_limits(u, pa_utils_get_stamp());
     }
 }
@@ -834,6 +843,7 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
     mir_node       *node;
     mir_node       *sinknod;
     char           *name;
+    pa_loopnode    *loop;
 
     pa_assert(u);
     pa_assert(sinp);
@@ -841,10 +851,12 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
 
     name = pa_utils_get_sink_input_name(sinp);
 
+    pa_log("sink-input '%s' going to be destroyed", name);
+
     if (!(node = pa_discover_remove_node_from_ptr_hash(u, sinp)))
         pa_log_debug("can't find node for sink-input (name '%s')", name);
     else {
-        pa_log_debug("node found for '%s'. After clearing the route "
+        pa_log_debug("node found for '%s'. After clearing routes "
                      "it will be destroyed", name);
 
         if (!(sinknod = pa_hashmap_get(discover->nodes.byptr, sinp->sink)))
@@ -852,13 +864,13 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
         else {
             pa_log_debug("clear route '%s' => '%s'",
                          node->amname, sinknod->amname);
-
+            
             /* FIXME: and actually do it ... */
-
+            
         }
-
+            
         destroy_node(u, node);
-
+        
         mir_router_make_routing(u);
     }
 }

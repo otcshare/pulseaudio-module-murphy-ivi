@@ -41,6 +41,9 @@ void  pa_utils_set_stream_routing_method_property(pa_proplist *, pa_bool_t);
 pa_bool_t pa_utils_stream_has_default_route(pa_proplist *);
 int   pa_utils_get_stream_class(pa_proplist *);
 
+#ifdef foouserdatafoo  /* argh ... */
+mir_node *pa_utils_get_node_from_stream(struct userdata *, pa_sink_input *);
+#endif
 
 const char *pa_utils_file_path(const char *, char *, size_t);
 
