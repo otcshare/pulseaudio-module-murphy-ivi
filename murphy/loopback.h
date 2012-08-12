@@ -37,6 +37,7 @@ struct pa_loopnode {
     uint32_t   module_index;
     uint32_t   node_index;
     uint32_t   sink_input_index;
+    uint32_t   source_output_index;
 };
 
 pa_loopback *pa_loopback_init(void);

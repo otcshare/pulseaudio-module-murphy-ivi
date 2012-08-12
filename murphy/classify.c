@@ -341,7 +341,7 @@ const char *pa_classify_loopback_stream(mir_node *node)
 
     pa_assert(node);
 
-    if (node->implement == mir_device && node->direction == mir_input) {
+    if (node->implement == mir_device) {
         class = node->type;
 
         if (class >= mir_device_class_begin && class < mir_device_class_end) {

@@ -372,23 +372,28 @@ void pa_discover_port_available_changed(struct userdata *u,
 
 void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
 {
-    pa_module      *module;
+    pa_core        *core;
     pa_discover    *discover;
+    pa_module      *module;
     mir_node       *node;
     pa_card        *card;
     char           *key;
-    mir_node_type   type;
+    char            kbf[256];
+    char            nbf[2048];
+    const char     *loopback_role;
+    pa_source      *ns;
     mir_node        data;
-    char            buf[256];
+    mir_node_type   type;
 
     pa_assert(u);
     pa_assert(sink);
+    pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
 
     module = sink->module;
 
     if ((card = sink->card)) {
-        if (!(key = node_key(u, mir_output,sink,ACTIVE_PORT, buf,sizeof(buf))))
+        if (!(key = node_key(u, mir_output,sink,ACTIVE_PORT, kbf,sizeof(kbf))))
             return;
         if (!(node = pa_discover_find_node_by_key(u, key))) {
             if (u->state.profile)
@@ -402,9 +407,22 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         node->paidx = sink->index;
         pa_discover_add_node_to_ptr_hash(u, sink, node);
 
-        type = node->type;
+        if ((loopback_role = pa_classify_loopback_stream(node))) {
+            if (!(ns = pa_utils_get_null_source(u))) {
+                pa_log("Can't load loopback module: no initial null source");
+                return;
+            }
+            node->loop = pa_loopback_create(u->loopback, core, node->index,
+                                            ns->index, sink->index,
+                                            loopback_role);
+
+            mir_node_print(node, nbf, sizeof(nbf));
+            pa_log_debug("updated node:\n%s", nbf);
+        }
 
         if (route) {
+            type = node->type;
+
             if (type != mir_bluetooth_a2dp && type != mir_bluetooth_sco)
                 mir_router_make_routing(u);
             else {
@@ -754,10 +772,16 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         pa_log_debug("New stream is a combine stream. Nothing to do ...");
         return;
     } else if (!strncmp(media, loopback_pattern, sizeof(loopback_pattern)-1)) {
-        pa_log_debug("New stream is a loopback stream");
+        pa_log_debug("New stream is a loopback output stream");
 
-        if ((node = pa_utils_get_node_from_stream(u, sinp)))
-            pa_log_debug("loopback stream node '%s' found", node->amname); 
+        if ((node = pa_utils_get_node_from_stream(u, sinp))) {
+            if (node->direction == mir_input)
+                pa_log_debug("loopback stream node '%s' found", node->amname);
+            else {
+                pa_log_debug("ignoring it");
+                return;
+            }
+        }
         else {
             pa_log_debug("can't find node for the loopback stream");
             return;
