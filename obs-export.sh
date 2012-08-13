@@ -147,9 +147,9 @@ cd - >& /dev/null
 rm -f $DIR/$PKG.spec.in
 
 if [ "$MODE" = "gerrit" -a "$RELEASE" = "yes" ]; then
-    stamp="$(date -u +%F.%H%M%S)"
+    stamp="$(date -u +%Y%m%d.%H%M%S)"
     branch="gerrit-release-$stamp"
-    tag="build/$stamp"
+    tag="submit/trunk/$stamp"
     chlog=packaging/$PKG.changes
 
     echo "Preparing release branch $branch with tag $tag..."
