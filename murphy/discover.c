@@ -114,7 +114,9 @@ static mir_node_type get_stream_routing_class(pa_proplist *);
 static void schedule_deferred_routing(struct userdata *);
 static void schedule_card_check(struct userdata *, pa_card *);
 static void schedule_source_cleanup(struct userdata *, mir_node *);
+#if 0
 static void schedule_stream_uncorking(struct userdata *, pa_sink *);
+#endif
 
 static void pa_hashmap_node_free(void *node, void *u)
 {
@@ -742,7 +744,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
             if (node->direction == mir_output) {
                 pa_log_debug("refuse to preroute loopback sink-input "
                              "(current route: sink %u @ %p)", data->sink ?
-                             data->sink->index : PA_IDXSET_INVALID, sink);
+                             data->sink->index : PA_IDXSET_INVALID,data->sink);
                 return;
             }
 
@@ -906,7 +908,6 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
     mir_node       *node;
     mir_node       *sinknod;
     char           *name;
-    pa_loopnode    *loop;
 
     pa_assert(u);
     pa_assert(sinp);
@@ -1055,7 +1056,7 @@ void pa_discover_preroute_source_output(struct userdata *u,
         if (node->direction == mir_input) {
             pa_log_debug("refuse to preroute loopback source-output "
                          "(current route: source %u @ %p)", data->source ?
-                         data->source->index : PA_IDXSET_INVALID, source);
+                         data->source->index : PA_IDXSET_INVALID,data->source);
             return;
         }
 
@@ -1078,8 +1079,10 @@ void pa_discover_preroute_source_output(struct userdata *u,
         source = make_input_prerouting(u, &fake, role, NULL);
 
         if (source) {
-            if (pa_source_output_new_data_set_source(data, source, FALSE))
-                pa_log_debug("set source %u for new source-output");
+            if (pa_source_output_new_data_set_source(data, source, FALSE)) {
+                pa_log_debug("set source %u for new source-output",
+                             source->index);
+            }
             else {
                 pa_log("can't set source %u for new source-output",
                        source->index);
@@ -1198,7 +1201,6 @@ void pa_discover_remove_source_output(struct userdata  *u,
     mir_node       *node;
     mir_node       *srcnod;
     char           *name;
-    pa_loopnode    *loop;
 
     pa_assert(u);
     pa_assert(sout);
@@ -2062,6 +2064,7 @@ static void schedule_source_cleanup(struct userdata *u, mir_node *node)
 }
 
 
+#if 0
 static void stream_uncork_cb(pa_mainloop_api *m, void *d)
 {
     stream_uncork_t *suc = d;
@@ -2116,7 +2119,7 @@ static void schedule_stream_uncorking(struct userdata *u, pa_sink *sink)
 
     pa_mainloop_api_once(core->mainloop, stream_uncork_cb, suc);
 }
-
+#endif
 
 /*
  * Local Variables:
