@@ -79,8 +79,9 @@ typedef struct {
     uint32_t index;
 } stream_uncork_t;
 
-static const char combine_pattern[]  = "Simultaneous output on ";
-static const char loopback_pattern[] = "Loopback from ";
+static const char combine_pattern[]   = "Simultaneous output on ";
+static const char loopback_outpatrn[] = "Loopback from ";
+static const char loopback_inpatrn[]  = "Loopback to ";
 
 static void handle_alsa_card(struct userdata *, pa_card *);
 static void handle_bluetooth_card(struct userdata *, pa_card *);
@@ -104,6 +105,8 @@ static char *node_key(struct userdata *, mir_direction,
 static pa_sink *make_output_prerouting(struct userdata *, mir_node *,
                                        pa_channel_map *, const char *,
                                        mir_node **);
+static pa_source *make_input_prerouting(struct userdata *, mir_node *,
+                                        const char *, mir_node **);
 
 static mir_node_type get_stream_routing_class(pa_proplist *);
 
@@ -225,7 +228,10 @@ void pa_discover_remove_card(struct userdata *u, pa_card *card)
 
 void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 {
+    pa_core         *core;
     pa_card_profile *prof;
+    pa_sink         *sink;
+    pa_source       *source;
     pa_discover     *discover;
     const char      *bus;
     pa_bool_t        pci;
@@ -234,9 +240,11 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
     uint32_t         stamp;
     mir_node        *node;
     void            *state;
+    uint32_t         index;
     
     pa_assert(u);
     pa_assert(card);
+    pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
 
 
@@ -254,6 +262,24 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
     if (!pci && !usb && !bluetooth) {
         pa_log_debug("ignoring profile change on card '%s' due to unsupported "
                      "bus type '%s'", pa_utils_get_card_name(card), bus);
+        u->state.sink = u->state.source = PA_IDXSET_INVALID;
+        return;
+    }
+
+    if ((index = u->state.sink) != PA_IDXSET_INVALID) {
+        if ((sink = pa_idxset_get_by_index(core->sinks, index)))
+            pa_discover_add_sink(u, sink, TRUE);
+        else
+            pa_log_debug("sink.%u is gone", index);
+        u->state.sink = PA_IDXSET_INVALID;
+    }
+
+    if ((index = u->state.source) != PA_IDXSET_INVALID) {
+        if ((source = pa_idxset_get_by_index(core->sources, index)))
+            pa_discover_add_source(u, source);
+        else
+            pa_log_debug("source.%u is gone", index);
+        u->state.source = PA_IDXSET_INVALID;
     }
 
     if (bluetooth) {
@@ -349,36 +375,58 @@ void pa_discover_port_available_changed(struct userdata *u,
 
 void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
 {
-    pa_module      *module;
+    pa_core        *core;
     pa_discover    *discover;
+    pa_module      *module;
     mir_node       *node;
     pa_card        *card;
     char           *key;
-    mir_node_type   type;
+    char            kbf[256];
+    char            nbf[2048];
+    const char     *loopback_role;
+    pa_source      *ns;
     mir_node        data;
-    char            buf[256];
+    mir_node_type   type;
 
     pa_assert(u);
     pa_assert(sink);
+    pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
 
     module = sink->module;
 
     if ((card = sink->card)) {
-        if (!(key = node_key(u, mir_output,sink,ACTIVE_PORT, buf,sizeof(buf))))
+        if (!(key = node_key(u, mir_output,sink,ACTIVE_PORT, kbf,sizeof(kbf))))
             return;
         if (!(node = pa_discover_find_node_by_key(u, key))) {
-            pa_log_debug("can't find node for sink (key '%s')", key);
+            if (u->state.profile)
+                pa_log_debug("can't find node for sink (key '%s')", key);
+            else
+                u->state.sink = sink->index;
             return;
         }
         pa_log_debug("node for '%s' found (key %s). Updating with sink data",
                      node->paname, node->key);
         node->paidx = sink->index;
+        node->available = TRUE;
         pa_discover_add_node_to_ptr_hash(u, sink, node);
 
-        type = node->type;
+        if ((loopback_role = pa_classify_loopback_stream(node))) {
+            if (!(ns = pa_utils_get_null_source(u))) {
+                pa_log("Can't load loopback module: no initial null source");
+                return;
+            }
+            node->loop = pa_loopback_create(u->loopback, core, node->index,
+                                            ns->index, sink->index,
+                                            loopback_role);
+
+            mir_node_print(node, nbf, sizeof(nbf));
+            pa_log_debug("updated node:\n%s", nbf);
+        }
 
         if (route) {
+            type = node->type;
+
             if (type != mir_bluetooth_a2dp && type != mir_bluetooth_sco)
                 mir_router_make_routing(u);
             else {
@@ -405,7 +453,8 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         }
         else {
             pa_xfree(data.key); /* for now */
-            pa_log_info("currently we do not support statically loaded sinks");
+            pa_log_info("currently we do not support "
+                        "statically loaded sinks");
             return;
         }
 
@@ -431,6 +480,7 @@ void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
         pa_log_debug("can't find node for sink (name '%s')", name);
     else {
         pa_log_debug("node found for '%s'. Reseting sink data", name);
+        schedule_source_cleanup(u, node);
         node->paidx = PA_IDXSET_INVALID;
         pa_hashmap_remove(discover->nodes.byptr, sink);
 
@@ -441,7 +491,7 @@ void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
                 node->available = FALSE;
             else {
                 if (!u->state.profile)
-                    schedule_deferred_routing(u);
+                    schedule_deferred_routing(u);                
             }
         }
         else {
@@ -453,6 +503,7 @@ void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
 
 void pa_discover_add_source(struct userdata *u, pa_source *source)
 {
+    pa_core        *core;
     pa_discover    *discover;
     mir_node       *node;
     pa_card        *card;
@@ -460,40 +511,71 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
     char            kbf[256];
     char            nbf[2048];
     const char     *loopback_role;
-    uint32_t        si;
+    uint32_t        sink_index;
     pa_sink        *ns;
+    mir_node        data;
 
     pa_assert(u);
     pa_assert(source);
+    pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
 
     if ((card = source->card)) {
         if (!(key = node_key(u,mir_input,source,ACTIVE_PORT,kbf,sizeof(kbf))))
             return;
         if (!(node = pa_discover_find_node_by_key(u, key))) {
-            pa_log_debug("can't find node for source (key '%s')", key);
+            if (u->state.profile)
+                pa_log_debug("can't find node for source (key '%s')", key);
+            else
+                u->state.source = source->index;
             return;
         }
         pa_log_debug("node for '%s' found. Updating with source data",
                      node->amname);
         node->paidx = source->index;
+        node->available = TRUE;
         pa_discover_add_node_to_ptr_hash(u, source, node);
         if ((loopback_role = pa_classify_loopback_stream(node))) {
             if (!(ns = pa_utils_get_null_sink(u))) {
                 pa_log("Can't load loopback module: no initial null sink");
                 return;
             }
-            node->loop = pa_loopback_create(u->loopback, u->core,
+            node->loop = pa_loopback_create(u->loopback, core, node->index,
                                             source->index, ns->index,
                                             loopback_role);
             if (node->loop) {
-                si = pa_loopback_get_sink_index(u->core, node->loop);
-                node->mux = pa_multiplex_find(u->multiplex, si);
+                sink_index = pa_loopback_get_sink_index(core, node->loop);
+                node->mux = pa_multiplex_find(u->multiplex, sink_index);
             }
 
             mir_node_print(node, nbf, sizeof(nbf));
             pa_log_debug("updated node:\n%s", nbf);
         }
+    }
+    else {
+        memset(&data, 0, sizeof(data));
+        data.key = pa_xstrdup(source->name);
+        data.direction = mir_input;
+        data.implement = mir_device;
+        data.channels  = source->channel_map.channels;
+
+        if (source == pa_utils_get_null_source(u)) {
+            data.visible = FALSE;
+            data.available = TRUE;
+            data.type = mir_null;
+            data.amname = pa_xstrdup("Silent");
+            data.amid = AM_ID_INVALID;
+            data.paname = pa_xstrdup(source->name);
+            data.paidx = source->index;
+        }
+        else {
+            pa_xfree(data.key); /* for now */
+            pa_log_info("currently we do not support "
+                        "statically loaded sources");
+            return;
+        }
+
+        create_node(u, &data, NULL);
     }
 }
 
@@ -503,6 +585,7 @@ void pa_discover_remove_source(struct userdata *u, pa_source *source)
     pa_discover    *discover;
     mir_node       *node;
     char           *name;
+    mir_node_type   type;
 
     pa_assert(u);
     pa_assert(source);
@@ -517,6 +600,21 @@ void pa_discover_remove_source(struct userdata *u, pa_source *source)
         schedule_source_cleanup(u, node);
         node->paidx = PA_IDXSET_INVALID;
         pa_hashmap_remove(discover->nodes.byptr, source);
+
+        type = node->type;
+
+        if (source->card) {
+            if (type != mir_bluetooth_sco)
+                node->available = FALSE;
+            else {
+                if (!u->state.profile)
+                    schedule_deferred_routing(u);
+            }
+        }
+        else {
+            pa_log_info("currently we do not support statically "
+                        "loaded sources");
+        }
     }
 }
 
@@ -547,7 +645,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
             pa_log_debug("Seems to be a combine stream. Nothing to do ...");
             return;
         }
-        if (!strncmp(media, loopback_pattern, sizeof(loopback_pattern)-1)) {
+        if (!strncmp(media, loopback_outpatrn, sizeof(loopback_outpatrn)-1)) {
             pa_log_debug("Seems to be a loopback stream. Nothing to do ...");
             return;
         }
@@ -555,7 +653,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
 
     name = pa_utils_get_sink_input_name(sinp);
 
-    pa_log_debug("registering stream '%s'", name);
+    pa_log_debug("registering input stream '%s'", name);
 
     if (!(type = pa_classify_guess_stream_node_type(pl))) {
         pa_log_debug("cant find stream class for '%s'. "
@@ -621,6 +719,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     const char    *mnam;
     const char    *role;
     mir_node_type  type;
+    mir_node      *node;
     
     pa_assert(u);
     pa_assert(data);
@@ -633,8 +732,22 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     if (pa_streq(mnam, "module-combine-sink"))
         type = mir_node_type_unknown;
     else {
-        if (pa_streq(mnam, "module-loopback"))
+        if (pa_streq(mnam, "module-loopback")) {
+
+            if (!(node = pa_utils_get_node_from_data(u, mir_input, data))) {
+                pa_log_debug("can't find loopback node for sink-input");
+                return;
+            }
+
+            if (node->direction == mir_output) {
+                pa_log_debug("refuse to preroute loopback sink-input "
+                             "(current route: sink %u @ %p)", data->sink ?
+                             data->sink->index : PA_IDXSET_INVALID, sink);
+                return;
+            }
+
             data->sink = NULL;
+        }
         type = pa_classify_guess_stream_node_type(pl);
         pa_utils_set_stream_routing_properties(pl, type, data->sink);
     }
@@ -647,7 +760,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
         fake.type      = type;
         fake.visible   = TRUE;
         fake.available = TRUE;
-        fake.amname    = "<preroute>";
+        fake.amname    = "<preroute sink-input>";
 
         role = pa_proplist_gets(data->proplist, PA_PROP_MEDIA_ROLE);
         sink = make_output_prerouting(u, &fake, &data->channel_map, role,NULL);
@@ -660,8 +773,10 @@ void pa_discover_preroute_sink_input(struct userdata *u,
             }
 #endif
 
-            if (!pa_sink_input_new_data_set_sink(data, sink, FALSE))
-                pa_log("can't set sink %d for new sink-input", sink->index);
+            if (pa_sink_input_new_data_set_sink(data, sink, FALSE))
+                pa_log_debug("set sink %u for new sink-input", sink->index);
+            else 
+                pa_log("can't set sink %u for new sink-input", sink->index);
         }
     }
 }
@@ -689,71 +804,85 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = sinp->proplist));
 
+    if (!(media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME)))
+        media = "<unknown>";
 
-    if ((media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME))) {
-        if (!strncmp(media, combine_pattern, sizeof(combine_pattern)-1)) {
-            pa_log_debug("New stream is a combine stream. Nothing to do ...");
-            return;
-        }
-        if (!strncmp(media, loopback_pattern, sizeof(loopback_pattern)-1)) {
-            pa_log_debug("New stream is a loopback stream. Nothing to do ...");
-            return;
-        }
-    }
-
-    name = pa_utils_get_sink_input_name(sinp);
-
-    pa_log_debug("dealing with new stream '%s'", name);
-
-    if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
-        if (!(type = pa_classify_guess_stream_node_type(pl))) {
-            pa_log_debug("cant find stream class for '%s'. "
-                         "Leaving it alone", name);
-            return;
-        }
-
-        pa_utils_set_stream_routing_properties(pl, type, NULL);
-
-        /* if needed, make some post-routing here */
-    }
-
-    /* we need to add this to main hashmap as that is used for loop
-       through on all nodes. */
-    snprintf(key, sizeof(key), "stream_input.%d", sinp->index);
-
-    memset(&data, 0, sizeof(data));
-    data.key       = key;
-    data.direction = mir_input;
-    data.implement = mir_stream;
-    data.channels  = sinp->channel_map.channels;
-    data.type      = type;
-    data.visible   = TRUE;
-    data.available = TRUE;
-    data.amname    = name;
-    data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
-    data.amid      = AM_ID_INVALID;
-    data.paname    = name;
-    data.paidx     = sinp->index;
-    data.mux       = pa_multiplex_find(u->multiplex, sinp->sink->index);
-
-    node = create_node(u, &data, &created);
-
-    pa_assert(node);
-
-    if (!created) {
-        pa_log("%s: confused with stream. '%s' did exists",
-               __FILE__, node->amname);
+    if (!strncmp(media, combine_pattern, sizeof(combine_pattern)-1)) {
+        pa_log_debug("New stream is a combine stream. Nothing to do ...");
         return;
-    }
+    } else if (!strncmp(media, loopback_outpatrn,sizeof(loopback_outpatrn)-1)){
+        pa_log_debug("New stream is a loopback output stream");
 
-    pa_discover_add_node_to_ptr_hash(u, sinp, node);
+        if ((node = pa_utils_get_node_from_stream(u, mir_input, sinp))) {
+            if (node->direction == mir_input)
+                pa_log_debug("loopback stream node '%s' found", node->amname);
+            else {
+                pa_log_debug("ignoring it");
+                return;
+            }
+        }
+        else {
+            pa_log_debug("can't find node for the loopback stream");
+            return;
+        }
 
-    if (!data.mux)
         s = sinp->sink;
+    }
     else {
-        csinp = pa_idxset_get_by_index(core->sink_inputs,
-                                       data.mux->defstream_index);
-        s = csinp ? csinp->sink : NULL;
+        name = pa_utils_get_sink_input_name(sinp);
+
+        pa_log_debug("dealing with new input stream '%s'", name);
+        
+        if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
+            if (!(type = pa_classify_guess_stream_node_type(pl))) {
+                pa_log_debug("cant find stream class for '%s'. "
+                             "Leaving it alone", name);
+                return;
+            }
+            
+            pa_utils_set_stream_routing_properties(pl, type, NULL);
+            
+            /* if needed, make some post-routing here */
+        }
+        
+        /* we need to add this to main hashmap as that is used for loop
+           through on all nodes. */
+        snprintf(key, sizeof(key), "stream_input.%d", sinp->index);
+        
+        memset(&data, 0, sizeof(data));
+        data.key       = key;
+        data.direction = mir_input;
+        data.implement = mir_stream;
+        data.channels  = sinp->channel_map.channels;
+        data.type      = type;
+        data.visible   = TRUE;
+        data.available = TRUE;
+        data.amname    = name;
+        data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
+        data.amid      = AM_ID_INVALID;
+        data.paname    = name;
+        data.paidx     = sinp->index;
+        data.mux       = pa_multiplex_find(u->multiplex, sinp->sink->index);
+        
+        node = create_node(u, &data, &created);
+
+        pa_assert(node);
+
+        if (!created) {
+            pa_log("%s: confused with stream. '%s' did exists",
+                   __FILE__, node->amname);
+            return;
+        }
+
+        pa_discover_add_node_to_ptr_hash(u, sinp, node);
+        
+        if (!data.mux)
+            s = sinp->sink;
+        else {
+            csinp = pa_idxset_get_by_index(core->sink_inputs,
+                                           data.mux->defstream_index);
+            s = csinp ? csinp->sink : NULL;
+        }
     }
        
     if (s)
@@ -766,7 +895,6 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
                      node->amname, snod->amname);
         /* FIXME: and actually do it ... */
 
-
         pa_fader_apply_volume_limits(u, pa_utils_get_stamp());
     }
 }
@@ -778,6 +906,7 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
     mir_node       *node;
     mir_node       *sinknod;
     char           *name;
+    pa_loopnode    *loop;
 
     pa_assert(u);
     pa_assert(sinp);
@@ -785,10 +914,12 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
 
     name = pa_utils_get_sink_input_name(sinp);
 
+    pa_log("sink-input '%s' going to be destroyed", name);
+
     if (!(node = pa_discover_remove_node_from_ptr_hash(u, sinp)))
         pa_log_debug("can't find node for sink-input (name '%s')", name);
     else {
-        pa_log_debug("node found for '%s'. After clearing the route "
+        pa_log_debug("node found for '%s'. After clearing routes "
                      "it will be destroyed", name);
 
         if (!(sinknod = pa_hashmap_get(discover->nodes.byptr, sinp->sink)))
@@ -796,13 +927,305 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
         else {
             pa_log_debug("clear route '%s' => '%s'",
                          node->amname, sinknod->amname);
-
+            
             /* FIXME: and actually do it ... */
+            
+        }
+            
+        destroy_node(u, node);
+        
+        mir_router_make_routing(u);
+    }
+}
 
+
+void pa_discover_register_source_output(struct userdata  *u,
+                                        pa_source_output *sout)
+{
+    pa_core       *core;
+    pa_discover   *discover;
+    pa_proplist   *pl;
+    char          *name;
+    const char    *media;
+    mir_node_type  type;
+    mir_node       data;
+    mir_node      *node;
+    mir_node      *target;
+    char           key[256];
+    pa_source     *source;
+    const char    *role;
+
+    pa_assert(u);
+    pa_assert(sout);
+    pa_assert_se((core = u->core));
+    pa_assert_se((discover = u->discover));
+    pa_assert_se((pl = sout->proplist));
+    
+    if ((media = pa_proplist_gets(sout->proplist, PA_PROP_MEDIA_NAME))) {
+        if (!strncmp(media, loopback_inpatrn, sizeof(loopback_inpatrn)-1)) {
+            pa_log_debug("Seems to be a loopback stream. Nothing to do ...");
+            return;
+        }
+    }
+
+    name = pa_utils_get_source_output_name(sout);
+
+    pa_log_debug("registering output stream '%s'", name);
+
+    if (!(type = pa_classify_guess_stream_node_type(pl))) {
+        pa_log_debug("cant find stream class for '%s'. "
+                     "Leaving it alone", name);
+        return;
+    }
+
+    pa_utils_set_stream_routing_properties(pl, type, NULL);
+
+    snprintf(key, sizeof(key), "stream_output.%d", sout->index);
+
+    memset(&data, 0, sizeof(data));
+    data.key       = key;
+    data.direction = mir_output;
+    data.implement = mir_stream;
+    data.channels  = sout->channel_map.channels;
+    data.type      = type;
+    data.visible   = TRUE;
+    data.available = TRUE;
+    data.amname    = name;
+    data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
+    data.amid      = AM_ID_INVALID;
+    data.paname    = name;
+    data.paidx     = sout->index;
+
+    /*
+     * here we can't guess whether the application requested an explicit
+     * route by sepcifying the target source @ stream creation time.
+     *
+     * the brute force solution: we make a default route for this stream
+     * possibly overwiriting the orginal app request :(
+     */
+    role   = pa_proplist_gets(sout->proplist, PA_PROP_MEDIA_ROLE);
+    source = make_input_prerouting(u, &data, role, &target);
+
+    node = create_node(u, &data, NULL);
+    pa_assert(node);
+    pa_discover_add_node_to_ptr_hash(u, sout, node);
+
+    if (source && target) {
+        pa_log_debug("move stream to source %u (%s)",
+                     source->index, source->name);
+
+        if (pa_source_output_move_to(sout, source, FALSE) < 0)
+            pa_log("failed to route '%s' => '%s'",node->amname,target->amname);
+        else {
+            pa_log_debug("register route '%s' => '%s'",
+                         node->amname, target->amname);
+            /* FIXME: and actually do it ... */
+        }
+    }
+}
+
+void pa_discover_preroute_source_output(struct userdata *u,
+                                        pa_source_output_new_data *data)
+{
+    pa_core       *core;
+    pa_module     *m;
+    pa_proplist   *pl;
+    pa_discover   *discover;
+    mir_node       fake;
+    pa_source     *source;
+    const char    *mnam;
+    const char    *role;
+    mir_node_type  type;
+    mir_node      *node;
+    
+    pa_assert(u);
+    pa_assert(data);
+    pa_assert_se((core = u->core));
+    pa_assert_se((discover = u->discover));
+    pa_assert_se((pl = data->proplist));
+
+    mnam = (m = data->module) ? m->name : "";
+
+    if (pa_streq(mnam, "module-loopback")) {
+        if (!(node = pa_utils_get_node_from_data(u, mir_output, data))) {
+            pa_log_debug("can't find loopback node for source-output");
+            return;
         }
 
-        destroy_node(u, node);
+        if (node->direction == mir_input) {
+            pa_log_debug("refuse to preroute loopback source-output "
+                         "(current route: source %u @ %p)", data->source ?
+                         data->source->index : PA_IDXSET_INVALID, source);
+            return;
+        }
 
+        data->source = NULL;
+    }
+    type = pa_classify_guess_stream_node_type(pl);
+    pa_utils_set_stream_routing_properties(pl, type, data->source);
+
+    if (!data->source) {
+        memset(&fake, 0, sizeof(fake));
+        fake.direction = mir_output;
+        fake.implement = mir_stream;
+        fake.channels  = data->channel_map.channels;
+        fake.type      = type;
+        fake.visible   = TRUE;
+        fake.available = TRUE;
+        fake.amname    = "<preroute source-output>";
+
+        role   = pa_proplist_gets(data->proplist, PA_PROP_MEDIA_ROLE);
+        source = make_input_prerouting(u, &fake, role, NULL);
+
+        if (source) {
+            if (pa_source_output_new_data_set_source(data, source, FALSE))
+                pa_log_debug("set source %u for new source-output");
+            else {
+                pa_log("can't set source %u for new source-output",
+                       source->index);
+            }
+        }
+    }
+}
+
+
+void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
+{
+    pa_core        *core;
+    pa_source      *s;
+    pa_proplist    *pl;
+    pa_discover    *discover;
+    mir_node        data;
+    mir_node       *node;
+    mir_node       *snod;
+    char           *name;
+    const char     *media;
+    mir_node_type   type;
+    char            key[256];
+    pa_bool_t       created;
+
+    pa_assert(u);
+    pa_assert(sout);
+    pa_assert_se((core = u->core));
+    pa_assert_se((discover = u->discover));
+    pa_assert_se((pl = sout->proplist));
+
+    if (!(media = pa_proplist_gets(sout->proplist, PA_PROP_MEDIA_NAME)))
+        media = "<unknown>";
+
+    if (!strncmp(media, loopback_inpatrn, sizeof(loopback_inpatrn)-1)) {
+        pa_log_debug("New stream is a loopback input stream");
+
+        if ((node = pa_utils_get_node_from_stream(u, mir_output, sout))) {
+            if (node->direction == mir_output)
+                pa_log_debug("loopback stream node '%s' found", node->amname);
+            else {
+                pa_log_debug("ignoring it");
+                return;
+            }
+        }
+        else {
+            pa_log_debug("can't find node for the loopback stream");
+            return;
+        }
+    }
+    else {
+        name = pa_utils_get_source_output_name(sout);
+
+        pa_log_debug("dealing with new output stream '%s'", name);
+        
+        if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
+            if (!(type = pa_classify_guess_stream_node_type(pl))) {
+                pa_log_debug("cant find stream class for '%s'. "
+                             "Leaving it alone", name);
+                return;
+            }
+            
+            pa_utils_set_stream_routing_properties(pl, type, NULL);
+            
+            /* if needed, make some post-routing here */
+        }
+        
+        /* we need to add this to main hashmap as that is used for loop
+           through on all nodes. */
+        snprintf(key, sizeof(key), "stream_output.%d", sout->index);
+        
+        memset(&data, 0, sizeof(data));
+        data.key       = key;
+        data.direction = mir_output;
+        data.implement = mir_stream;
+        data.channels  = sout->channel_map.channels;
+        data.type      = type;
+        data.visible   = TRUE;
+        data.available = TRUE;
+        data.amname    = name;
+        data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
+        data.amid      = AM_ID_INVALID;
+        data.paname    = name;
+        data.paidx     = sout->index;
+        
+        node = create_node(u, &data, &created);
+
+        pa_assert(node);
+
+        if (!created) {
+            pa_log("%s: confused with stream. '%s' did exists",
+                   __FILE__, node->amname);
+            return;
+        }
+
+        pa_discover_add_node_to_ptr_hash(u, sout, node);        
+    }
+
+    if ((s = sout->source))
+        pa_log_debug("routing target candidate is %u (%s)", s->index, s->name);
+
+    if (!s || !(snod = pa_hashmap_get(discover->nodes.byptr, s)))
+        pa_log_debug("can't figure out where this stream is routed");
+    else {
+        pa_log_debug("register route '%s' => '%s'",
+                     snod->amname, node->amname);
+        /* FIXME: and actually do it ... */
+
+    }
+}
+
+
+void pa_discover_remove_source_output(struct userdata  *u,
+                                      pa_source_output *sout)
+{
+    pa_discover    *discover;
+    mir_node       *node;
+    mir_node       *srcnod;
+    char           *name;
+    pa_loopnode    *loop;
+
+    pa_assert(u);
+    pa_assert(sout);
+    pa_assert_se((discover = u->discover));
+
+    name = pa_utils_get_source_output_name(sout);
+
+    pa_log("source-output '%s' going to be destroyed", name);
+
+    if (!(node = pa_discover_remove_node_from_ptr_hash(u, sout)))
+        pa_log_debug("can't find node for source-output (name '%s')", name);
+    else {
+        pa_log_debug("node found for '%s'. After clearing routes "
+                     "it will be destroyed", name);
+
+        if (!(srcnod = pa_hashmap_get(discover->nodes.byptr, sout->source)))
+            pa_log_debug("can't figure out where this stream is routed");
+        else {
+            pa_log_debug("clear route '%s' => '%s'",
+                         node->amname, srcnod->amname);
+            
+            /* FIXME: and actually do it ... */
+            
+        }
+            
+        destroy_node(u, node);
+        
         mir_router_make_routing(u);
     }
 }
@@ -956,8 +1379,10 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
                 snprintf(key, sizeof(key), "%s@%s", paname, prof->name);
                 pa_classify_node_by_card(&data, card, prof, NULL);
                 node = create_node(u, &data, NULL);
+#if 0
                 cd = mir_constrain_create(u, "profile", mir_constrain_profile,
                                           paname);
+#endif
                 mir_constrain_add_node(u, cd, node);
             }
 
@@ -970,6 +1395,10 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
                 snprintf(key, sizeof(key), "%s@%s", paname, prof->name);
                 pa_classify_node_by_card(&data, card, prof, NULL);
                 node = create_node(u, &data, NULL);
+#if 0
+                cd = mir_constrain_create(u, "profile", mir_constrain_profile,
+                                          paname);
+#endif
                 mir_constrain_add_node(u, cd, node);
             }
         }
@@ -1414,7 +1843,7 @@ static pa_sink *make_output_prerouting(struct userdata *u,
         pa_log("can't route to default '%s': no sink", target->amname);
     else {
         if (!(sink = pa_idxset_get_by_index(core->sinks, target->paidx)))
-            pa_log("can't route to default '%s': sink is gone",target->amname);
+            pa_log("no route to default '%s': sink is gone", target->amname);
         else {
             if (pa_classify_multiplex_stream(data)) {
                 data->mux = pa_multiplex_create(u->multiplex, core,
@@ -1435,6 +1864,36 @@ static pa_sink *make_output_prerouting(struct userdata *u,
     return sink;
 }
 
+
+static pa_source *make_input_prerouting(struct userdata *u,
+                                        mir_node        *data,
+                                        const char      *media_role,
+                                        mir_node       **target_ret)
+{
+    pa_core    *core;
+    mir_node   *target;
+    pa_source  *source = NULL;
+
+    pa_assert(u);
+    pa_assert(data);
+    pa_assert_se((core = u->core));
+        
+    target = mir_router_make_prerouting(u, data);
+
+    if (!target)
+        pa_log("there is no default route for the stream '%s'", data->amname);
+    else if (target->paidx == PA_IDXSET_INVALID)
+        pa_log("can't route to default '%s': no source", target->amname);
+    else {
+        if (!(source = pa_idxset_get_by_index(core->sources, target->paidx)))
+            pa_log("no route to default '%s': source is gone",target->amname);
+    }
+
+    if (target_ret)
+        *target_ret = target;
+
+    return source;
+}
 
 static mir_node_type get_stream_routing_class(pa_proplist *pl)
 {

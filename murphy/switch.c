@@ -41,21 +41,22 @@
 #include "utils.h"
 #include "classify.h"
 
-static pa_bool_t setup_explicit_link_from_stream_to_device(struct userdata *,
-                                                           mir_node *,
-                                                           mir_node *);
-static pa_bool_t teardown_explicit_link_from_stream_to_device(struct userdata*,
-                                                              mir_node *,
-                                                              mir_node *);
+static pa_bool_t setup_explicit_stream2dev_link(struct userdata *,
+                                                mir_node *,
+                                                mir_node *);
+static pa_bool_t teardown_explicit_stream2dev_link(struct userdata*, mir_node*,
+                                                   mir_node *);
 
-static pa_bool_t setup_default_link_from_stream_to_device(struct userdata *,
-                                                          mir_node *,
-                                                          mir_node *);
-static pa_bool_t setup_default_link_from_device_to_device(struct userdata *,
-                                                          mir_node *,
-                                                          mir_node *);
+static pa_bool_t setup_default_dev2stream_link(struct userdata *, mir_node *,
+                                               mir_node *);
+static pa_bool_t setup_default_stream2dev_link(struct userdata *, mir_node *,
+                                               mir_node *);
+static pa_bool_t setup_default_dev2dev_link(struct userdata *,
+                                            mir_node *,
+                                            mir_node *);
 
-static pa_sink *setup_device_output(struct userdata *, mir_node *);
+static pa_source *setup_device_input(struct userdata *, mir_node *);
+static pa_sink   *setup_device_output(struct userdata *, mir_node *);
 
 static pa_bool_t set_profile(struct userdata *, mir_node *);
 static pa_bool_t set_port(struct userdata *, mir_node *);
@@ -69,16 +70,16 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
     pa_core *core;
 
     pa_assert(u);
-    pa_assert(to);
     pa_assert_se((core = u->core));
     pa_assert(!from || from->direction == mir_input);
-    pa_assert(to->direction == mir_output);
+    pa_assert(!to || to->direction == mir_output);
 
     if (explicit) {
         /*
          * links for explic routes
          */
         pa_assert(from);
+        pa_assert(to);
 
         switch (from->implement) {
 
@@ -90,7 +91,7 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
                 break;
 
             case mir_device:
-                if (!setup_explicit_link_from_stream_to_device(u, from, to))
+                if (!setup_explicit_stream2dev_link(u, from, to))
                     return FALSE;
                 break;
 
@@ -115,25 +116,22 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
         /*
          * links for default routes
          */
-        switch (to->implement) {
+        pa_assert(from || to);
 
-        case mir_stream:
-            pa_log_debug("routing to a stream is not implemented yet");
-            break;
+        if (to) {
+            /* default input route */
+            switch (to->implement) {
 
-        case mir_device:
-            if (!from) /* prerouting */
-                return (!explicit && setup_device_output(u, to) != NULL);
-            else {
+            case mir_stream:
+                pa_assert(from);
+                
                 switch (from->implement) {
-
                 case mir_stream:
-                    if (!setup_default_link_from_stream_to_device(u, from, to))
-                        return FALSE;
+                    pa_log_debug("routing between streams is not implemented");
                     break;
 
                 case mir_device:
-                    if (!setup_default_link_from_device_to_device(u, from, to))
+                    if (!setup_default_dev2stream_link(u, from, to))
                         return FALSE;
                     break;
 
@@ -142,13 +140,44 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
                            "implement", __FILE__);
                     return FALSE;
                 }
-            }
-            break;
+                break;
 
-        default:
-            pa_log("%s: can't setup link: invalid sink node "
-                   "implement", __FILE__);
-            return FALSE;
+            case mir_device:
+                if (!from)
+                    /* default output preroute */
+                    return setup_device_output(u, to) != NULL;
+                else {
+                    switch (from->implement) {
+
+                    case mir_stream:
+                        if (!setup_default_stream2dev_link(u, from, to))
+                            return FALSE;
+                        break;
+
+                    case mir_device:
+                        if (!setup_default_dev2dev_link(u, from, to))
+                            return FALSE;
+                        break;
+
+                    default:
+                        pa_log("%s: can't setup link: invalid source node "
+                               "implement", __FILE__);
+                        return FALSE;
+                    }
+                }
+                break;
+
+            default:
+                pa_log("%s: can't setup link: invalid sink node "
+                       "implement", __FILE__);
+                return FALSE;
+            }
+        }
+        else {
+            /* default input preroute */
+            pa_assert(from && from->implement == mir_device);
+            
+            return setup_device_input(u, from) != NULL;
         }
     }
 
@@ -181,7 +210,7 @@ pa_bool_t mir_switch_teardown_link(struct userdata *u,
             break;
             
         case mir_device: /* stream -> device */
-            if (!teardown_explicit_link_from_stream_to_device(u, from, to))
+            if (!teardown_explicit_stream2dev_link(u, from, to))
                 return FALSE;
             break;
             
@@ -207,9 +236,9 @@ pa_bool_t mir_switch_teardown_link(struct userdata *u,
     return TRUE;
 }
 
-static pa_bool_t setup_explicit_link_from_stream_to_device(struct userdata *u,
-                                                           mir_node *from,
-                                                           mir_node *to)
+static pa_bool_t setup_explicit_stream2dev_link(struct userdata *u,
+                                                mir_node *from,
+                                                mir_node *to)
 {
     pa_core       *core;
     pa_sink       *sink;
@@ -266,9 +295,9 @@ static pa_bool_t setup_explicit_link_from_stream_to_device(struct userdata *u,
 }
 
 
-static pa_bool_t teardown_explicit_link_from_stream_to_device(struct userdata *u,
-                                                              mir_node *from,
-                                                              mir_node *to)
+static pa_bool_t teardown_explicit_stream2dev_link(struct userdata *u,
+                                                   mir_node *from,
+                                                   mir_node *to)
 {
     pa_core       *core;
     pa_sink       *sink;
@@ -312,9 +341,48 @@ static pa_bool_t teardown_explicit_link_from_stream_to_device(struct userdata *u
 }
 
 
-static pa_bool_t setup_default_link_from_stream_to_device(struct userdata *u,
-                                                          mir_node *from,
-                                                          mir_node *to)
+static pa_bool_t setup_default_dev2stream_link(struct userdata *u,
+                                               mir_node *from,
+                                               mir_node *to)
+{
+    pa_core          *core;
+    pa_source        *source;
+    pa_source_output *sout;
+    pa_muxnode       *mux;
+    int               n;
+
+    pa_assert(u);
+    pa_assert(from);
+    pa_assert(to);
+    pa_assert((core = u->core));
+
+    if (!(source = setup_device_input(u, from))) {
+        pa_log_debug("can't route '%s': no source", from->amname);
+        return FALSE;
+    }
+
+    if (to->paidx == PA_IDXSET_INVALID) {
+        pa_log_debug("can't route '%s': no source-output", to->amname);
+        return FALSE;
+    }
+
+    if (!(sout = pa_idxset_get_by_index(core->source_outputs, to->paidx))) {
+        pa_log_debug("can't find sink input for '%s'", to->amname);
+        return FALSE;
+    }
+
+    pa_log_debug("direct route: source.%d -> source->output.%d",
+                 source->index, sout->index);
+
+    if (pa_source_output_move_to(sout, source, FALSE) < 0)
+        return FALSE;
+
+    return TRUE;
+}
+
+static pa_bool_t setup_default_stream2dev_link(struct userdata *u,
+                                               mir_node *from,
+                                               mir_node *to)
 {
     pa_core       *core;
     pa_sink       *sink;
@@ -418,9 +486,9 @@ static pa_bool_t setup_default_link_from_stream_to_device(struct userdata *u,
     return TRUE;
 }
 
-static pa_bool_t setup_default_link_from_device_to_device(struct userdata *u,
-                                                          mir_node *from,
-                                                          mir_node *to)
+static pa_bool_t setup_default_dev2dev_link(struct userdata *u,
+                                            mir_node *from,
+                                            mir_node *to)
 {
     pa_core       *core;
     pa_sink       *sink;
@@ -531,6 +599,34 @@ static pa_bool_t setup_default_link_from_device_to_device(struct userdata *u,
 
     return TRUE;
 }
+
+static pa_source *setup_device_input(struct userdata *u, mir_node *node)
+{
+    pa_core *core;
+    pa_source *source;
+    
+    pa_assert(u);
+    pa_assert(node);
+    pa_assert_se((core = u->core));
+
+    if (!set_profile(u, node) || !set_port(u, node)) {
+        pa_log("can't route to '%s'", node->amname);
+        return NULL;
+    }
+
+    if (node->paidx == PA_IDXSET_INVALID) {
+        pa_log_debug("can't route to '%s': no source", node->amname);
+        return NULL;
+    }
+
+    if (!(source = pa_idxset_get_by_index(core->sources, node->paidx))) {
+        pa_log_debug("can't route to '%s': cant find source", node->amname);
+        return NULL;
+    }
+
+    return source;
+}
+
 
 static pa_sink *setup_device_output(struct userdata *u, mir_node *node)
 {

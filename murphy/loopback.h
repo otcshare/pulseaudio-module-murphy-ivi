@@ -35,7 +35,9 @@ typedef struct pa_loopback {
 struct pa_loopnode {
     PA_LLIST_FIELDS(pa_loopnode);
     uint32_t   module_index;
+    uint32_t   node_index;
     uint32_t   sink_input_index;
+    uint32_t   source_output_index;
 };
 
 pa_loopback *pa_loopback_init(void);
@@ -43,7 +45,7 @@ pa_loopback *pa_loopback_init(void);
 void pa_loopback_done(pa_loopback *, pa_core *);
 
 pa_loopnode *pa_loopback_create(pa_loopback *, pa_core *, uint32_t, uint32_t,
-                                const char *);
+                                uint32_t, const char *);
 void pa_loopback_destroy(pa_loopback *, pa_core *, pa_loopnode *);
 
 uint32_t pa_loopback_get_sink_index(pa_core *, pa_loopnode *);

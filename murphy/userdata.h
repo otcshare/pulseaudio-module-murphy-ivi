@@ -32,6 +32,7 @@
 #define PA_PROP_ROUTING_CLASS_ID       "routing.class.id"
 #define PA_PROP_ROUTING_METHOD         "routing.method"
 #define PA_PROP_ROUTING_TABLE          "routing.table"
+#define PA_PROP_NODE_INDEX             "node.index"
 
 #define PA_ROUTING_DEFAULT             "default"
 #define PA_ROUTING_EXPLICIT            "explicit"
@@ -55,6 +56,8 @@ typedef struct pa_port_hooks            pa_port_hooks;
 typedef struct pa_sink_hooks            pa_sink_hooks;
 typedef struct pa_source_hooks          pa_source_hooks;
 typedef struct pa_sink_input_hooks      pa_sink_input_hooks;
+typedef struct pa_source_output_hooks   pa_source_output_hooks;
+
 
 typedef enum   mir_direction            mir_direction;
 typedef enum   mir_implement            mir_implement;
@@ -84,6 +87,8 @@ typedef struct {
                            name. Otherwise it is NULL. When sink tracking
                            hooks called the card's active_profile still
                            points to the old profile */
+    uint32_t sink;
+    uint32_t source;
 } pa_mir_state;
 
 

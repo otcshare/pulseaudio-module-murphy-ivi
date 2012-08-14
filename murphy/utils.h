@@ -28,19 +28,25 @@ struct pa_null_sink;
 struct pa_null_sink *pa_utils_create_null_sink(struct userdata *,const char *);
 void pa_utils_destroy_null_sink(struct userdata *);
 pa_sink *pa_utils_get_null_sink(struct userdata *);
-
+pa_source *pa_utils_get_null_source(struct userdata *);
 
 char *pa_utils_get_card_name(pa_card *);
 char *pa_utils_get_sink_name(pa_sink *);
 char *pa_utils_get_source_name(pa_source *);
 char *pa_utils_get_sink_input_name(pa_sink_input *);
 char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *);
+char *pa_utils_get_source_output_name(pa_source_output *);
+char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data *);
 
-void  pa_utils_set_stream_routing_properties(pa_proplist *, int, pa_sink *);
+void  pa_utils_set_stream_routing_properties(pa_proplist *, int, void *);
 void  pa_utils_set_stream_routing_method_property(pa_proplist *, pa_bool_t);
 pa_bool_t pa_utils_stream_has_default_route(pa_proplist *);
 int   pa_utils_get_stream_class(pa_proplist *);
 
+#ifdef foouserdatafoo  /* argh ... */
+mir_node *pa_utils_get_node_from_stream(struct userdata *,mir_direction,void*);
+mir_node *pa_utils_get_node_from_data(struct userdata *, mir_direction,void *);
+#endif
 
 const char *pa_utils_file_path(const char *, char *, size_t);
 

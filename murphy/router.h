@@ -30,13 +30,23 @@ typedef pa_bool_t (*mir_rtgroup_accept_t)(struct userdata *, mir_rtgroup *,
 typedef int       (*mir_rtgroup_compare_t)(struct userdata *u,
                                            mir_node *, mir_node *);
 
+typedef struct {
+    pa_hashmap *input;
+    pa_hashmap *output;
+} pa_rtgroup_hash;
+
+typedef struct {
+    mir_rtgroup **input;
+    mir_rtgroup **output;
+} pa_rtgroup_classmap;
+
 struct pa_router {
-    pa_hashmap   *rtgroups;
-    int           maplen;     /**< length of the class- and priormap */
-    mir_rtgroup **classmap;   /**< to map device node types to rtgroups */
-    int          *priormap;   /**< stream node priorities */
-    mir_dlist     nodlist;    /**< priorized list of the input stream nodes */
-    mir_dlist     connlist;   /**< listhead of the connections */
+    pa_rtgroup_hash      rtgroups;
+    int                  maplen;   /**< length of the class- and priormap */
+    pa_rtgroup_classmap  classmap; /**< to map device node types to rtgroups */
+    int                 *priormap; /**< stream node priorities */
+    mir_dlist            nodlist;  /**< priorized list of the stream nodes */
+    mir_dlist            connlist; /**< listhead of the connections */
 };
 
 
@@ -71,12 +81,14 @@ void pa_router_done(struct userdata *);
 
 void mir_router_assign_class_priority(struct userdata *, mir_node_type, int);
 
-pa_bool_t mir_router_create_rtgroup(struct userdata *, const char *,
+pa_bool_t mir_router_create_rtgroup(struct userdata *,
+                                    mir_direction, const char *,
                                     mir_rtgroup_accept_t,
                                     mir_rtgroup_compare_t);
-void mir_router_destroy_rtgroup(struct userdata *, const char *);
+void mir_router_destroy_rtgroup(struct userdata *, mir_direction,
+                                const char *);
 pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *, mir_node_type,
-                                             const char *);
+                                             mir_direction,  const char *);
 
 void mir_router_register_node(struct userdata *, mir_node *);
 void mir_router_unregister_node(struct userdata *, mir_node *);

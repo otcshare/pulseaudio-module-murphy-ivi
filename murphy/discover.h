@@ -94,6 +94,12 @@ void pa_discover_preroute_sink_input(struct userdata *,
 void pa_discover_add_sink_input(struct userdata *, pa_sink_input *);
 void pa_discover_remove_sink_input(struct userdata *, pa_sink_input *);
 
+void pa_discover_register_source_output(struct userdata *, pa_source_output *);
+void pa_discover_preroute_source_output(struct userdata *,
+                                        pa_source_output_new_data *);
+void pa_discover_add_source_output(struct userdata *, pa_source_output *);
+void pa_discover_remove_source_output(struct userdata *, pa_source_output *);
+
 
 mir_node *pa_discover_find_node_by_key(struct userdata *, const char *);
 mir_node *pa_discover_find_node_by_ptr(struct userdata *, void *);

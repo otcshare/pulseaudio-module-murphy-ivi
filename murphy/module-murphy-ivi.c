@@ -171,6 +171,9 @@ int pa__init(pa_module *m) {
     u->volume    = pa_mir_volume_init(u);
     u->config    = pa_mir_config_init(u);
 
+    u->state.sink   = PA_IDXSET_INVALID;
+    u->state.source = PA_IDXSET_INVALID;
+
     if (u->nullsink == NULL || u->routerif == NULL  ||
         u->audiomgr == NULL || u->discover == NULL)
         goto fail;
