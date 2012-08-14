@@ -37,6 +37,7 @@
 #include <pulsecore/sink.h>
 #include <pulsecore/source.h>
 #include <pulsecore/sink-input.h>
+#include <pulsecore/source-output.h>
 
 #include "userdata.h"
 #include "utils.h"
@@ -57,7 +58,7 @@ struct pa_null_sink {
 
 static uint32_t stamp;
 
-static char *sink_input_name(pa_proplist *);
+static char *stream_name(pa_proplist *);
 
 
 pa_null_sink *pa_utils_create_null_sink(struct userdata *u, const char *name)
@@ -159,7 +160,7 @@ char *pa_utils_get_sink_input_name(pa_sink_input *sinp)
 {
     char *name;
 
-    if (sinp && (name = sink_input_name(sinp->proplist)))
+    if (sinp && (name = stream_name(sinp->proplist)))
         return name;
     
     return "<unknown>";
@@ -169,7 +170,28 @@ char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *data)
 {
     char *name;
 
-    if (data && (name = sink_input_name(data->proplist)))
+    if (data && (name = stream_name(data->proplist)))
+        return name;
+    
+    return "<unknown>";
+}
+
+
+char *pa_utils_get_source_output_name(pa_source_output *sout)
+{
+    char *name;
+
+    if (sout && (name = stream_name(sout->proplist)))
+        return name;
+    
+    return "<unknown>";
+}
+
+char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data*data)
+{
+    char *name;
+
+    if (data && (name = stream_name(data->proplist)))
         return name;
     
     return "<unknown>";
@@ -178,7 +200,7 @@ char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *data)
 
 void pa_utils_set_stream_routing_properties(pa_proplist *pl,
                                             int          styp,
-                                            pa_sink     *sink)
+                                            void        *target)
 {
     const char    *clnam;
     const char    *method;
@@ -189,13 +211,13 @@ void pa_utils_set_stream_routing_properties(pa_proplist *pl,
     
     snprintf(clid, sizeof(clid), "%d", styp);
     clnam  = mir_node_type_str(styp);
-    method = sink ? PA_ROUTING_EXPLICIT : PA_ROUTING_DEFAULT;
+    method = target ? PA_ROUTING_EXPLICIT : PA_ROUTING_DEFAULT;
 
     if (pa_proplist_sets(pl, PA_PROP_ROUTING_CLASS_NAME, clnam ) < 0 ||
         pa_proplist_sets(pl, PA_PROP_ROUTING_CLASS_ID  , clid  ) < 0 ||
         pa_proplist_sets(pl, PA_PROP_ROUTING_METHOD    , method) < 0  )
     {
-        pa_log("failed to set some property on sink-input");
+        pa_log("failed to set some stream property");
     }
 }
 
@@ -243,30 +265,91 @@ int pa_utils_get_stream_class(pa_proplist *pl)
     return (int)clid;
 }
 
-mir_node *pa_utils_get_node_from_stream(struct userdata *u,pa_sink_input *sinp)
+mir_node *pa_utils_get_node_from_stream(struct userdata *u,
+                                        mir_direction    type,
+                                        void            *ptr)
 {
-    mir_node *node;
-    const char *index_str;
-    uint32_t index = PA_IDXSET_INVALID;
-    char *e;
+    pa_sink_input    *sinp;
+    pa_source_output *sout;
+    pa_proplist      *pl;
+    mir_node         *node;
+    const char       *index_str;
+    uint32_t          index = PA_IDXSET_INVALID;
+    char             *e;
+    char              name[256];
 
     pa_assert(u);
-    pa_assert(sinp);
+    pa_assert(ptr);
+    pa_assert(type == mir_input || type == mir_output);
 
-    if ((index_str = pa_proplist_gets(sinp->proplist, PA_PROP_NODE_INDEX))) {
+    if (type == mir_input) {
+        sinp = (pa_sink_input *)ptr;
+        pl = sinp->proplist;
+        snprintf(name, sizeof(name), "sink-input.%u", sinp->index);
+    }
+    else {
+        sout = (pa_source_output *)ptr;
+        pl = sout->proplist;
+        snprintf(name, sizeof(name), "source-output.%u", sout->index);
+    }
+    
+
+    if ((index_str = pa_proplist_gets(pl, PA_PROP_NODE_INDEX))) {
         index = strtoul(index_str, &e, 10);
         if (e != index_str && *e == '\0') {
             if ((node = mir_node_find_by_index(u, index)))
                 return node;
 
-            pa_log_debug("can't find find node for sink-input.%u",sinp->index);
+            pa_log_debug("can't find find node for %s", name);
         }
     }
 
     return NULL;
 }
 
-static char *sink_input_name(pa_proplist *pl)
+mir_node *pa_utils_get_node_from_data(struct userdata *u,
+                                      mir_direction    type,
+                                      void            *ptr)
+{
+    pa_sink_input_new_data *sinp;
+    pa_source_output_new_data *sout;
+    pa_proplist  *pl;
+    mir_node     *node;
+    const char   *index_str;
+    uint32_t      index = PA_IDXSET_INVALID;
+    char         *e;
+    char          name[256];
+
+    pa_assert(u);
+    pa_assert(ptr);
+    pa_assert(type == mir_input || type == mir_output);
+
+    if (type == mir_input) {
+        sinp = (pa_sink_input_new_data *)ptr;
+        pl = sinp->proplist;
+        snprintf(name, sizeof(name), "sink-input");
+    }
+    else {
+        sout = (pa_source_output_new_data *)ptr;
+        pl = sout->proplist;
+        snprintf(name, sizeof(name), "source-output");
+    }
+    
+
+    if ((index_str = pa_proplist_gets(pl, PA_PROP_NODE_INDEX))) {
+        index = strtoul(index_str, &e, 10);
+        if (e != index_str && *e == '\0') {
+            if ((node = mir_node_find_by_index(u, index)))
+                return node;
+
+            pa_log_debug("can't find find node for %s", name);
+        }
+    }
+
+    return NULL;
+}
+
+static char *stream_name(pa_proplist *pl)
 {
     const char  *appnam;
     const char  *binnam;

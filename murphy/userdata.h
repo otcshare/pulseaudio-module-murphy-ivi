@@ -56,6 +56,8 @@ typedef struct pa_port_hooks            pa_port_hooks;
 typedef struct pa_sink_hooks            pa_sink_hooks;
 typedef struct pa_source_hooks          pa_source_hooks;
 typedef struct pa_sink_input_hooks      pa_sink_input_hooks;
+typedef struct pa_source_output_hooks   pa_source_output_hooks;
+
 
 typedef enum   mir_direction            mir_direction;
 typedef enum   mir_implement            mir_implement;

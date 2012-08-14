@@ -251,7 +251,7 @@ pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *u,
                      "router group not found", clnam, direction, rtgrpnam);
     }
 
-    router->classmap.output[class] = rtg;
+    classmap[class] = rtg;
 
     pa_log_debug("class '%s' assigned to %s routing group '%s'",
                  clnam, direction, rtgrpnam);
@@ -436,7 +436,6 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
     pa_assert(u);
     pa_assert_se((router = u->router));
     pa_assert_se((data->implement == mir_stream));
-    pa_assert_se((data->direction == mir_input));
 
     priority = node_priority(u, data);
     done = FALSE;
@@ -552,6 +551,8 @@ pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
             class != mir_jack             &&
             class != mir_hdmi             &&
             class != mir_spdif            &&
+            class != mir_bluetooth_source &&
+            class != mir_bluetooth_sink   &&
             class != mir_bluetooth_carkit   )
         {
             return TRUE;
