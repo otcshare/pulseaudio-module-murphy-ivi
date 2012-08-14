@@ -29,6 +29,7 @@
 #include "volume.h"
 
 typedef struct {
+    mir_direction          type;
     const char            *name;
     mir_rtgroup_accept_t   accept;
     mir_rtgroup_compare_t  compare;
@@ -36,6 +37,7 @@ typedef struct {
 
 typedef struct {
     mir_node_type  class;
+    mir_direction  type;
     const char    *rtgroup;
 } classmap_def;
 
@@ -46,20 +48,38 @@ typedef struct {
 
 
 static rtgroup_def  rtgroups[] = {
-    {"default"  , mir_router_default_accept, mir_router_default_compare},
-    {"phone"    , mir_router_phone_accept  , mir_router_phone_compare  },
-    {   NULL  ,            NULL          ,              NULL         }
+    {mir_input,
+     "phone",
+     mir_router_phone_accept,
+     mir_router_phone_compare
+    },
+
+    {mir_output,
+     "default",
+     mir_router_default_accept,
+     mir_router_default_compare
+    },
+
+    {mir_output,
+     "phone",
+     mir_router_phone_accept,
+     mir_router_phone_compare
+    },
+
+    {0,NULL,NULL,NULL}
 };
 
 static classmap_def classmap[] = {
-    {mir_radio    , "default"},
-    {mir_player   , "default"},
-    {mir_navigator, "default"},
-    {mir_game     , "default"},
-    {mir_browser  , "default"},
-    {mir_phone    , "phone"  },
-    {mir_event    , "default"},
-    {mir_node_type_unknown, NULL}
+    {mir_phone    , mir_input , "phone"  },
+
+    {mir_radio    , mir_output, "default"},
+    {mir_player   , mir_output, "default"},
+    {mir_navigator, mir_output, "default"},
+    {mir_game     , mir_output, "default"},
+    {mir_browser  , mir_output, "default"},
+    {mir_phone    , mir_output, "phone"  },
+    {mir_event    , mir_output, "default"},
+    {mir_node_type_unknown, mir_direction_unknown, NULL}
 };
 
 static prior_def priormap[] = {
@@ -143,10 +163,10 @@ static pa_bool_t use_default_configuration(struct userdata *u)
     pa_assert(u);
 
     for (r = rtgroups;  r->name;   r++)
-        mir_router_create_rtgroup(u, r->name, r->accept, r->compare);
+        mir_router_create_rtgroup(u, r->type, r->name, r->accept, r->compare);
 
     for (c = classmap;  c->rtgroup;  c++)
-        mir_router_assign_class_to_rtgroup(u, c->class, c->rtgroup);
+        mir_router_assign_class_to_rtgroup(u, c->class, c->type, c->rtgroup);
 
     for (p = priormap;  p->class;  p++)
         mir_router_assign_class_priority(u, p->class, p->priority);

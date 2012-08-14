@@ -36,12 +36,20 @@ void pa_classify_node_by_card(mir_node        *node,
 {
     const char *bus;
     const char *form;
-    
+    /*
+    const char *desc;
+    */
+
     pa_assert(node);
     pa_assert(card);
 
     bus  = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS);
     form = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_FORM_FACTOR);
+    /*
+    desc = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_DESCRIPTION);
+    */
+
+    node->type = mir_node_type_unknown;
 
     if (form) {
         if (!strcasecmp(form, "internal")) {
@@ -71,7 +79,7 @@ void pa_classify_node_by_card(mir_node        *node,
                 else if (!strcasecmp(bus,"bluetooth")) {
                     if (prof && !strcmp(prof->name, "a2dp"))
                         node->type = mir_bluetooth_a2dp;
-                    else 
+                    else
                         node->type = mir_bluetooth_sco;
                 }
                 else {
@@ -101,6 +109,18 @@ void pa_classify_node_by_card(mir_node        *node,
         if (port && !strcasecmp(bus, "pci")) {
             pa_classify_guess_device_node_type_and_name(node, port->name,
                                                         port->description);
+        }
+        else if (prof && !strcasecmp(bus, "bluetooth")) {
+            if (!strcmp(prof->name, "a2dp"))
+                node->type = mir_bluetooth_a2dp;
+            else if (!strcmp(prof->name, "hsp"))
+                node->type = mir_bluetooth_sco;
+            else if (!strcmp(prof->name, "hfgw"))
+                node->type = mir_bluetooth_carkit;
+            else if (!strcmp(prof->name, "a2dp_source"))
+                node->type = mir_bluetooth_source;
+            else if (!strcmp(prof->name, "a2dp_sink"))
+                node->type = mir_bluetooth_sink;
         }
     }
 
@@ -144,6 +164,7 @@ void pa_classify_node_by_card(mir_node        *node,
         case mir_jack:
         case mir_spdif:
         case mir_hdmi:
+        case mir_bluetooth_sink:
             node->privacy = mir_privacy_unknown;
             break;
         } /* switch */
@@ -202,14 +223,15 @@ mir_node_type pa_classify_guess_stream_node_type(pa_proplist *pl)
     } map_t;
 
     static map_t role_map[] = {
-        {"video"    , mir_player   },
-        {"music"    , mir_player   },
-        {"game"     , mir_game     },
-        {"event"    , mir_event    },
-	{"navigator", mir_navigator},
-        {"phone"    , mir_phone    },
-        {"animation", mir_browser  },
-        {"test"     , mir_player   },
+        {"video"    , mir_player    },
+        {"music"    , mir_player    },
+        {"game"     , mir_game      },
+        {"event"    , mir_event     },
+	{"navigator", mir_navigator },
+        {"phone"    , mir_phone     },
+        {"carkit"   , mir_phone     },
+        {"animation", mir_browser   },
+        {"test"     , mir_player    },
         {NULL, mir_node_type_unknown}
     };
 
@@ -259,6 +281,29 @@ mir_node_type pa_classify_guess_stream_node_type(pa_proplist *pl)
     return btype;
 }
 
+mir_node_type pa_classify_guess_application_class(mir_node *node)
+{
+    mir_node_type class;
+
+    pa_assert(node);
+
+    if (node->implement == mir_stream)
+        class = node->type;
+    else {
+        if (node->direction == mir_output)
+            class = mir_node_type_unknown;
+        else {
+            switch (node->type) {
+            default:                    class = mir_node_type_unknown;   break;
+            case mir_bluetooth_carkit:  class = mir_phone;               break;
+            case mir_bluetooth_source:  class = mir_player;              break;
+            }
+        }
+    }
+
+    return class;
+}
+
 
 pa_bool_t pa_classify_multiplex_stream(mir_node *node)
 {
@@ -272,8 +317,6 @@ pa_bool_t pa_classify_multiplex_stream(mir_node *node)
 
     pa_assert(node);
 
-    //return FALSE;
-
     if (node->implement == mir_stream && node->direction == mir_input) {
         class = node->type;
 
@@ -286,3 +329,26 @@ pa_bool_t pa_classify_multiplex_stream(mir_node *node)
 
     return FALSE;
 }
+
+const char *pa_classify_loopback_stream(mir_node *node)
+{
+    const char *role[mir_device_class_end - mir_device_class_begin] = {
+        [ mir_bluetooth_carkit - mir_device_class_begin ] = "phone",
+        [ mir_bluetooth_source - mir_device_class_begin ] = "music" ,
+    };
+
+    int class;
+
+    pa_assert(node);
+
+    if (node->implement == mir_device) {
+        class = node->type;
+
+        if (class >= mir_device_class_begin && class < mir_device_class_end) {
+            return role[class - mir_device_class_begin];
+        }
+    }
+
+    return NULL;
+}
+

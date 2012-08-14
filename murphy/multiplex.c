@@ -36,8 +36,11 @@
 #include "utils.h"
 
 #ifndef DEFAULT_RESAMPLER
-#define DEFAULT_RESAMPLER "speex-float-3"
+#define DEFAULT_RESAMPLER "speex-fixed-3"
 #endif
+
+
+static void copy_media_role_property(pa_sink *, pa_sink_input *);
 
 
 pa_multiplex *pa_multiplex_init(void)
@@ -64,6 +67,7 @@ pa_muxnode *pa_multiplex_create(pa_multiplex   *multiplex,
                                 uint32_t        sink_index,
                                 pa_channel_map *chmap,
                                 const char     *resampler,
+                                const char     *media_role,
                                 int             type)
 {
     static char *modnam = "module-combine-sink";
@@ -76,6 +80,7 @@ pa_muxnode *pa_multiplex_create(pa_multiplex   *multiplex,
     pa_module       *module;
     char             args[512];
     uint32_t         idx;
+    uint32_t         channels;
 
     pa_assert(core);
 
@@ -88,8 +93,10 @@ pa_muxnode *pa_multiplex_create(pa_multiplex   *multiplex,
         return NULL;
     }
 
+    channels = chmap->channels ? chmap->channels : sink->channel_map.channels;
+
     snprintf(args, sizeof(args), "slaves=\"%s\" resample_method=\"%s\" "
-             "channels=%u", sink->name, resampler, chmap->channels);
+             "channels=%u", sink->name, resampler, channels);
 
     if (!(module = pa_module_load(core, modnam, args))) {
         pa_log("failed to load module '%s %s'. can't multiplex", modnam, args);
@@ -112,6 +119,8 @@ pa_muxnode *pa_multiplex_create(pa_multiplex   *multiplex,
         pa_log("can't find default multiplexer stream");
     else {
         if ((sinp = o->sink_input)) {
+            if (media_role)
+                pa_proplist_sets(sinp->proplist,PA_PROP_MEDIA_ROLE,media_role);
             pa_utils_set_stream_routing_properties(sinp->proplist, type, NULL);
             mux->defstream_index = sinp->index;
         }
@@ -142,10 +151,12 @@ pa_muxnode *pa_multiplex_find(pa_multiplex *multiplex, uint32_t sink_index)
 {
     pa_muxnode *mux;
 
-    PA_LLIST_FOREACH(mux, multiplex->muxnodes) {
-        if (sink_index == mux->sink_index) {
-            pa_log_debug("muxnode found for sink %u", sink_index);
-            return mux;
+    if (sink_index != PA_IDXSET_INVALID) {
+        PA_LLIST_FOREACH(mux, multiplex->muxnodes) {
+            if (sink_index == mux->sink_index) {
+                pa_log_debug("muxnode found for sink %u", sink_index);
+                return mux;
+            }
         }
     }
 
@@ -185,6 +196,7 @@ pa_bool_t pa_multiplex_add_default_route(pa_core    *core,
                 return FALSE;
             }
 
+            copy_media_role_property(u->sink, sinp);
             pa_utils_set_stream_routing_properties(sinp->proplist, type, NULL);
             mux->defstream_index = sinp->index;
 
@@ -295,6 +307,7 @@ pa_bool_t pa_multiplex_add_explicit_route(pa_core    *core,
                 return FALSE;
             }
 
+            copy_media_role_property(u->sink, sinp);
             pa_utils_set_stream_routing_properties(sinp->proplist, type, sink);
 
             return TRUE;
@@ -414,6 +427,30 @@ int pa_multiplex_print(pa_muxnode *mux, char *buf, int len)
     }
     
     return p - buf;
+}
+
+static void copy_media_role_property(pa_sink *sink, pa_sink_input *to)
+{
+    uint32_t index;
+    pa_sink_input *from;
+    const char *role;
+
+    pa_assert(to);
+
+    if (sink && (from = pa_idxset_first(sink->inputs, &index))) {
+        pa_assert(from->proplist);
+        pa_assert(to->proplist);
+
+        if ((role = pa_proplist_gets(from->proplist, PA_PROP_MEDIA_ROLE)) &&
+            pa_proplist_sets(to->proplist, PA_PROP_MEDIA_ROLE, role) == 0)
+        {
+            pa_log_debug("set media.role=\"%s\" on sink_input.%d",
+                         role, to->index);
+            return;
+        }
+    }
+
+    pa_log_debug("failed to set media.role on sink_input.%d", to->index);
 }
 
 

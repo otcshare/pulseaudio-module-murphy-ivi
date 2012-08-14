@@ -57,13 +57,20 @@ struct pa_sink_input_hooks {
     pa_hook_slot    *unlink;
 };
 
+struct pa_source_output_hooks {
+    pa_hook_slot    *neew;
+    pa_hook_slot    *put;
+    pa_hook_slot    *unlink;
+};
+
 
 struct pa_tracker {
-    pa_card_hooks       card;
-    pa_port_hooks       port;
-    pa_sink_hooks       sink;
-    pa_source_hooks     source;
-    pa_sink_input_hooks sink_input;
+    pa_card_hooks           card;
+    pa_port_hooks           port;
+    pa_sink_hooks           sink;
+    pa_source_hooks         source;
+    pa_sink_input_hooks     sink_input;
+    pa_source_output_hooks  source_output;
 };
 
 
@@ -85,17 +92,22 @@ static pa_hook_result_t sink_input_new(void *, void *, void *);
 static pa_hook_result_t sink_input_put(void *, void *, void *);
 static pa_hook_result_t sink_input_unlink(void *, void *, void *);
 
+static pa_hook_result_t source_output_new(void *, void *, void *);
+static pa_hook_result_t source_output_put(void *, void *, void *);
+static pa_hook_result_t source_output_unlink(void *, void *, void *);
+
 
 pa_tracker *pa_tracker_init(struct userdata *u)
 {
-    pa_core             *core;
-    pa_hook             *hooks;
-    pa_tracker          *tracker;
-    pa_card_hooks       *card;
-    pa_port_hooks       *port;
-    pa_sink_hooks       *sink;
-    pa_source_hooks     *source;
-    pa_sink_input_hooks *sinp;
+    pa_core                *core;
+    pa_hook                *hooks;
+    pa_tracker             *tracker;
+    pa_card_hooks          *card;
+    pa_port_hooks          *port;
+    pa_sink_hooks          *sink;
+    pa_source_hooks        *source;
+    pa_sink_input_hooks    *sinp;
+    pa_source_output_hooks *sout;
 
     pa_assert(u);
     pa_assert_se((core = u->core));
@@ -107,6 +119,7 @@ pa_tracker *pa_tracker_init(struct userdata *u)
     sink   = &tracker->sink;
     source = &tracker->source;
     sinp   = &tracker->sink_input;
+    sout   = &tracker->source_output;
 
     /* card */
     card->put     = pa_hook_connect(
@@ -166,6 +179,20 @@ pa_tracker *pa_tracker_init(struct userdata *u)
                        PA_HOOK_LATE, sink_input_unlink, u
                    );
     
+    /* source-output */
+    sout->neew   = pa_hook_connect(
+                       hooks + PA_CORE_HOOK_SOURCE_OUTPUT_NEW,
+                       PA_HOOK_EARLY, source_output_new, u
+                   );
+    sout->put    = pa_hook_connect(
+                       hooks + PA_CORE_HOOK_SOURCE_OUTPUT_PUT,
+                       PA_HOOK_LATE, source_output_put, u
+                   );
+    sout->unlink = pa_hook_connect(
+                       hooks + PA_CORE_HOOK_SOURCE_OUTPUT_UNLINK,
+                       PA_HOOK_LATE, source_output_unlink, u
+                   );
+    
     return tracker;
 }
 
@@ -211,12 +238,13 @@ void pa_tracker_done(struct userdata *u)
 
 void pa_tracker_synchronize(struct userdata *u)
 {
-    pa_core       *core;
-    pa_card       *card;
-    pa_sink       *sink;
-    pa_source     *source;
-    pa_sink_input *sinp;
-    uint32_t       index;
+    pa_core          *core;
+    pa_card          *card;
+    pa_sink          *sink;
+    pa_source        *source;
+    pa_sink_input    *sinp;
+    pa_source_output *sout;
+    uint32_t          index;
 
     pa_assert(u);
     pa_assert_se((core = u->core));
@@ -234,13 +262,17 @@ void pa_tracker_synchronize(struct userdata *u)
         pa_discover_add_source(u, source);
     }
 
-    /* Hmm... we should first collect all sink-inputs, assign
+    /* Hmm... we should first collect all sink-inputs & source-outputs, assign
        priority to them, sort them, and call pa_discover_register_sink_input()
        in reverse priority order. Until than we may experience sound leaks
        unnecessary profile changes etc ... */
 
     PA_IDXSET_FOREACH(sinp, core->sink_inputs, index) {
         pa_discover_register_sink_input(u, sinp);
+    }
+
+    PA_IDXSET_FOREACH(sout, core->source_outputs, index) {
+        pa_discover_register_source_output(u, sout);
     }
 
     mir_router_make_routing(u);
@@ -453,6 +485,53 @@ static pa_hook_result_t sink_input_unlink(void *hook_data,
     pa_assert(sinp);
 
     pa_discover_remove_sink_input(u, sinp);
+
+    return PA_HOOK_OK;
+}
+
+
+static pa_hook_result_t source_output_new(void *hook_data,
+                                          void *call_data,
+                                          void *slot_data)
+{
+    pa_source_output_new_data *data = (pa_source_output_new_data *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(data);
+
+    pa_discover_preroute_source_output(u, data);
+
+    return PA_HOOK_OK;
+}
+
+static pa_hook_result_t source_output_put(void *hook_data,
+                                          void *call_data,
+                                          void *slot_data)
+{
+    pa_source_output *sout = (pa_source_output *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(sout);
+
+    pa_discover_add_source_output(u, sout);
+
+    return PA_HOOK_OK;
+}
+
+
+static pa_hook_result_t source_output_unlink(void *hook_data,
+                                             void *call_data,
+                                             void *slot_data)
+{
+    struct pa_source_output *sout = (pa_source_output *)call_data;
+    struct userdata *u = (struct userdata *)slot_data;
+
+    pa_assert(u);
+    pa_assert(sout);
+
+    pa_discover_remove_source_output(u, sout);
 
     return PA_HOOK_OK;
 }
