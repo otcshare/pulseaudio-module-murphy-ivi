@@ -865,7 +865,6 @@ static int uint32_cmp(uint32_t v1, uint32_t v2)
 static int node_priority(struct userdata *u, mir_node *node)
 {
     pa_router *router;
-    mir_node_type type;
     int class;
 
     pa_assert(u);

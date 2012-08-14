@@ -348,8 +348,6 @@ static pa_bool_t setup_default_dev2stream_link(struct userdata *u,
     pa_core          *core;
     pa_source        *source;
     pa_source_output *sout;
-    pa_muxnode       *mux;
-    int               n;
 
     pa_assert(u);
     pa_assert(from);
