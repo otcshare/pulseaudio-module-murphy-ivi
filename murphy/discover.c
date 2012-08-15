@@ -1756,9 +1756,10 @@ static char *node_key(struct userdata *u, mir_direction direction,
 
     pa_assert(u);
     pa_assert(data);
+    pa_assert(buf);
     pa_assert(direction == mir_input || direction == mir_output);
 
-    if (direction == mir_input) {
+    if (direction == mir_output) {
         pa_sink *sink = data;
         type = "sink";
         name = pa_utils_get_sink_name(sink);
