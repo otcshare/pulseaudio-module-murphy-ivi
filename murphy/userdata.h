@@ -47,6 +47,7 @@ typedef struct pa_routerif              pa_routerif;
 typedef struct pa_discover              pa_discover;
 typedef struct pa_router                pa_router;
 typedef struct pa_constrain             pa_constrain;
+typedef struct pa_fader                 pa_fader;
 typedef struct pa_mir_volume            pa_mir_volume;
 typedef struct pa_mir_config            pa_mir_config;
 typedef struct pa_nodeset               pa_nodeset;
@@ -105,6 +106,7 @@ struct userdata {
     pa_constrain  *constrain;
     pa_multiplex  *multiplex;
     pa_loopback   *loopback;
+    pa_fader      *fader;
     pa_mir_volume *volume;
     pa_mir_config *config;
     pa_mir_state   state;

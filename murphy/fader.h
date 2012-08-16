@@ -26,6 +26,9 @@
 #include "list.h"
 
 
+pa_fader *pa_fader_init(const char *, const char *);
+void pa_fader_done(struct userdata *);
+
 void pa_fader_apply_volume_limits(struct userdata *, uint32_t);
 
 
