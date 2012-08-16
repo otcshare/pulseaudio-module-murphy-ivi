@@ -53,6 +53,7 @@
 #include "constrain.h"
 #include "multiplex.h"
 #include "loopback.h"
+#include "fader.h"
 #include "volume.h"
 #include "audiomgr.h"
 #include "routerif.h"
@@ -71,6 +72,8 @@ PA_MODULE_LOAD_ONCE(TRUE);
 PA_MODULE_USAGE(
     "config_dir=<configuration directory>"
     "config_file=<policy configuration file> "
+    "fade_out=<stream fade-out time in msec> "
+    "fade_in=<stream fade-in time in msec> "
 #ifdef WITH_DBUS
     "dbus_bus_type=<system|session> "
     "dbus_if_name=<policy dbus interface> "
@@ -89,6 +92,8 @@ PA_MODULE_USAGE(
 static const char* const valid_modargs[] = {
     "config_dir",
     "config_file",
+    "fade_out",
+    "fade_in",
 #ifdef WITH_DBUS
     "dbus_bus_type",
     "dbus_if_name",
@@ -111,6 +116,8 @@ int pa__init(pa_module *m) {
     pa_modargs      *ma = NULL;
     const char      *cfgdir;
     const char      *cfgfile;
+    const char      *fadeout;
+    const char      *fadein;
 #ifdef WITH_DBUS
     const char      *dbustype;
     const char      *ifnam;
@@ -136,6 +143,8 @@ int pa__init(pa_module *m) {
 
     cfgdir   = pa_modargs_get_value(ma, "config_dir", NULL);
     cfgfile  = pa_modargs_get_value(ma, "config_file", DEFAULT_CONFIG_FILE);
+    fadeout  = pa_modargs_get_value(ma, "fade_out", NULL);
+    fadein   = pa_modargs_get_value(ma, "fade_in", NULL);
 #ifdef WITH_DBUS
     dbustype = pa_modargs_get_value(ma, "dbus_bus_type", NULL);
     ifnam    = pa_modargs_get_value(ma, "dbus_if_name", NULL);
@@ -168,6 +177,7 @@ int pa__init(pa_module *m) {
     u->constrain = pa_constrain_init(u);
     u->multiplex = pa_multiplex_init();
     u->loopback  = pa_loopback_init();
+    u->fader     = pa_fader_init(fadeout, fadein);
     u->volume    = pa_mir_volume_init(u);
     u->config    = pa_mir_config_init(u);
 
@@ -216,6 +226,7 @@ void pa__done(pa_module *m) {
         pa_router_done(u);
         pa_audiomgr_done(u);
         pa_routerif_done(u);
+        pa_fader_done(u);
         pa_mir_volume_done(u);
         pa_mir_config_done(u);
         pa_nodeset_done(u);

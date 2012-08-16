@@ -35,6 +35,14 @@
 #include "loopback.h"
 #include "utils.h"
 
+typedef struct {
+    const char *media_role;
+    int         time;
+} latency_def;
+
+
+static int get_latency(const char *);
+
 
 pa_loopback *pa_loopback_init(void)
 {
@@ -90,9 +98,11 @@ pa_loopnode *pa_loopback_create(pa_loopback   *loopback,
         media_role = "music";
 
     snprintf(args, sizeof(args), "source=\"%s\" sink=\"%s\" "
+             "latency_msec=%d "
              "sink_input_properties=\"%s=%s %s=%u\" "
              "source_output_properties=\"%s=%s %s=%u\"",
              source->name, sink->name,
+             get_latency(media_role),
              PA_PROP_MEDIA_ROLE, media_role,
              PA_PROP_NODE_INDEX, node_index,
              PA_PROP_MEDIA_ROLE, media_role,
@@ -193,6 +203,26 @@ int pa_loopback_print(pa_loopnode *loop, char *buf, int len)
     }
     
     return p - buf;
+}
+
+static int get_latency(const char *media_role)
+{
+    static latency_def  latencies[] = {
+        { "phone"   , 5 },
+        { "ringtone", 5 },
+        {    NULL   , 0 }
+    };
+
+    latency_def *l;
+
+    pa_assert(media_role);
+
+    for (l = latencies;  l->media_role;  l++) {
+        if (pa_streq(media_role, l->media_role))
+            return l->time;
+    }
+
+    return 200;
 }
 
 

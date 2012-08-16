@@ -291,7 +291,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
                      prof->name, card->name);
         
         if (!prof->n_sinks && !prof->n_sources) {
-            /* switched of but not unloaded yet */
+            /* switched off but not unloaded yet */
             PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
                 if (node->implement == mir_device &&
                     node->pacard.index == card->index)
@@ -299,6 +299,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
                     node->available = FALSE;
                 }
             }
+            schedule_deferred_routing(u);
         }
     }
     else {
