@@ -446,10 +446,14 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
 
     MIR_DLIST_FOR_EACH_BACKWARD(mir_node, rtentries, start, &router->nodlist) {
         if (start->implement == mir_device) {
+#if 0
             if (start->direction == mir_output)
                 continue;       /* we should never get here */
             if (!start->mux && !start->loop)
                 continue;       /* skip not looped back input nodes */
+#endif
+            if (!start->loop)
+                continue;       /* only looped back devices routed here */
         }
 
         if (priority >= node_priority(u, start)) {
@@ -494,10 +498,14 @@ void mir_router_make_routing(struct userdata *u)
 
     MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, start, &router->nodlist) {
         if (start->implement == mir_device) {
+#if 0
             if (start->direction == mir_output)
                 continue;       /* we should never get here */
             if (!start->mux && !start->loop)
                 continue;       /* skip not looped back input nodes */
+#endif
+            if (!start->loop)
+                continue;       /* only looped back devices routed here */
         }
 
         if (start->stamp >= stamp)
