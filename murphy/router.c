@@ -908,6 +908,8 @@ static int print_routing_table(pa_hashmap  *table,
     if (len > 0) {
         p += snprintf(p, e-p, "%s routing table:\n", type);
 
+        state = NULL;
+
         if (p < e) {
             PA_HASHMAP_FOREACH(rtg, table, state) {
                 n++;
