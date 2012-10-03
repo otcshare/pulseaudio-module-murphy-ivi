@@ -90,6 +90,7 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     node->loop      = data->loop;
     node->stamp     = data->stamp;
     MIR_DLIST_INIT(node->rtentries);
+    MIR_DLIST_INIT(node->rtprilist);
     MIR_DLIST_INIT(node->constrains);
     
     if (node->implement == mir_device) {
@@ -231,8 +232,11 @@ const char *mir_node_type_str(mir_node_type type)
     case mir_navigator:           return "Navigator";
     case mir_game:                return "Game";
     case mir_browser:             return "Browser";
+    case mir_camera:              return "Camera";
     case mir_phone:               return "Phone";
+    case mir_alert:               return "Alert";
     case mir_event:               return "Event";
+    case mir_system:              return "System";
     case mir_speakers:            return "Speakers";
     case mir_microphone:          return "Microphone";
     case mir_jack:                return "Line";

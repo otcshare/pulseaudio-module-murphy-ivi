@@ -45,7 +45,8 @@ struct pa_router {
     int                  maplen;   /**< length of the class- and priormap */
     pa_rtgroup_classmap  classmap; /**< to map device node types to rtgroups */
     int                 *priormap; /**< stream node priorities */
-    mir_dlist            nodlist;  /**< priorized list of the stream nodes */
+    mir_dlist            nodlist;  /**< priorized list of the stream nodes
+                                        (entry in node: rtprilist) */
     mir_dlist            connlist; /**< listhead of the connections */
 };
 

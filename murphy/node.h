@@ -59,8 +59,11 @@ enum mir_node_type {
     mir_navigator,
     mir_game,
     mir_browser,
-    mir_phone,
-    mir_event,
+    mir_camera,
+    mir_phone,                  /**< telephony voice */
+    mir_alert,                  /**< ringtone, alarm */
+    mir_event,                  /**< notifications */
+    mir_system,                 /**< always audible system notifications, events */
     mir_application_class_end,
 
     /* device types */
@@ -132,10 +135,9 @@ struct mir_node {
     char          *paport;    /**< sink or source port if applies */
     pa_muxnode    *mux;       /**< for multiplexable input streams only */
     pa_loopnode   *loop;      /**< for looped back sources only */
-    mir_dlist      rtentries; /**< for devices: listhead of nodchain,
-                                   for streams: priority link (head is in
-                                                               pa_router )
-                               */
+    mir_dlist      rtentries; /**< in device nodes: listhead of nodchain */
+    mir_dlist      rtprilist; /**< in stream nodes: priority link (head is in
+                                                                   pa_router)*/
     mir_dlist      constrains;/**< listhead of constrains */
     mir_vlim       vlim;      /**< volume limit */
     uint32_t       stamp;
