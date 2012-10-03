@@ -704,13 +704,20 @@ static void add_rtentry(struct userdata *u,
 
 static void remove_rtentry(struct userdata *u, mir_rtentry *rte)
 {
+    mir_rtgroup *rtg;
+    mir_node    *node;
+
     pa_assert(u);
     pa_assert(rte);
+    pa_assert_se((rtg = rte->group));
+    pa_assert_se((node = rte->node));
 
     MIR_DLIST_UNLINK(mir_rtentry, link, rte);
     MIR_DLIST_UNLINK(mir_rtentry, nodchain, rte);
 
     pa_xfree(rte);
+
+    rtgroup_update_module_property(u, node->direction, rtg);
 }
 
 static void make_explicit_routes(struct userdata *u, uint32_t stamp)
