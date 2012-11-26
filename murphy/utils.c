@@ -124,7 +124,7 @@ pa_sink *pa_utils_get_null_sink(struct userdata *u)
 {
     pa_core *core;
     pa_null_sink *ns;
-    
+
     pa_assert(u);
     pa_assert_se((core = u->core));
     pa_assert_se((ns = u->nullsink));
@@ -162,7 +162,7 @@ char *pa_utils_get_sink_input_name(pa_sink_input *sinp)
 
     if (sinp && (name = stream_name(sinp->proplist)))
         return name;
-    
+
     return "<unknown>";
 }
 
@@ -172,7 +172,7 @@ char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *data)
 
     if (data && (name = stream_name(data->proplist)))
         return name;
-    
+
     return "<unknown>";
 }
 
@@ -183,7 +183,7 @@ char *pa_utils_get_source_output_name(pa_source_output *sout)
 
     if (sout && (name = stream_name(sout->proplist)))
         return name;
-    
+
     return "<unknown>";
 }
 
@@ -193,7 +193,7 @@ char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data*data)
 
     if (data && (name = stream_name(data->proplist)))
         return name;
-    
+
     return "<unknown>";
 }
 
@@ -208,7 +208,7 @@ void pa_utils_set_stream_routing_properties(pa_proplist *pl,
 
     pa_assert(pl);
     pa_assert(styp >= 0);
-    
+
     snprintf(clid, sizeof(clid), "%d", styp);
     clnam  = mir_node_type_str(styp);
     method = target ? PA_ROUTING_EXPLICIT : PA_ROUTING_DEFAULT;
@@ -227,7 +227,7 @@ void pa_utils_set_stream_routing_method_property(pa_proplist *pl,
     const char *method = explicit ? PA_ROUTING_EXPLICIT : PA_ROUTING_DEFAULT;
 
     pa_assert(pl);
-    
+
     if (pa_proplist_sets(pl, PA_PROP_ROUTING_METHOD, method) < 0) {
         pa_log("failed to set routing method property on sink-input");
     }
@@ -265,6 +265,41 @@ int pa_utils_get_stream_class(pa_proplist *pl)
     return (int)clid;
 }
 
+void pa_utils_set_port_properties(pa_device_port *port, mir_node *node)
+{
+    char nodeidx[256];
+
+    pa_assert(port);
+    pa_assert(port->proplist);
+    pa_assert(node);
+
+    snprintf(nodeidx, sizeof(nodeidx), "%u", node->index);
+
+    pa_proplist_sets(port->proplist, PA_PROP_NODE_INDEX, nodeidx);
+}
+
+mir_node *pa_utils_get_node_from_port(struct userdata *u,
+                                      pa_device_port *port)
+{
+    const char *value;
+    char *e;
+    uint32_t index = PA_IDXSET_INVALID;
+    mir_node *node = NULL;
+
+    pa_assert(u);
+    pa_assert(port);
+    pa_assert(port->proplist);
+
+    if ((value = pa_proplist_gets(port->proplist, PA_PROP_NODE_INDEX))) {
+        index = strtoul(value, &e, 10);
+
+        if (value[0] && !e[0])
+            node = mir_node_find_by_index(u, index);
+    }
+
+    return node;
+}
+
 mir_node *pa_utils_get_node_from_stream(struct userdata *u,
                                         mir_direction    type,
                                         void            *ptr)
@@ -292,7 +327,7 @@ mir_node *pa_utils_get_node_from_stream(struct userdata *u,
         pl = sout->proplist;
         snprintf(name, sizeof(name), "source-output.%u", sout->index);
     }
-    
+
 
     if ((index_str = pa_proplist_gets(pl, PA_PROP_NODE_INDEX))) {
         index = strtoul(index_str, &e, 10);
@@ -334,7 +369,7 @@ mir_node *pa_utils_get_node_from_data(struct userdata *u,
         pl = sout->proplist;
         snprintf(name, sizeof(name), "source-output");
     }
-    
+
 
     if ((index_str = pa_proplist_gets(pl, PA_PROP_NODE_INDEX))) {
         index = strtoul(index_str, &e, 10);

@@ -93,8 +93,12 @@ static void handle_card_ports(struct userdata *, mir_node *,
 
 static mir_node *create_node(struct userdata *, mir_node *, pa_bool_t *);
 static void destroy_node(struct userdata *, mir_node *);
-static pa_bool_t update_node_availability(struct userdata *, mir_direction,
-                                          void *, pa_device_port *, pa_bool_t);
+static pa_bool_t update_node_availability(struct userdata *, mir_node *,
+                                          pa_bool_t);
+static pa_bool_t update_node_availability_by_device(struct userdata *,
+                                                    mir_direction,
+                                                    void *, pa_device_port *,
+                                                    pa_bool_t);
 
 static void parse_profile_name(pa_card_profile *,
                                char **, char **, char *, int);
@@ -109,6 +113,8 @@ static pa_source *make_input_prerouting(struct userdata *, mir_node *,
                                         const char *, mir_node **);
 
 static mir_node_type get_stream_routing_class(pa_proplist *);
+
+static void set_bluetooth_profile(struct userdata *, mir_node *);
 
 
 static void schedule_deferred_routing(struct userdata *);
@@ -243,7 +249,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
     mir_node        *node;
     void            *state;
     uint32_t         index;
-    
+
     pa_assert(u);
     pa_assert(card);
     pa_assert_se((core = u->core));
@@ -289,7 +295,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 
         pa_log_debug("bluetooth profile changed to '%s' on card '%s'",
                      prof->name, card->name);
-        
+
         if (!prof->n_sinks && !prof->n_sources) {
             /* switched off but not unloaded yet */
             PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
@@ -307,7 +313,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
                      card->active_profile->name, card->name);
 
         stamp = pa_utils_get_stamp();
- 
+
         handle_alsa_card(u, card);
 
         PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
@@ -328,6 +334,7 @@ void pa_discover_port_available_changed(struct userdata *u,
     pa_core    *core;
     pa_sink    *sink;
     pa_source  *source;
+    mir_node   *node;
     uint32_t    idx;
     pa_bool_t   available;
     const char *state;
@@ -338,35 +345,49 @@ void pa_discover_port_available_changed(struct userdata *u,
     pa_assert_se((core = u->core));
 
     switch (port->available) {
-    case PA_PORT_AVAILABLE_NO:    state = "not ";  available = FALSE;   break;
-    case PA_PORT_AVAILABLE_YES:   state = "";      available = TRUE;    break;
-    default:                      /*       do nothing              */   return;
+    case PA_PORT_AVAILABLE_NO:    state = "not available";  break;
+    case PA_PORT_AVAILABLE_YES:   state = "available";      break;
+    default:                      state = "unknown";        break;
     }
 
-    pa_log_debug("port '%s' availabilty changed to %savailable. Updating",
-                 port->name, state);
+    pa_log_debug("port '%s' availabilty changed to %s. Updating", port->name, state);
 
     route = FALSE;
 
-    if (port->is_output) {
-        PA_IDXSET_FOREACH(sink, core->sinks, idx) {
-            if (sink->ports) {
-                if (port == pa_hashmap_get(sink->ports, port->name)) {
-                    pa_log_debug("   sink '%s'", sink->name);
-                    route |= update_node_availability(u, mir_output,sink,port,
-                                                      available);
+    if ((node = pa_utils_get_node_from_port(u, port))) {
+        available = (port->available == PA_PORT_AVAILABLE_YES);
+        route |= update_node_availability(u, node, available);
+        set_bluetooth_profile(u, node);
+    }
+    else {
+        switch (port->available) {
+        case PA_PORT_AVAILABLE_NO:    available = FALSE;    break;
+        case PA_PORT_AVAILABLE_YES:   available = TRUE;     break;
+        default:                      /* do nothing */      return;
+        }
+
+        if (port->is_output) {
+            PA_IDXSET_FOREACH(sink, core->sinks, idx) {
+                if (sink->ports) {
+                    if (port == pa_hashmap_get(sink->ports, port->name)) {
+                        pa_log_debug("   sink '%s'", sink->name);
+                        route |= update_node_availability_by_device(u, mir_output,
+                                                                    sink, port,
+                                                                    available);
+                    }
                 }
             }
         }
-    }
 
-    if (port->is_input) {
-        PA_IDXSET_FOREACH(source, core->sources, idx) {
-            if (source->ports) {
-                if (port == pa_hashmap_get(source->ports, port->name)) {
-                    pa_log_debug("   source '%s'", source->name);
-                    route |= update_node_availability(u, mir_input,source,port,
-                                                      available);
+        if (port->is_input) {
+            PA_IDXSET_FOREACH(source, core->sources, idx) {
+                if (source->ports) {
+                    if (port == pa_hashmap_get(source->ports, port->name)) {
+                        pa_log_debug("   source '%s'", source->name);
+                        route |= update_node_availability_by_device(u, mir_input,
+                                                                    source, port,
+                                                                    available);
+                    }
                 }
             }
         }
@@ -494,7 +515,7 @@ void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
                 node->available = FALSE;
             else {
                 if (!u->state.profile)
-                    schedule_deferred_routing(u);                
+                    schedule_deferred_routing(u);
             }
         }
         else {
@@ -642,7 +663,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = sinp->proplist));
-    
+
     if ((media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME))) {
         if (!strncmp(media, combine_pattern, sizeof(combine_pattern)-1)) {
             pa_log_debug("Seems to be a combine stream. Nothing to do ...");
@@ -723,7 +744,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     const char    *role;
     mir_node_type  type;
     mir_node      *node;
-    
+
     pa_assert(u);
     pa_assert(data);
     pa_assert_se((core = u->core));
@@ -778,7 +799,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
 
             if (pa_sink_input_new_data_set_sink(data, sink, FALSE))
                 pa_log_debug("set sink %u for new sink-input", sink->index);
-            else 
+            else
                 pa_log("can't set sink %u for new sink-input", sink->index);
         }
     }
@@ -835,23 +856,23 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         name = pa_utils_get_sink_input_name(sinp);
 
         pa_log_debug("dealing with new input stream '%s'", name);
-        
+
         if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
             if (!(type = pa_classify_guess_stream_node_type(pl))) {
                 pa_log_debug("cant find stream class for '%s'. "
                              "Leaving it alone", name);
                 return;
             }
-            
+
             pa_utils_set_stream_routing_properties(pl, type, NULL);
-            
+
             /* if needed, make some post-routing here */
         }
-        
+
         /* we need to add this to main hashmap as that is used for loop
            through on all nodes. */
         snprintf(key, sizeof(key), "stream_input.%d", sinp->index);
-        
+
         memset(&data, 0, sizeof(data));
         data.key       = key;
         data.direction = mir_input;
@@ -866,7 +887,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         data.paname    = name;
         data.paidx     = sinp->index;
         data.mux       = pa_multiplex_find(u->multiplex, sinp->sink->index);
-        
+
         node = create_node(u, &data, &created);
 
         pa_assert(node);
@@ -878,7 +899,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         }
 
         pa_discover_add_node_to_ptr_hash(u, sinp, node);
-        
+
         if (!data.mux)
             s = sinp->sink;
         else {
@@ -887,7 +908,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
             s = csinp ? csinp->sink : NULL;
         }
     }
-       
+
     if (s)
         pa_log_debug("routing target candidate is %u (%s)", s->index, s->name);
 
@@ -929,13 +950,13 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
         else {
             pa_log_debug("clear route '%s' => '%s'",
                          node->amname, sinknod->amname);
-            
+
             /* FIXME: and actually do it ... */
-            
+
         }
-            
+
         destroy_node(u, node);
-        
+
         mir_router_make_routing(u);
     }
 }
@@ -962,7 +983,7 @@ void pa_discover_register_source_output(struct userdata  *u,
     pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = sout->proplist));
-    
+
     if ((media = pa_proplist_gets(sout->proplist, PA_PROP_MEDIA_NAME))) {
         if (!strncmp(media, loopback_inpatrn, sizeof(loopback_inpatrn)-1)) {
             pa_log_debug("Seems to be a loopback stream. Nothing to do ...");
@@ -1039,7 +1060,7 @@ void pa_discover_preroute_source_output(struct userdata *u,
     const char    *role;
     mir_node_type  type;
     mir_node      *node;
-    
+
     pa_assert(u);
     pa_assert(data);
     pa_assert_se((core = u->core));
@@ -1137,23 +1158,23 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
         name = pa_utils_get_source_output_name(sout);
 
         pa_log_debug("dealing with new output stream '%s'", name);
-        
+
         if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
             if (!(type = pa_classify_guess_stream_node_type(pl))) {
                 pa_log_debug("cant find stream class for '%s'. "
                              "Leaving it alone", name);
                 return;
             }
-            
+
             pa_utils_set_stream_routing_properties(pl, type, NULL);
-            
+
             /* if needed, make some post-routing here */
         }
-        
+
         /* we need to add this to main hashmap as that is used for loop
            through on all nodes. */
         snprintf(key, sizeof(key), "stream_output.%d", sout->index);
-        
+
         memset(&data, 0, sizeof(data));
         data.key       = key;
         data.direction = mir_output;
@@ -1167,7 +1188,7 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
         data.amid      = AM_ID_INVALID;
         data.paname    = name;
         data.paidx     = sout->index;
-        
+
         node = create_node(u, &data, &created);
 
         pa_assert(node);
@@ -1178,7 +1199,7 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
             return;
         }
 
-        pa_discover_add_node_to_ptr_hash(u, sout, node);        
+        pa_discover_add_node_to_ptr_hash(u, sout, node);
     }
 
     if ((s = sout->source))
@@ -1222,13 +1243,13 @@ void pa_discover_remove_source_output(struct userdata  *u,
         else {
             pa_log_debug("clear route '%s' => '%s'",
                          node->amname, srcnod->amname);
-            
+
             /* FIXME: and actually do it ... */
-            
+
         }
-            
+
         destroy_node(u, node);
-        
+
         mir_router_make_routing(u);
     }
 }
@@ -1254,10 +1275,10 @@ mir_node *pa_discover_find_node_by_ptr(struct userdata *u, void *ptr)
 {
     pa_discover *discover;
     mir_node    *node;
-    
+
     pa_assert(u);
     pa_assert_se((discover = u->discover));
-    
+
     if (ptr)
         node = pa_hashmap_get(discover->nodes.byptr, ptr);
     else
@@ -1325,6 +1346,7 @@ static void handle_alsa_card(struct userdata *u, pa_card *card)
 }
 
 
+#if 0
 static void handle_bluetooth_card(struct userdata *u, pa_card *card)
 {
     pa_discover     *discover;
@@ -1339,7 +1361,6 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     char             paname[MAX_NAME_LENGTH+1];
     char             amname[MAX_NAME_LENGTH+1];
     char             key[MAX_NAME_LENGTH+1];
-    
 
     pa_assert_se((discover = u->discover));
 
@@ -1364,44 +1385,38 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
 
     cnam = pa_utils_get_card_name(card);
 
-    if (!strncmp(cnam, "bluez_card.", 11)) { 
+    if (!strncmp(cnam, "bluez_card.", 11)) {
         cid = cnam + 11;
+
+        pa_assert(card->ports);
 
         cd = mir_constrain_create(u, "profile", mir_constrain_profile, cnam);
 
-        PA_HASHMAP_FOREACH(prof, card->profiles, state) {
-            data.available = TRUE;
+        PA_HASHMAP_FOREACH(prof, card->profiles, cstate) {
+            data.available = FALSE;
             data.pacard.profile = prof->name;
 
             if (prof->n_sinks > 0) {
                 data.direction = mir_output;
-                data.channels = prof->max_sink_channels; 
+                data.channels = prof->max_sink_channels;
                 data.amname = amname;
                 amname[0] = '\0';
                 snprintf(paname, sizeof(paname), "bluez_sink.%s", cid);
                 snprintf(key, sizeof(key), "%s@%s", paname, prof->name);
                 pa_classify_node_by_card(&data, card, prof, NULL);
                 node = create_node(u, &data, NULL);
-#if 0
-                cd = mir_constrain_create(u, "profile", mir_constrain_profile,
-                                          paname);
-#endif
                 mir_constrain_add_node(u, cd, node);
             }
 
             if (prof->n_sources > 0) {
                 data.direction = mir_input;
-                data.channels = prof->max_source_channels; 
+                data.channels = prof->max_source_channels;
                 data.amname = amname;
                 amname[0] = '\0';
                 snprintf(paname, sizeof(paname), "bluez_source.%s", cid);
                 snprintf(key, sizeof(key), "%s@%s", paname, prof->name);
                 pa_classify_node_by_card(&data, card, prof, NULL);
                 node = create_node(u, &data, NULL);
-#if 0
-                cd = mir_constrain_create(u, "profile", mir_constrain_profile,
-                                          paname);
-#endif
                 mir_constrain_add_node(u, cd, node);
             }
         }
@@ -1416,6 +1431,102 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
         schedule_card_check(u, card);
     }
 }
+#endif
+
+
+static void handle_bluetooth_card(struct userdata *u, pa_card *card)
+{
+    pa_discover     *discover;
+    pa_card_profile *prof;
+    pa_device_port  *port;
+    mir_node         data;
+    mir_node        *node;
+    mir_constr_def  *cd;
+    char            *cnam;
+    char            *cid;
+    const char      *cdescr;
+    void            *state0, *state1;
+    char             paname[MAX_NAME_LENGTH+1];
+    char             amname[MAX_NAME_LENGTH+1];
+    char             key[MAX_NAME_LENGTH+1];
+
+    pa_assert_se((discover = u->discover));
+
+    cdescr = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_DESCRIPTION);
+
+
+    memset(paname, 0, sizeof(paname));
+    memset(amname, 0, sizeof(amname));
+    memset(key   , 0, sizeof(key)   );
+
+    memset(&data, 0, sizeof(data));
+    data.key = key;
+    data.visible = TRUE;
+    data.amid = AM_ID_INVALID;
+    data.implement = mir_device;
+    data.paidx = PA_IDXSET_INVALID;
+    data.paname = paname;
+    data.amname = amname;
+    data.amdescr = (char *)cdescr;
+    data.pacard.index = card->index;
+    data.stamp = pa_utils_get_stamp();
+
+    cnam = pa_utils_get_card_name(card);
+
+    if (!strncmp(cnam, "bluez_card.", 11)) {
+        cid = cnam + 11;
+
+        pa_assert(card->ports);
+
+        cd = mir_constrain_create(u, "profile", mir_constrain_profile, cnam);
+
+        PA_HASHMAP_FOREACH(port, card->ports, state0) {
+            pa_assert(port->profiles);
+
+            data.available = FALSE;
+
+            PA_HASHMAP_FOREACH(prof, port->profiles, state1) {
+                data.pacard.profile = prof->name;
+
+                if (prof->n_sinks > 0) {
+                    data.direction = mir_output;
+                    data.channels = prof->max_sink_channels;
+                    data.amname = amname;
+                    amname[0] = '\0';
+                    snprintf(paname, sizeof(paname), "bluez_sink.%s", cid);
+                    snprintf(key, sizeof(key), "%s@%s", paname, port->name);
+                    pa_classify_node_by_card(&data, card, prof, NULL);
+                    node = create_node(u, &data, NULL);
+                    mir_constrain_add_node(u, cd, node);
+                    pa_utils_set_port_properties(port, node);
+                }
+
+                if (prof->n_sources > 0) {
+                    data.direction = mir_input;
+                    data.channels = prof->max_source_channels;
+                    data.amname = amname;
+                    amname[0] = '\0';
+                    snprintf(paname, sizeof(paname), "bluez_source.%s", cid);
+                    snprintf(key, sizeof(key), "%s@%s", paname, port->name);
+                    pa_classify_node_by_card(&data, card, prof, NULL);
+                    node = create_node(u, &data, NULL);
+                    mir_constrain_add_node(u, cd, node);
+                    pa_utils_set_port_properties(port, node);
+                }
+            }
+        }
+
+        if (!(prof = card->active_profile))
+            pa_log("card '%s' has no active profile", card->name);
+        else {
+            pa_log_debug("card '%s' default profile '%s'",
+                         card->name, prof->name);
+        }
+
+        schedule_card_check(u, card);
+    }
+}
+
 
 
 static void handle_udev_loaded_card(struct userdata *u, pa_card *card,
@@ -1460,11 +1571,11 @@ static void handle_udev_loaded_card(struct userdata *u, pa_card *card,
             continue;
 
         /* filtering: consider sinks with suitable amount channels */
-        if (prof->n_sinks && 
+        if (prof->n_sinks &&
             (prof->max_sink_channels < discover->chmin ||
              prof->max_sink_channels  > discover->chmax  ))
             continue;
-        
+
         /* filtering: consider sources with suitable amount channels */
         if (prof->n_sources &&
             (prof->max_source_channels <  discover->chmin ||
@@ -1474,7 +1585,7 @@ static void handle_udev_loaded_card(struct userdata *u, pa_card *card,
         data->pacard.profile = prof->name;
 
         parse_profile_name(prof, sinks,sources, buf,sizeof(buf));
-        
+
         data->direction = mir_output;
         data->channels = prof->max_sink_channels;
         for (i = 0;  (sid = sinks[i]);  i++) {
@@ -1487,7 +1598,7 @@ static void handle_udev_loaded_card(struct userdata *u, pa_card *card,
         for (i = 0;  (sid = sources[i]);  i++) {
             snprintf(paname, sizeof(paname), "alsa_input.%s.%s", cardid, sid);
             handle_card_ports(u, data, card, prof);
-        }        
+        }
     }
 }
 
@@ -1509,10 +1620,10 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
     pa_assert(card);
     pa_assert(prof);
 
-    if (card->ports) {        
+    if (card->ports) {
         PA_HASHMAP_FOREACH(port, card->ports, state) {
             /*
-             * if this port did not belong to any profile 
+             * if this port did not belong to any profile
              * (ie. prof->profiles == NULL) we assume that this port
              * does works with all the profiles
              */
@@ -1545,7 +1656,7 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
             }
         }
     }
-    
+
     if (!have_ports) {
         data->key = data->paname;
         data->available = TRUE;
@@ -1563,7 +1674,7 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
 }
 
 
-static mir_node *create_node(struct userdata *u, mir_node *data, 
+static mir_node *create_node(struct userdata *u, mir_node *data,
                              pa_bool_t *created_ret)
 {
     pa_discover *discover;
@@ -1576,25 +1687,25 @@ static mir_node *create_node(struct userdata *u, mir_node *data,
     pa_assert(data->key);
     pa_assert(data->paname);
     pa_assert_se((discover = u->discover));
-    
+
     if ((node = pa_hashmap_get(discover->nodes.byname, data->key)))
         created = FALSE;
     else {
         created = TRUE;
-        
+
         node = mir_node_create(u, data);
         pa_hashmap_put(discover->nodes.byname, node->key, node);
-        
+
         mir_node_print(node, buf, sizeof(buf));
         pa_log_debug("new node:\n%s", buf);
-        
+
         if (node->available)
             pa_audiomgr_register_node(u, node);
     }
-    
+
     if (created_ret)
         *created_ret = created;
-    
+
     return node;
 }
 
@@ -1625,26 +1736,50 @@ static void destroy_node(struct userdata *u, mir_node *node)
         if (node->implement == mir_stream) {
             if (node->direction == mir_input) {
                 if (node->mux) {
-                    pa_log_debug("removing multiplexer"); 
+                    pa_log_debug("removing multiplexer");
                 }
             }
         }
-        
+
         pa_audiomgr_unregister_node(u, node);
 
         mir_constrain_remove_node(u, node);
 
         pa_loopback_destroy(u->loopback, u->core, node->loop);
         pa_multiplex_destroy(u->multiplex, u->core, node->mux);
-        
+
         mir_node_destroy(u, node);
-    }    
+    }
 }
 
 static pa_bool_t update_node_availability(struct userdata *u,
-                                          mir_direction direction,
-                                          void *data, pa_device_port *port,
+                                          mir_node *node,
                                           pa_bool_t available)
+{
+    pa_assert(u);
+    pa_assert(node);
+
+    if ((!available &&  node->available) ||
+        ( available && !node->available)  )
+    {
+        node->available = available;
+
+        if (available)
+            pa_audiomgr_register_node(u, node);
+        else
+            pa_audiomgr_unregister_node(u, node);
+
+        return TRUE; /* routing needed */
+    }
+
+    return FALSE;
+}
+
+static pa_bool_t update_node_availability_by_device(struct userdata *u,
+                                                    mir_direction direction,
+                                                    void *data,
+                                                    pa_device_port *port,
+                                                    pa_bool_t available)
 {
     mir_node *node;
     char     *key;
@@ -1661,18 +1796,8 @@ static pa_bool_t update_node_availability(struct userdata *u,
         else {
             pa_log_debug("      node for '%s' found (key %s)",
                          node->paname, node->key);
-            if ((!available &&  node->available) ||
-                ( available && !node->available)  )
-            {
-                node->available = available;
 
-                if (available)
-                    pa_audiomgr_register_node(u, node);
-                else
-                    pa_audiomgr_unregister_node(u, node);
-
-                return TRUE; /* routing needed */
-            }
+            return update_node_availability(u, node, available);
         }
     }
 
@@ -1695,7 +1820,7 @@ static char *get_name(char **string_ptr, int offs)
     *string_ptr = end;
 
     return name;
-} 
+}
 
 static void parse_profile_name(pa_card_profile *prof,
                                char           **sinks,
@@ -1723,14 +1848,14 @@ static void parse_profile_name(pa_card_profile *prof,
                 return;
             }
             sinks[i++] = get_name(&p, 7);
-        } 
+        }
         else if (!strncmp(p, "input:", 6)) {
             if (j >= MAX_CARD_TARGET) {
                 pa_log_debug("number of inputs exeeds the maximum %d in "
                              "profile name '%s'", MAX_CARD_TARGET, prof->name);
                 return;
             }
-            sources[j++] = get_name(&p, 6);            
+            sources[j++] = get_name(&p, 6);
         }
         else {
             pa_log("%s: failed to parse profile name '%s'",
@@ -1779,7 +1904,7 @@ static char *node_key(struct userdata *u, mir_direction direction,
 
     if (!card)
         return NULL;
-        
+
     pa_assert_se((profile = card->active_profile));
 
     if (!u->state.profile)
@@ -1789,27 +1914,31 @@ static char *node_key(struct userdata *u, mir_direction direction,
                      u->state.profile, profile->name);
         profile_name = u->state.profile;
     }
-        
+
 
     if (!(bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS))) {
         pa_log_debug("ignoring %s '%s' due to lack of '%s' property "
                      "on its card", type, name, PA_PROP_DEVICE_BUS);
         return NULL;
     }
-    
+
     pci = pa_streq(bus, "pci");
     usb = pa_streq(bus, "usb");
     bluetooth = pa_streq(bus, "bluetooth");
-    
+
     if (!pci && !usb && !bluetooth) {
         pa_log_debug("ignoring %s '%s' due to unsupported bus type '%s' "
                      "of its card", type, name, bus);
         return NULL;
     }
-    
+
     if (bluetooth) {
-        key = buf;
-        snprintf(buf, len, "%s@%s", name, profile_name);
+        if (!port)
+            key = NULL;
+        else {
+            key = buf;
+            snprintf(buf, len, "%s@%s", name, port->name);
+        }
     }
     else {
         if (!port)
@@ -1838,7 +1967,7 @@ static pa_sink *make_output_prerouting(struct userdata *u,
     pa_assert(chmap);
     pa_assert_se((core = u->core));
 
-        
+
     target = mir_router_make_prerouting(u, data);
 
     if (!target)
@@ -1881,7 +2010,7 @@ static pa_source *make_input_prerouting(struct userdata *u,
     pa_assert(u);
     pa_assert(data);
     pa_assert_se((core = u->core));
-        
+
     target = mir_router_make_prerouting(u, data);
 
     if (!target)
@@ -1916,13 +2045,81 @@ static mir_node_type get_stream_routing_class(pa_proplist *pl)
             {
                 return type;
             }
-        }                
+        }
     }
 
     return mir_node_type_unknown;
 }
 
 
+static void set_bluetooth_profile(struct userdata *u, mir_node *node)
+{
+    pa_core *core;
+    pa_card *card;
+    pa_device_port *port;
+    pa_card_profile *prof, *make_active;
+    void *state0, *state1;
+    pa_bool_t available;
+
+
+    pa_assert(u);
+    pa_assert(node);
+    pa_assert_se((core = u->core));
+    pa_assert_se((card = pa_idxset_get_by_index(core->cards,
+                                                node->pacard.index)));
+
+    make_active = NULL;
+
+    pa_log_debug("which profile to make active:");
+
+    PA_HASHMAP_FOREACH(prof, card->profiles, state0) {
+        if (!prof->n_sinks && !prof->n_sources) {
+            if (!make_active) {
+                pa_log_debug("   considering %s", prof->name);
+                make_active = prof;
+            }
+        }
+        else {
+            available = FALSE;
+
+            PA_HASHMAP_FOREACH(port, card->ports, state1) {
+                if (prof == pa_hashmap_first(port->profiles)) {
+                    available = (port->available == PA_PORT_AVAILABLE_YES);
+                    break;
+                }
+            }
+
+            if (!available) {
+                pa_log_debug("   ruling out %s (not available)", prof->name);
+            }
+            else if (node->direction == mir_input  && prof->n_sources > 0 ||
+                     node->direction == mir_output && prof->n_sinks   > 0   ) {
+                if (make_active && prof->priority < make_active->priority)
+                    pa_log_debug("   ruling out %s (low priority)", prof->name);
+                else {
+                    pa_log_debug("   considering %s", prof->name);
+                    make_active = prof;
+                }
+            }
+            else {
+                pa_log_debug("   ruling out %s (direction)", prof->name);
+            }
+        }
+    }
+
+    if (!make_active)
+        pa_log_debug("No suitable profile found. Frustrated and do nothing");
+    else {
+        if (make_active == card->active_profile)
+            pa_log_debug("Profile %s already set. Do nothing", make_active->name);
+        else {
+            pa_log_debug("Set profile %s", make_active->name);
+
+            if (pa_card_set_profile(card, make_active->name, FALSE) < 0)
+                pa_log_debug("Failed to change profile to %s", make_active->name);
+        }
+    }
+}
 
 static void deferred_routing_cb(pa_mainloop_api *m, void *d)
 {
@@ -1996,7 +2193,7 @@ static void card_check_cb(pa_mainloop_api *m, void *d)
             mir_router_make_routing(u);
         }
     }
-    
+
     pa_xfree(cc);
 }
 
@@ -2019,7 +2216,7 @@ static void schedule_card_check(struct userdata *u, pa_card *card)
     pa_mainloop_api_once(core->mainloop, card_check_cb, cc);
 }
 
-                                  
+
 static void source_cleanup_cb(pa_mainloop_api *m, void *d)
 {
     source_cleanup_t *sc = d;
@@ -2038,7 +2235,7 @@ static void source_cleanup_cb(pa_mainloop_api *m, void *d)
     pa_multiplex_destroy(u->multiplex, u->core, sc->mux);
 
     pa_log_debug("source cleanup ends");
-    
+
     pa_xfree(sc);
 }
 
@@ -2099,7 +2296,7 @@ static void stream_uncork_cb(pa_mainloop_api *m, void *d)
     pa_log_debug("stream.%u uncorked", sinp->index);
 
  out:
-    
+
     pa_xfree(suc);
 }
 
