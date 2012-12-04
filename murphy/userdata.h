@@ -22,6 +22,7 @@
 
 #include <stdbool.h>
 #include <pulsecore/core.h>
+#include <pulsecore/protocol-native.h>
 
 #include "multiplex.h"
 #include "loopback.h"
@@ -58,7 +59,7 @@ typedef struct pa_sink_hooks            pa_sink_hooks;
 typedef struct pa_source_hooks          pa_source_hooks;
 typedef struct pa_sink_input_hooks      pa_sink_input_hooks;
 typedef struct pa_source_output_hooks   pa_source_output_hooks;
-
+typedef struct pa_extapi                pa_extapi;
 
 typedef enum   mir_direction            mir_direction;
 typedef enum   mir_implement            mir_implement;
@@ -110,6 +111,8 @@ struct userdata {
     pa_mir_volume *volume;
     pa_mir_config *config;
     pa_mir_state   state;
+    pa_extapi     *extapi;
+    pa_native_protocol *protocol;
 };
 
 #endif

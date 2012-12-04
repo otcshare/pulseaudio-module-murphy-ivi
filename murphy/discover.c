@@ -43,6 +43,7 @@
 #include "fader.h"
 #include "classify.h"
 #include "utils.h"
+#include "extapi.h"
 
 #define MAX_CARD_TARGET   4
 #define MAX_NAME_LENGTH   256
@@ -169,8 +170,10 @@ void pa_discover_domain_up(struct userdata *u)
     PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
         node->amid = AM_ID_INVALID;
 
-        if (node->visible && node->available)
+        if (node->visible && node->available) {
             pa_audiomgr_register_node(u, node);
+            extapi_signal_node_change(u);
+        }
     }
 }
 
@@ -1743,6 +1746,8 @@ static void destroy_node(struct userdata *u, mir_node *node)
 
         pa_audiomgr_unregister_node(u, node);
 
+        extapi_signal_node_change(u);
+
         mir_constrain_remove_node(u, node);
 
         pa_loopback_destroy(u->loopback, u->core, node->loop);
@@ -1768,6 +1773,8 @@ static pa_bool_t update_node_availability(struct userdata *u,
             pa_audiomgr_register_node(u, node);
         else
             pa_audiomgr_unregister_node(u, node);
+
+        extapi_signal_node_change(u);
 
         return TRUE; /* routing needed */
     }

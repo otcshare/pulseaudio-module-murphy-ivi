@@ -26,7 +26,8 @@ module_murphy_ivi_la_SOURCES = \
 			$(ROUTERIF) \
 			config.c \
 			classify.c \
-			utils.c
+			utils.c \
+			extapi.c
 
 if BUILD_WITH_DBUS
 dbussysdir = $(sysconfdir)/dbus-1/system.d

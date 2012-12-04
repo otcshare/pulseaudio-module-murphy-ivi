@@ -37,16 +37,34 @@ enum mir_direction {
     mir_output
 };
 
+static const char *mir_direction_names[] = {
+    [mir_direction_unknown] = "unknown",
+    [mir_input] = "input",
+    [mir_output] = "output"
+};
+
 enum mir_implement {
     mir_implementation_unknown = 0,
     mir_device,
     mir_stream
 };
 
+static const char *mir_implement_names[] = {
+    [mir_implementation_unknown] = "unknown",
+    [mir_device] = "device",
+    [mir_stream] = "stream"
+};
+
 enum mir_location {
     mir_location_unknown = 0,
     mir_internal,
     mir_external
+};
+
+static const char *mir_location_names[] = {
+    [mir_location_unknown] = "unknown",
+    [mir_internal] = "internal",
+    [mir_external] = "external"
 };
 
 enum mir_node_type {
@@ -91,10 +109,44 @@ enum mir_node_type {
     mir_user_defined_start = 256
 };
 
+static const char *mir_node_type_names[512] = {
+    [mir_node_type_unknown] = "unknown",
+    [mir_radio] = "radio",
+    [mir_player] = "player",
+    [mir_navigator] = "navigator",
+    [mir_game] = "game",
+    [mir_browser] = "browser",
+    [mir_phone] = "phone",
+    [mir_event] = "event",
+    [mir_null] = "null",
+    [mir_speakers] = "speakers",
+    [mir_front_speakers] = "front_speakers",
+    [mir_rear_speakers] = "rear_speakers",
+    [mir_microphone] = "microphone",
+    [mir_jack] = "jack",
+    [mir_spdif] "spdif",
+    [mir_hdmi] = "hdmi",
+    [mir_wired_headset] = "wired_headset",
+    [mir_wired_headphone] = "wired_headphone",
+    [mir_usb_headset] ="usb_headset",
+    [mir_usb_headphone] = "usb_headphone",
+    [mir_bluetooth_sco] = "bluetooth_sco",
+    [mir_bluetooth_a2dp] = "bluetooth_a2dp",
+    [mir_bluetooth_carkit] = "bluetooth_carkit",
+    [mir_bluetooth_source] = "bluetooth_source",
+    [mir_bluetooth_sink] = "bluetoohth_sink"
+};
+
 enum mir_privacy {
     mir_privacy_unknown = 0,
     mir_public,
     mir_private
+};
+
+static const char *mir_privacy_names[] = {
+    [mir_privacy_unknown] ="unknown",
+    [mir_public] = "public",
+    [mir_private] = "private"
 };
 
 struct pa_node_card {
