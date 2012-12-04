@@ -60,6 +60,7 @@
 #include "config.h"
 #include "utils.h"
 #include "scripting.h"
+#include "extapi.h"
 
 #ifndef DEFAULT_CONFIG_DIR
 #define DEFAULT_CONFIG_DIR "/etc/pulse"
@@ -186,6 +187,7 @@ int pa__init(pa_module *m) {
     u->volume    = pa_mir_volume_init(u);
     u->scripting = pa_scripting_init(u);
     u->config    = pa_mir_config_init(u);
+    u->extapi    = pa_extapi_init(u);
 
     u->state.sink   = PA_IDXSET_INVALID;
     u->state.source = PA_IDXSET_INVALID;
@@ -196,7 +198,12 @@ int pa__init(pa_module *m) {
 
     m->userdata = u;
 
+    /* register ext api callback */
+    u->protocol = pa_native_protocol_get(m->core);
+    pa_native_protocol_install_ext(u->protocol, m, extension_cb);
+
     cfgpath = pa_utils_file_path(cfgdir, cfgfile, buf, sizeof(buf));
+
     pa_mir_config_parse_file(u, cfgpath);
 
     pa_tracker_synchronize(u);
@@ -240,6 +247,13 @@ void pa__done(pa_module *m) {
 
         pa_loopback_done(u->loopback, u->core);
         pa_multiplex_done(u->multiplex, u->core);
+
+        pa_extapi_done(u);
+
+        if (u->protocol) {
+            pa_native_protocol_remove_ext(u->protocol, m);
+            pa_native_protocol_unref(u->protocol);
+        }
 
         pa_xfree(u);
     }
