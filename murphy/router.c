@@ -138,11 +138,11 @@ void mir_router_assign_class_priority(struct userdata *u,
 }
 
 
-pa_bool_t mir_router_create_rtgroup(struct userdata      *u,
-                                    mir_direction         type,
-                                    const char           *name,
-                                    mir_rtgroup_accept_t  accept,
-                                    mir_rtgroup_compare_t compare)
+mir_rtgroup *mir_router_create_rtgroup(struct userdata      *u,
+                                       mir_direction         type,
+                                       const char           *name,
+                                       mir_rtgroup_accept_t  accept,
+                                       mir_rtgroup_compare_t compare)
 {
     pa_router   *router;
     pa_hashmap  *table;
@@ -171,13 +171,13 @@ pa_bool_t mir_router_create_rtgroup(struct userdata      *u,
     if (pa_hashmap_put(table, rtg->name, rtg) < 0) {
         pa_xfree(rtg->name);
         pa_xfree(rtg);
-        return FALSE;
+        return NULL;
     }
 
     pa_log_debug("%s routing group '%s' created",
                  mir_direction_str(type), name);
 
-    return TRUE;
+    return rtg;
 }
 
 void mir_router_destroy_rtgroup(struct userdata *u,
@@ -565,11 +565,13 @@ pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
 }
 
 
-int mir_router_default_compare(struct userdata *u, mir_node *n1, mir_node *n2)
+int mir_router_default_compare(struct userdata *u, mir_rtgroup *rtg,
+                               mir_node *n1, mir_node *n2)
 {
     uint32_t p1, p2;
 
     (void)u;
+    (void)rtg;
 
     pa_assert(n1);
     pa_assert(n2);
@@ -589,11 +591,13 @@ int mir_router_default_compare(struct userdata *u, mir_node *n1, mir_node *n2)
 }
 
 
-int mir_router_phone_compare(struct userdata *u, mir_node *n1, mir_node *n2)
+int mir_router_phone_compare(struct userdata *u, mir_rtgroup *rtg,
+                             mir_node *n1, mir_node *n2)
 {
     uint32_t p1, p2;
 
     (void)u;
+    (void)rtg;
 
     pa_assert(n1);
     pa_assert(n2);
@@ -688,7 +692,7 @@ static void add_rtentry(struct userdata *u,
     rte->node  = node;
 
     MIR_DLIST_FOR_EACH(mir_rtentry, link, before, &rtg->entries) {
-        if (rtg->compare(u, node, before->node) < 0) {
+        if (rtg->compare(u, rtg, node, before->node) < 0) {
             MIR_DLIST_INSERT_BEFORE(mir_rtentry, link, rte, &before->link);
             goto added;
         }

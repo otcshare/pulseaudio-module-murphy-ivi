@@ -30,6 +30,7 @@
 #include "discover.h"
 #include "router.h"
 #include "constrain.h"
+#include "scripting.h"
 
 struct pa_nodeset {
     pa_idxset *nodes;
@@ -89,12 +90,13 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     node->mux       = data->mux;
     node->loop      = data->loop;
     node->stamp     = data->stamp;
+    node->scripting = pa_scripting_node_create(u, node);
     MIR_DLIST_INIT(node->rtentries);
     MIR_DLIST_INIT(node->rtprilist);
     MIR_DLIST_INIT(node->constrains);
     
     if (node->implement == mir_device) {
-        node->pacard.index   = data->pacard.index;
+        node->pacard.index = data->pacard.index;
         if (data->pacard.profile)
             node->pacard.profile = pa_xstrdup(data->pacard.profile);
         if (data->paport)
@@ -116,6 +118,7 @@ void mir_node_destroy(struct userdata *u, mir_node *node)
     pa_assert_se((ns = u->nodeset));
 
     if (node) {
+        pa_scripting_node_destroy(u, node);
         mir_router_unregister_node(u, node);
 
         pa_idxset_remove_by_index(ns->nodes, node->index);

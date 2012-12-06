@@ -141,6 +141,7 @@ struct mir_node {
     mir_dlist      constrains;/**< listhead of constrains */
     mir_vlim       vlim;      /**< volume limit */
     uint32_t       stamp;
+    scripting_node *scripting;/** scripting data, if any */
 };
 
 

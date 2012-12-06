@@ -48,6 +48,7 @@ typedef struct pa_discover              pa_discover;
 typedef struct pa_router                pa_router;
 typedef struct pa_constrain             pa_constrain;
 typedef struct pa_fader                 pa_fader;
+typedef struct pa_scripting             pa_scripting;
 typedef struct pa_mir_volume            pa_mir_volume;
 typedef struct pa_mir_config            pa_mir_config;
 typedef struct pa_nodeset               pa_nodeset;
@@ -73,6 +74,9 @@ typedef struct mir_constr_link          mir_constr_link;
 typedef struct mir_constr_def           mir_constr_def;
 typedef struct mir_vlim                 mir_vlim;
 typedef struct mir_volume_suppress_arg  mir_volume_suppress_arg;
+
+typedef struct scripting_node           scripting_node;
+typedef struct scripting_rtgroup        scripting_rtgroup;
 
 typedef enum   am_method                am_method;
 typedef struct am_domainreg_data        am_domainreg_data;
@@ -107,6 +111,7 @@ struct userdata {
     pa_multiplex  *multiplex;
     pa_loopback   *loopback;
     pa_fader      *fader;
+    pa_scripting  *scripting;
     pa_mir_volume *volume;
     pa_mir_config *config;
     pa_mir_state   state;
