@@ -43,9 +43,6 @@
 #include "utils.h"
 #include "node.h"
 
-#ifndef DEFAULT_CONFIG_DIR
-#define DEFAULT_CONFIG_DIR "/etc/pulse"
-#endif
 
 #define DEFAULT_NULL_SINK_NAME "null.mir"
 
@@ -399,13 +396,14 @@ static char *stream_name(pa_proplist *pl)
 }
 
 
-const char *pa_utils_file_path(const char *file, char *buf, size_t len)
+const char *pa_utils_file_path(const char *dir, const char *file,
+                               char *buf, size_t len)
 {
     pa_assert(file);
     pa_assert(buf);
     pa_assert(len > 0);
 
-    snprintf(buf, len, "%s/%s", DEFAULT_CONFIG_DIR, file);
+    snprintf(buf, len, "%s/%s", dir, file);
 
     return buf;
 }

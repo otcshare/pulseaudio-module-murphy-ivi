@@ -50,7 +50,7 @@ mir_node *pa_utils_get_node_from_stream(struct userdata *,mir_direction,void*);
 mir_node *pa_utils_get_node_from_data(struct userdata *, mir_direction,void *);
 #endif
 
-const char *pa_utils_file_path(const char *, char *, size_t);
+const char *pa_utils_file_path(const char *, const char *, char *, size_t);
 
 uint32_t pa_utils_new_stamp(void);
 uint32_t pa_utils_get_stamp(void);
