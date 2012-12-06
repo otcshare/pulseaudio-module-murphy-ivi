@@ -29,11 +29,17 @@ module_murphy_ivi_la_SOURCES = \
 			utils.c \
 			scripting.c
 
+
+configdir = $(sysconfdir)/pulse
+config_DATA = murphy-ivi.lua
+
+EXTRA_DIST = $(config_DATA)
+
 if BUILD_WITH_DBUS
 dbussysdir = $(sysconfdir)/dbus-1/system.d
 dbussys_DATA = pulseaudio-murphy-ivi.conf
 
-EXTRA_DIST = $(dbussys_DATA)
+EXTRA_DIST += $(dbussys_DATA)
 endif
 
 
