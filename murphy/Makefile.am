@@ -26,7 +26,8 @@ module_murphy_ivi_la_SOURCES = \
 			$(ROUTERIF) \
 			config.c \
 			classify.c \
-			utils.c
+			utils.c \
+			scripting.c
 
 if BUILD_WITH_DBUS
 dbussysdir = $(sysconfdir)/dbus-1/system.d
@@ -37,5 +38,11 @@ endif
 
 
 module_murphy_ivi_la_LDFLAGS = -module -avoid-version -Wl,--no-undefined
-module_murphy_ivi_la_LIBADD = $(AM_LIBADD) $(CONDITIONAL_LIBS) $(LIBPULSE_LIBS) $(PULSEDEVEL_LIBS)
-module_murphy_ivi_la_CFLAGS = $(AM_CFLAGS) $(CONDITIONAL_CFLAGS) $(LIBPULSE_CFLAGS) $(PULSEDEVEL_CFLAGS)
+module_murphy_ivi_la_LIBADD = $(AM_LIBADD) $(CONDITIONAL_LIBS)            \
+                              $(LIBPULSE_LIBS) $(PULSEDEVEL_LIBS)         \
+                              $(MURPHYCOMMON_LIBS) $(MURPHYCORE_LIBS)     \
+                              $(LUA_LIBS)
+module_murphy_ivi_la_CFLAGS = $(AM_CFLAGS) $(CONDITIONAL_CFLAGS)          \
+                              $(LIBPULSE_CFLAGS) $(PULSEDEVEL_CFLAGS)     \
+                              $(MURPHYCOMMON_CFLAGS) $(MURPHYCORE_CFLAGS) \
+                              $(LUA_CFLAGS)
