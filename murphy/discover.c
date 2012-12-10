@@ -329,7 +329,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 }
 
 void pa_discover_port_available_changed(struct userdata *u,
-                                        pa_device_port *port)
+                                        pa_device_port  *port)
 {
     pa_core    *core;
     pa_sink    *sink;
@@ -350,7 +350,8 @@ void pa_discover_port_available_changed(struct userdata *u,
     default:                      state = "unknown";        break;
     }
 
-    pa_log_debug("port '%s' availabilty changed to %s. Updating", port->name, state);
+    pa_log_debug("port '%s' availabilty changed to %s. Updating",
+                 port->name, state);
 
     route = FALSE;
 
@@ -371,9 +372,10 @@ void pa_discover_port_available_changed(struct userdata *u,
                 if (sink->ports) {
                     if (port == pa_hashmap_get(sink->ports, port->name)) {
                         pa_log_debug("   sink '%s'", sink->name);
-                        route |= update_node_availability_by_device(u, mir_output,
-                                                                    sink, port,
-                                                                    available);
+                        route |= update_node_availability_by_device(
+                                                     u, mir_output,
+                                                     sink, port,
+                                                     available);
                     }
                 }
             }
@@ -384,9 +386,10 @@ void pa_discover_port_available_changed(struct userdata *u,
                 if (source->ports) {
                     if (port == pa_hashmap_get(source->ports, port->name)) {
                         pa_log_debug("   source '%s'", source->name);
-                        route |= update_node_availability_by_device(u, mir_input,
-                                                                    source, port,
-                                                                    available);
+                        route |= update_node_availability_by_device(
+                                                      u, mir_input,
+                                                      source, port,
+                                                      available);
                     }
                 }
             }
@@ -1792,7 +1795,7 @@ static pa_bool_t update_node_availability_by_device(struct userdata *u,
 
     if ((key = node_key(u, direction, data, port, buf, sizeof(buf)))) {
         if (!(node = pa_discover_find_node_by_key(u, key)))
-            pa_log_debug("      can't find node for sink (key '%s')", key);
+            pa_log_debug("      can't find node (key '%s')", key);
         else {
             pa_log_debug("      node for '%s' found (key %s)",
                          node->paname, node->key);
