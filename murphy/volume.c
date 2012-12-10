@@ -242,7 +242,7 @@ double mir_volume_suppress(struct userdata *u, int class, mir_node *node,
                 return 0.0;
         }
 
-        return suppress->attenuation;
+        return *suppress->attenuation;
     }
 
     return 0.0;

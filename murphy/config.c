@@ -96,9 +96,10 @@ static prior_def priormap[] = {
 };
 
 static double speedvol;
+static double supprvol = -20.0;
 static int exception_classes[] = {mir_phone, mir_navigator};
 static mir_volume_suppress_arg suppress = {
-    -20.0, {DIM(exception_classes), exception_classes}
+    &supprvol, {DIM(exception_classes), exception_classes}
 };
 
 
