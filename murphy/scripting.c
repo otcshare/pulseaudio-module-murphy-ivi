@@ -33,7 +33,7 @@
 #include "node.h"
 #include "router.h"
 #include "volume.h"
-#include "config.h"
+#include "murphy-config.h"
 
 #define NODE_CLASS         MRP_LUA_CLASS(node, instance)
 #define RTGROUP_CLASS      MRP_LUA_CLASS_SIMPLE(routing_group)

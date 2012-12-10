@@ -24,7 +24,7 @@
 
 #include <pulsecore/pulsecore-config.h>
 
-#include "config.h"
+#include "murphy-config.h"
 #include "node.h"
 #include "router.h"
 #include "volume.h"

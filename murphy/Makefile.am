@@ -24,7 +24,7 @@ module_murphy_ivi_la_SOURCES = \
 			volume.c \
 			audiomgr.c \
 			$(ROUTERIF) \
-			config.c \
+			murphy-config.c \
 			classify.c \
 			utils.c \
 			scripting.c \
@@ -47,9 +47,9 @@ endif
 module_murphy_ivi_la_LDFLAGS = -module -avoid-version -Wl,--no-undefined
 module_murphy_ivi_la_LIBADD = $(AM_LIBADD) $(CONDITIONAL_LIBS)            \
                               $(LIBPULSE_LIBS) $(PULSEDEVEL_LIBS)         \
-                              $(MURPHYCOMMON_LIBS) $(MURPHYCORE_LIBS)     \
+                              $(MURPHYCOMMON_LIBS) $(LUAUTILS_LIBS)       \
                               $(LUA_LIBS)
 module_murphy_ivi_la_CFLAGS = $(AM_CFLAGS) $(CONDITIONAL_CFLAGS)          \
                               $(LIBPULSE_CFLAGS) $(PULSEDEVEL_CFLAGS)     \
-                              $(MURPHYCOMMON_CFLAGS) $(MURPHYCORE_CFLAGS) \
+                              $(MURPHYCOMMON_CFLAGS) $(LUAUTILS_CFLAGS)   \
                               $(LUA_CFLAGS)

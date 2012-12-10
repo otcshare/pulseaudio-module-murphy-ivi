@@ -43,7 +43,7 @@ void  pa_utils_set_stream_routing_method_property(pa_proplist *, pa_bool_t);
 pa_bool_t pa_utils_stream_has_default_route(pa_proplist *);
 int   pa_utils_get_stream_class(pa_proplist *);
 
-#ifdef foouserdatafoo  /* argh ... */
+#ifdef foomurphyuserdatafoo  /* argh ... */
 void pa_utils_set_port_properties(pa_device_port *, mir_node *);
 mir_node *pa_utils_get_node_from_port(struct userdata *, pa_device_port *);
 mir_node *pa_utils_get_node_from_stream(struct userdata *,mir_direction,void*);

@@ -17,11 +17,12 @@
  * MA 02110-1301 USA.
  *
  */
-#ifndef foouserdatafoo
-#define foouserdatafoo
+#ifndef foomurphyuserdatafoo
+#define foomurphyuserdatafoo
 
 #include <stdbool.h>
 #include <pulsecore/core.h>
+#include <pulsecore/client.h>
 #include <pulsecore/protocol-native.h>
 
 #include "multiplex.h"

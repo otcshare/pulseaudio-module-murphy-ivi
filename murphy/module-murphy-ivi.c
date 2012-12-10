@@ -57,7 +57,7 @@
 #include "volume.h"
 #include "audiomgr.h"
 #include "routerif.h"
-#include "config.h"
+#include "murphy-config.h"
 #include "utils.h"
 #include "scripting.h"
 #include "extapi.h"
