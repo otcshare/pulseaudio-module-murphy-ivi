@@ -39,8 +39,10 @@
 #define PA_ROUTING_DEFAULT             "default"
 #define PA_ROUTING_EXPLICIT            "explicit"
 
+#if 0
 typedef struct pa_card                  pa_card;
 typedef struct pa_sink                  pa_sink;
+#endif
 
 typedef struct pa_null_sink             pa_null_sink;
 typedef struct pa_tracker               pa_tracker;
