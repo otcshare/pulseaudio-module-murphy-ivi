@@ -36,7 +36,7 @@ struct mir_vlim {
 };
 
 struct mir_volume_suppress_arg {
-    double attenuation;
+    double *attenuation;
     struct {
         size_t nclass;
         int *classes;

@@ -57,11 +57,17 @@
 #include "volume.h"
 #include "audiomgr.h"
 #include "routerif.h"
-#include "config.h"
+#include "murphy-config.h"
 #include "utils.h"
+#include "scripting.h"
+#include "extapi.h"
+
+#ifndef DEFAULT_CONFIG_DIR
+#define DEFAULT_CONFIG_DIR "/etc/pulse"
+#endif
 
 #ifndef DEFAULT_CONFIG_FILE
-#define DEFAULT_CONFIG_FILE "murphy-ivi.conf"
+#define DEFAULT_CONFIG_FILE "murphy-ivi.lua"
 #endif
 
 
@@ -141,7 +147,7 @@ int pa__init(pa_module *m) {
         goto fail;
     }
 
-    cfgdir   = pa_modargs_get_value(ma, "config_dir", NULL);
+    cfgdir   = pa_modargs_get_value(ma, "config_dir", DEFAULT_CONFIG_DIR);
     cfgfile  = pa_modargs_get_value(ma, "config_file", DEFAULT_CONFIG_FILE);
     fadeout  = pa_modargs_get_value(ma, "fade_out", NULL);
     fadein   = pa_modargs_get_value(ma, "fade_in", NULL);
@@ -179,7 +185,9 @@ int pa__init(pa_module *m) {
     u->loopback  = pa_loopback_init();
     u->fader     = pa_fader_init(fadeout, fadein);
     u->volume    = pa_mir_volume_init(u);
+    u->scripting = pa_scripting_init(u);
     u->config    = pa_mir_config_init(u);
+    u->extapi    = pa_extapi_init(u);
 
     u->state.sink   = PA_IDXSET_INVALID;
     u->state.source = PA_IDXSET_INVALID;
@@ -190,8 +198,12 @@ int pa__init(pa_module *m) {
 
     m->userdata = u;
 
-    //cfgpath = pa_utils_file_path(cfgfile, buf, sizeof(buf));
-    cfgpath = cfgfile;
+    /* register ext api callback */
+    u->protocol = pa_native_protocol_get(m->core);
+    pa_native_protocol_install_ext(u->protocol, m, extension_cb);
+
+    cfgpath = pa_utils_file_path(cfgdir, cfgfile, buf, sizeof(buf));
+
     pa_mir_config_parse_file(u, cfgpath);
 
     pa_tracker_synchronize(u);
@@ -220,6 +232,7 @@ void pa__done(pa_module *m) {
     
     if ((u = m->userdata)) {
     
+        pa_scripting_done(u);
         pa_tracker_done(u);
         pa_discover_done(u);
         pa_constrain_done(u);
@@ -234,6 +247,13 @@ void pa__done(pa_module *m) {
 
         pa_loopback_done(u->loopback, u->core);
         pa_multiplex_done(u->multiplex, u->core);
+
+        pa_extapi_done(u);
+
+        if (u->protocol) {
+            pa_native_protocol_remove_ext(u->protocol, m);
+            pa_native_protocol_unref(u->protocol);
+        }
 
         pa_xfree(u);
     }

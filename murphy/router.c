@@ -96,8 +96,8 @@ void pa_router_done(struct userdata *u)
     mir_node       *e,*n;
 
     if (u && (router = u->router)) {
-        MIR_DLIST_FOR_EACH_SAFE(mir_node, rtentries, e,n, &router->nodlist) {
-            MIR_DLIST_UNLINK(mir_node, rtentries, e);
+        MIR_DLIST_FOR_EACH_SAFE(mir_node, rtprilist, e,n, &router->nodlist) {
+            MIR_DLIST_UNLINK(mir_node, rtprilist, e);
         }
 
         MIR_DLIST_FOR_EACH_SAFE(mir_connection,link, conn,c,&router->connlist){
@@ -138,11 +138,11 @@ void mir_router_assign_class_priority(struct userdata *u,
 }
 
 
-pa_bool_t mir_router_create_rtgroup(struct userdata      *u,
-                                    mir_direction         type,
-                                    const char           *name,
-                                    mir_rtgroup_accept_t  accept,
-                                    mir_rtgroup_compare_t compare)
+mir_rtgroup *mir_router_create_rtgroup(struct userdata      *u,
+                                       mir_direction         type,
+                                       const char           *name,
+                                       mir_rtgroup_accept_t  accept,
+                                       mir_rtgroup_compare_t compare)
 {
     pa_router   *router;
     pa_hashmap  *table;
@@ -171,13 +171,13 @@ pa_bool_t mir_router_create_rtgroup(struct userdata      *u,
     if (pa_hashmap_put(table, rtg->name, rtg) < 0) {
         pa_xfree(rtg->name);
         pa_xfree(rtg);
-        return FALSE;
+        return NULL;
     }
 
     pa_log_debug("%s routing group '%s' created",
                  mir_direction_str(type), name);
 
-    return TRUE;
+    return rtg;
 }
 
 void mir_router_destroy_rtgroup(struct userdata *u,
@@ -301,15 +301,15 @@ void mir_router_register_node(struct userdata *u, mir_node *node)
 
         priority = node_priority(u, node);
             
-        MIR_DLIST_FOR_EACH(mir_node, rtentries, before, &router->nodlist) {
+        MIR_DLIST_FOR_EACH(mir_node, rtprilist, before, &router->nodlist) {
             if (priority < node_priority(u, before)) {
-                MIR_DLIST_INSERT_BEFORE(mir_node, rtentries, node,
-                                        &before->rtentries);
+                MIR_DLIST_INSERT_BEFORE(mir_node, rtprilist, node,
+                                        &before->rtprilist);
                 return;
             }
         }
             
-        MIR_DLIST_APPEND(mir_node, rtentries, node, &router->nodlist);
+        MIR_DLIST_APPEND(mir_node, rtprilist, node, &router->nodlist);
 
         return;
     }
@@ -324,17 +324,11 @@ void mir_router_unregister_node(struct userdata *u, mir_node *node)
     pa_assert(node);
     pa_assert_se((router = u->router));
 
-    if (node->direction == mir_output && node->implement == mir_device) {
-        MIR_DLIST_FOR_EACH_SAFE(mir_rtentry,nodchain, rte,n, &node->rtentries){
-            remove_rtentry(u, rte);
-        }
-        return;
+    MIR_DLIST_FOR_EACH_SAFE(mir_rtentry,nodchain, rte,n, &node->rtentries) {
+        remove_rtentry(u, rte);
     }
 
-    if (node->direction == mir_input) {
-        MIR_DLIST_UNLINK(mir_node, rtentries, node);
-        return;
-    }
+    MIR_DLIST_UNLINK(mir_node, rtprilist, node);
 }
 
 mir_connection *mir_router_add_explicit_route(struct userdata *u,
@@ -444,7 +438,7 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
 
     make_explicit_routes(u, stamp);
 
-    MIR_DLIST_FOR_EACH_BACKWARD(mir_node, rtentries, start, &router->nodlist) {
+    MIR_DLIST_FOR_EACH_BACKWARD(mir_node, rtprilist, start, &router->nodlist) {
         if (start->implement == mir_device) {
 #if 0
             if (start->direction == mir_output)
@@ -496,7 +490,7 @@ void mir_router_make_routing(struct userdata *u)
 
     make_explicit_routes(u, stamp);
 
-    MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtentries, start, &router->nodlist) {
+    MIR_DLIST_FOR_EACH_BACKWARD(mir_node,rtprilist, start, &router->nodlist) {
         if (start->implement == mir_device) {
 #if 0
             if (start->direction == mir_output)
@@ -571,11 +565,13 @@ pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
 }
 
 
-int mir_router_default_compare(struct userdata *u, mir_node *n1, mir_node *n2)
+int mir_router_default_compare(struct userdata *u, mir_rtgroup *rtg,
+                               mir_node *n1, mir_node *n2)
 {
     uint32_t p1, p2;
 
     (void)u;
+    (void)rtg;
 
     pa_assert(n1);
     pa_assert(n2);
@@ -595,11 +591,13 @@ int mir_router_default_compare(struct userdata *u, mir_node *n1, mir_node *n2)
 }
 
 
-int mir_router_phone_compare(struct userdata *u, mir_node *n1, mir_node *n2)
+int mir_router_phone_compare(struct userdata *u, mir_rtgroup *rtg,
+                             mir_node *n1, mir_node *n2)
 {
     uint32_t p1, p2;
 
     (void)u;
+    (void)rtg;
 
     pa_assert(n1);
     pa_assert(n2);
@@ -694,7 +692,7 @@ static void add_rtentry(struct userdata *u,
     rte->node  = node;
 
     MIR_DLIST_FOR_EACH(mir_rtentry, link, before, &rtg->entries) {
-        if (rtg->compare(u, node, before->node) < 0) {
+        if (rtg->compare(u, rtg, node, before->node) < 0) {
             MIR_DLIST_INSERT_BEFORE(mir_rtentry, link, rte, &before->link);
             goto added;
         }
@@ -710,13 +708,20 @@ static void add_rtentry(struct userdata *u,
 
 static void remove_rtentry(struct userdata *u, mir_rtentry *rte)
 {
+    mir_rtgroup *rtg;
+    mir_node    *node;
+
     pa_assert(u);
     pa_assert(rte);
+    pa_assert_se((rtg = rte->group));
+    pa_assert_se((node = rte->node));
 
     MIR_DLIST_UNLINK(mir_rtentry, link, rte);
     MIR_DLIST_UNLINK(mir_rtentry, nodchain, rte);
 
     pa_xfree(rte);
+
+    rtgroup_update_module_property(u, node->direction, rtg);
 }
 
 static void make_explicit_routes(struct userdata *u, uint32_t stamp)

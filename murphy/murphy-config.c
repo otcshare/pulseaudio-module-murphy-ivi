@@ -18,15 +18,17 @@
  *
  */
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 
 #include <pulsecore/pulsecore-config.h>
 
-#include "config.h"
+#include "murphy-config.h"
 #include "node.h"
 #include "router.h"
 #include "volume.h"
+#include "scripting.h"
 
 typedef struct {
     mir_direction          type;
@@ -94,9 +96,10 @@ static prior_def priormap[] = {
 };
 
 static double speedvol;
+static double supprvol = -20.0;
 static int exception_classes[] = {mir_phone, mir_navigator};
 static mir_volume_suppress_arg suppress = {
-    -20.0, {DIM(exception_classes), exception_classes}
+    &supprvol, {DIM(exception_classes), exception_classes}
 };
 
 
@@ -128,28 +131,25 @@ void pa_mir_config_done(struct userdata *u)
 
 pa_bool_t pa_mir_config_parse_file(struct userdata *u, const char *path)
 {
+    pa_module *module;
     pa_mir_config *config;
-    FILE *f;
     int success;
 
     pa_assert(u);
+    pa_assert_se((module = u->module));
     pa_assert_se((config = u->config));
 
-    if (path) {
-        if ((f = fopen(path, "r"))) {
-            success = parse_config_file(u, f);
-            fclose(f);
-            return success;
-        }
-        else {
-            pa_log_info("%s: failed to open config file '%s': %s",
-                        __FILE__, path, strerror(errno));            
-        }
+    if (!path)
+        success = FALSE;
+    else {
+        pa_log_info("%s: configuration file is '%s'", module->name, path);
+        success =  pa_scripting_dofile(u, path);
     }
 
-    pa_log_debug("%s: default config values will apply", __FILE__);
-
-    success = use_default_configuration(u);
+    if (!success) {
+        pa_log_info("%s: builtin default configuration applies", module->name);
+        success = use_default_configuration(u);
+    }
 
     return success;
 }

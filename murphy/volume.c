@@ -174,9 +174,8 @@ void mir_volume_add_limiting_class(struct userdata *u,
             if (vlim->nclass < vlim->maxentry)
                 classes = vlim->classes;
             else {
-                classes_size = sizeof(int *) * vlim->maxentry;
-
                 vlim->maxentry += VLIM_CLASS_ALLOC_BUCKET;
+                classes_size    = sizeof(int *) * vlim->maxentry;
                 vlim->classes   = realloc(vlim->classes, classes_size);
 
                 pa_assert_se((classes = vlim->classes));
@@ -243,7 +242,7 @@ double mir_volume_suppress(struct userdata *u, int class, mir_node *node,
                 return 0.0;
         }
 
-        return suppress->attenuation;
+        return *suppress->attenuation;
     }
 
     return 0.0;
@@ -270,7 +269,7 @@ static void add_to_table(vlim_table *tbl, mir_volume_func_t func, void *arg)
     pa_assert(tbl);
     pa_assert(func);
 
-    size = sizeof(vlim_entry *) * (tbl->nentry + 1);
+    size = sizeof(vlim_entry) * (tbl->nentry + 1);
     pa_assert_se((entries = realloc(tbl->entries,  size)));
     entry = entries + tbl->nentry;
 

@@ -17,7 +17,10 @@
  * MA 02110-1301 USA.
  *
  */
+#define _GNU_SOURCE
+
 #include <stdio.h>
+#include <string.h>
 
 #include <pulsecore/pulsecore-config.h>
 
@@ -232,6 +235,9 @@ mir_node_type pa_classify_guess_stream_node_type(pa_proplist *pl)
         {"carkit"   , mir_phone     },
         {"animation", mir_browser   },
         {"test"     , mir_player    },
+        {"ringtone" , mir_alert     },
+        {"camera"   , mir_camera    },
+        {"system"   , mir_system    },
         {NULL, mir_node_type_unknown}
     };
 

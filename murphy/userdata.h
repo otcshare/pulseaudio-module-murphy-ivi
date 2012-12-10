@@ -17,11 +17,13 @@
  * MA 02110-1301 USA.
  *
  */
-#ifndef foouserdatafoo
-#define foouserdatafoo
+#ifndef foomurphyuserdatafoo
+#define foomurphyuserdatafoo
 
 #include <stdbool.h>
 #include <pulsecore/core.h>
+#include <pulsecore/client.h>
+#include <pulsecore/protocol-native.h>
 
 #include "multiplex.h"
 #include "loopback.h"
@@ -48,6 +50,7 @@ typedef struct pa_discover              pa_discover;
 typedef struct pa_router                pa_router;
 typedef struct pa_constrain             pa_constrain;
 typedef struct pa_fader                 pa_fader;
+typedef struct pa_scripting             pa_scripting;
 typedef struct pa_mir_volume            pa_mir_volume;
 typedef struct pa_mir_config            pa_mir_config;
 typedef struct pa_nodeset               pa_nodeset;
@@ -58,7 +61,7 @@ typedef struct pa_sink_hooks            pa_sink_hooks;
 typedef struct pa_source_hooks          pa_source_hooks;
 typedef struct pa_sink_input_hooks      pa_sink_input_hooks;
 typedef struct pa_source_output_hooks   pa_source_output_hooks;
-
+typedef struct pa_extapi                pa_extapi;
 
 typedef enum   mir_direction            mir_direction;
 typedef enum   mir_implement            mir_implement;
@@ -73,6 +76,11 @@ typedef struct mir_constr_link          mir_constr_link;
 typedef struct mir_constr_def           mir_constr_def;
 typedef struct mir_vlim                 mir_vlim;
 typedef struct mir_volume_suppress_arg  mir_volume_suppress_arg;
+
+typedef struct scripting_node           scripting_node;
+typedef struct scripting_rtgroup        scripting_rtgroup;
+typedef struct scripting_apclass        scripting_apclass;
+typedef struct scripting_vollim         scripting_vollim;
 
 typedef enum   am_method                am_method;
 typedef struct am_domainreg_data        am_domainreg_data;
@@ -107,9 +115,12 @@ struct userdata {
     pa_multiplex  *multiplex;
     pa_loopback   *loopback;
     pa_fader      *fader;
+    pa_scripting  *scripting;
     pa_mir_volume *volume;
     pa_mir_config *config;
     pa_mir_state   state;
+    pa_extapi     *extapi;
+    pa_native_protocol *protocol;
 };
 
 #endif

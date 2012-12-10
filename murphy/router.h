@@ -27,7 +27,7 @@
 
 typedef pa_bool_t (*mir_rtgroup_accept_t)(struct userdata *, mir_rtgroup *,
                                           mir_node *);
-typedef int       (*mir_rtgroup_compare_t)(struct userdata *u,
+typedef int       (*mir_rtgroup_compare_t)(struct userdata *, mir_rtgroup *,
                                            mir_node *, mir_node *);
 
 typedef struct {
@@ -45,7 +45,8 @@ struct pa_router {
     int                  maplen;   /**< length of the class- and priormap */
     pa_rtgroup_classmap  classmap; /**< to map device node types to rtgroups */
     int                 *priormap; /**< stream node priorities */
-    mir_dlist            nodlist;  /**< priorized list of the stream nodes */
+    mir_dlist            nodlist;  /**< priorized list of the stream nodes
+                                        (entry in node: rtprilist) */
     mir_dlist            connlist; /**< listhead of the connections */
 };
 
@@ -60,10 +61,11 @@ struct mir_rtentry {
 };
 
 struct mir_rtgroup {
-    char                 *name;     /**< name of the rtgroup  */
-    mir_dlist             entries;  /**< listhead of ordered rtentries */
-    mir_rtgroup_accept_t  accept;   /**< wheter to accept a node or not */
-    mir_rtgroup_compare_t compare;  /**< comparision function for ordering */
+    char                  *name;      /**< name of the rtgroup */
+    mir_dlist              entries;   /**< listhead of ordered rtentries */
+    mir_rtgroup_accept_t   accept;    /**< wheter to accept a node or not */
+    mir_rtgroup_compare_t  compare;   /**< comparision function for ordering */
+    scripting_rtgroup     *scripting; /**< data for scripting, if any */
 };
 
 struct mir_connection {
@@ -81,10 +83,10 @@ void pa_router_done(struct userdata *);
 
 void mir_router_assign_class_priority(struct userdata *, mir_node_type, int);
 
-pa_bool_t mir_router_create_rtgroup(struct userdata *,
-                                    mir_direction, const char *,
-                                    mir_rtgroup_accept_t,
-                                    mir_rtgroup_compare_t);
+mir_rtgroup *mir_router_create_rtgroup(struct userdata *,
+                                       mir_direction, const char *,
+                                       mir_rtgroup_accept_t,
+                                       mir_rtgroup_compare_t);
 void mir_router_destroy_rtgroup(struct userdata *, mir_direction,
                                 const char *);
 pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *, mir_node_type,
@@ -108,8 +110,10 @@ pa_bool_t mir_router_default_accept(struct userdata *, mir_rtgroup *,
 pa_bool_t mir_router_phone_accept(struct userdata *, mir_rtgroup *,
                                   mir_node *);
 
-int mir_router_default_compare(struct userdata *, mir_node *, mir_node *);
-int mir_router_phone_compare(struct userdata *, mir_node *, mir_node *);
+int mir_router_default_compare(struct userdata *, mir_rtgroup *,
+                               mir_node *, mir_node *);
+int mir_router_phone_compare(struct userdata *, mir_rtgroup *,
+                             mir_node *, mir_node *);
 
 
 #endif  /* foomirrouterfoo */
