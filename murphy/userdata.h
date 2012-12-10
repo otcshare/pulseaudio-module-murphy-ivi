@@ -77,6 +77,8 @@ typedef struct mir_volume_suppress_arg  mir_volume_suppress_arg;
 
 typedef struct scripting_node           scripting_node;
 typedef struct scripting_rtgroup        scripting_rtgroup;
+typedef struct scripting_apclass        scripting_apclass;
+typedef struct scripting_vollim         scripting_vollim;
 
 typedef enum   am_method                am_method;
 typedef struct am_domainreg_data        am_domainreg_data;
