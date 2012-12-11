@@ -1175,8 +1175,8 @@ static double vollim_calculate(struct userdata *u, int class, mir_node *node,
     pa_assert(u);
     pa_assert_se((scripting = u->scripting));
     pa_assert_se((L = scripting->L));
-    pa_assert(class >= mir_application_class_begin &&
-              class <  mir_application_class_end);
+    pa_assert(!class || (class >= mir_application_class_begin &&
+                         class <  mir_application_class_end)     );
     pa_assert(node);
     pa_assert(args);
 
