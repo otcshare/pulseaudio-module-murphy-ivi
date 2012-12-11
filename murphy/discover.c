@@ -87,6 +87,7 @@ static const char loopback_inpatrn[]  = "Loopback to ";
 
 static void handle_alsa_card(struct userdata *, pa_card *);
 static void handle_bluetooth_card(struct userdata *, pa_card *);
+static pa_bool_t get_bluetooth_port_availability(mir_node *, pa_device_port *);
 
 static void handle_udev_loaded_card(struct userdata *, pa_card *,
                                     mir_node *, char *);
@@ -360,7 +361,7 @@ void pa_discover_port_available_changed(struct userdata *u,
     route = FALSE;
 
     if ((node = pa_utils_get_node_from_port(u, port))) {
-        available = (port->available == PA_PORT_AVAILABLE_YES);
+        available = get_bluetooth_port_availability(node, port);
         route |= update_node_availability(u, node, available);
         set_bluetooth_profile(u, node);
     }
@@ -1490,10 +1491,10 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
         PA_HASHMAP_FOREACH(port, card->ports, state0) {
             pa_assert(port->profiles);
 
-            data.available = FALSE;
 
             PA_HASHMAP_FOREACH(prof, port->profiles, state1) {
                 data.pacard.profile = prof->name;
+                data.available = get_bluetooth_port_availability(&data, port);
 
                 if (prof->n_sinks > 0) {
                     data.direction = mir_output;
@@ -1534,7 +1535,26 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     }
 }
 
+static pa_bool_t get_bluetooth_port_availability(mir_node *node,
+                                                 pa_device_port *port)
+{
+    pa_bool_t available = FALSE;
+    const char *prof;
 
+    pa_assert(node);
+    pa_assert(port);
+
+    if ((prof = node->pacard.profile)) {
+        if (!strcmp(prof, "hfgw")        ||
+            !strcmp(prof, "a2dp_source") ||
+            !strcmp(prof, "a2dp_sink"))
+            available = (port->available == PA_PORT_AVAILABLE_YES);
+        else
+            available = TRUE;
+    }
+
+    return available;
+}
 
 static void handle_udev_loaded_card(struct userdata *u, pa_card *card,
                                     mir_node *data, char *cardid)
