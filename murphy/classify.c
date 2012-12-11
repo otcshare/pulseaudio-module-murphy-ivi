@@ -30,6 +30,7 @@
 
 #include "classify.h"
 #include "node.h"
+#include "utils.h"
 
 
 void pa_classify_node_by_card(mir_node        *node,
@@ -46,7 +47,7 @@ void pa_classify_node_by_card(mir_node        *node,
     pa_assert(node);
     pa_assert(card);
 
-    bus  = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS);
+    bus  = pa_utils_get_card_bus(card);
     form = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_FORM_FACTOR);
     /*
     desc = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_DESCRIPTION);
