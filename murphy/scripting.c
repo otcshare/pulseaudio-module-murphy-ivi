@@ -1235,8 +1235,8 @@ static bool calculate_bridge(lua_State *L, void *data, const char *signature,
 
         class = args[1].integer;
 
-        pa_assert(class >= mir_application_class_begin &&
-                  class <  mir_application_class_end);
+        pa_assert(!class || (class >= mir_application_class_begin &&
+                             class <  mir_application_class_end));
 
         if (!(node = ns->node))
             success = false;
