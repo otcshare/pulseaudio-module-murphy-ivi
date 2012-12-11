@@ -143,6 +143,22 @@ char *pa_utils_get_card_name(pa_card *card)
     return (card && card->name) ? card->name : "<unknown>";
 }
 
+char *pa_utils_get_card_bus(pa_card *card)
+{
+    const char *bus = NULL;
+
+    if (card && !(bus = pa_proplist_gets(card->proplist,PA_PROP_DEVICE_BUS))) {
+        if (!strncmp(card->name, "alsa_card.", 10)) {
+            if (!strncmp(card->name + 10, "pci-", 4))
+                bus = "pci";
+            else if (!strncmp(card->name + 10, "usb-", 4))
+                bus = "usb";
+        }
+    }
+
+    return (char *)bus;
+}
+
 char *pa_utils_get_sink_name(pa_sink *sink)
 {
     return (sink && sink->name) ? sink->name : "<unknown>";

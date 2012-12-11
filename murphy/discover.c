@@ -189,7 +189,7 @@ void pa_discover_add_card(struct userdata *u, pa_card *card)
     pa_assert(u);
     pa_assert(card);
 
-    if (!(bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS))) {
+    if (!(bus = pa_utils_get_card_bus(card))) {
         pa_log_debug("ignoring card '%s' due to lack of '%s' property",
                      pa_utils_get_card_name(card), PA_PROP_DEVICE_BUS);
         return;
@@ -219,7 +219,7 @@ void pa_discover_remove_card(struct userdata *u, pa_card *card)
     pa_assert(card);
     pa_assert_se((discover = u->discover));
 
-    if (!(bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS)))
+    if (!(bus = pa_utils_get_card_bus(card)))
         bus = "<unknown>";
 
 
@@ -260,7 +260,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
     pa_assert_se((discover = u->discover));
 
 
-    if ((bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS)) == NULL) {
+    if ((bus = pa_utils_get_card_bus(card)) == NULL) {
         pa_log_debug("ignoring profile change on card '%s' due to lack of '%s'"
                      "property", pa_utils_get_card_name(card),
                      PA_PROP_DEVICE_BUS);
@@ -1927,7 +1927,7 @@ static char *node_key(struct userdata *u, mir_direction direction,
     }
 
 
-    if (!(bus = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS))) {
+    if (!(bus = pa_utils_get_card_bus(card))) {
         pa_log_debug("ignoring %s '%s' due to lack of '%s' property "
                      "on its card", type, name, PA_PROP_DEVICE_BUS);
         return NULL;

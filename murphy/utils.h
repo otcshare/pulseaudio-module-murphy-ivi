@@ -31,6 +31,7 @@ pa_sink *pa_utils_get_null_sink(struct userdata *);
 pa_source *pa_utils_get_null_source(struct userdata *);
 
 char *pa_utils_get_card_name(pa_card *);
+char *pa_utils_get_card_bus(pa_card *);
 char *pa_utils_get_sink_name(pa_sink *);
 char *pa_utils_get_source_name(pa_source *);
 char *pa_utils_get_sink_input_name(pa_sink_input *);
