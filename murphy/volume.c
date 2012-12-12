@@ -307,7 +307,11 @@ static double apply_table(double attenuation,
 
     for (i = 0;   i < tbl->nentry;  i++) {
         e = tbl->entries + i;
-        if ((a = e->func(u, class, node, e->arg)) < attenuation)
+        a = e->func(u, class, node, e->arg);
+
+        pa_log_debug("     limit = %.2lf", a);
+
+        if (a < attenuation)
             attenuation = a;
     }
 
