@@ -264,7 +264,7 @@ pa_bool_t pa_multiplex_change_default_route(pa_core    *core,
         pa_log("can't remove default route: sink-input %u is gone", idx);
     else {
         pa_assert_se((u = module->userdata));
-        if (!u->move_slave(u, sinp, sink))
+        if (u->move_slave(u, sinp, sink) < 0)
             pa_log_debug("failed to move default stream on mux %u", mux->module_index);
         else {
             pa_log_debug("default stream was successfully moved on mux %u",
