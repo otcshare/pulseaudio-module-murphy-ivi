@@ -305,6 +305,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
         if (!prof->n_sinks && !prof->n_sources) {
             /* switched off but not unloaded yet */
             need_routing = FALSE;
+
             PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
                 if (node->implement == mir_device &&
                     node->pacard.index == card->index)
@@ -2113,7 +2114,8 @@ static void set_bluetooth_profile(struct userdata *u, mir_node *node)
     pa_card_profile *prof, *make_active;
     void *state0, *state1;
     pa_bool_t available;
-
+    pa_bool_t switch_off;
+    int nport;
 
     pa_assert(u);
     pa_assert(node);
@@ -2122,6 +2124,8 @@ static void set_bluetooth_profile(struct userdata *u, mir_node *node)
                                                 node->pacard.index)));
 
     make_active = NULL;
+    switch_off = FALSE;
+    nport = 0;
 
     pa_log_debug("which profile to make active:");
 
@@ -2130,6 +2134,7 @@ static void set_bluetooth_profile(struct userdata *u, mir_node *node)
             if (!make_active) {
                 pa_log_debug("   considering %s", prof->name);
                 make_active = prof;
+                switch_off = TRUE;
             }
         }
         else {
@@ -2145,17 +2150,21 @@ static void set_bluetooth_profile(struct userdata *u, mir_node *node)
             if (!available) {
                 pa_log_debug("   ruling out %s (not available)", prof->name);
             }
-            else if (node->direction == mir_input  && prof->n_sources > 0 ||
-                     node->direction == mir_output && prof->n_sinks   > 0   ) {
-                if (make_active && prof->priority < make_active->priority)
-                    pa_log_debug("   ruling out %s (low priority)", prof->name);
-                else {
-                    pa_log_debug("   considering %s", prof->name);
-                    make_active = prof;
-                }
-            }
             else {
-                pa_log_debug("   ruling out %s (direction)", prof->name);
+                nport++;
+
+                if (node->direction == mir_input  && prof->n_sources > 0 ||
+                    node->direction == mir_output && prof->n_sinks   > 0   ) {
+                    if (make_active && prof->priority < make_active->priority)
+                        pa_log_debug("   ruling out %s (low priority)", prof->name);
+                    else {
+                        pa_log_debug("   considering %s", prof->name);
+                        make_active = prof;
+                    }
+                }
+                else {
+                    pa_log_debug("   ruling out %s (direction)", prof->name);
+                }
             }
         }
     }
@@ -2166,10 +2175,18 @@ static void set_bluetooth_profile(struct userdata *u, mir_node *node)
         if (make_active == card->active_profile)
             pa_log_debug("Profile %s already set. Do nothing", make_active->name);
         else {
-            pa_log_debug("Set profile %s", make_active->name);
+            if (switch_off && nport) {
+                pa_log_debug("Do not switch to %s as active ports are existing "
+                             "to the other direction", make_active->name);
+            }
+            else {
+                pa_log_debug("Set profile %s", make_active->name);
 
-            if (pa_card_set_profile(card, make_active->name, FALSE) < 0)
-                pa_log_debug("Failed to change profile to %s", make_active->name);
+                if (pa_card_set_profile(card, make_active->name, FALSE) < 0) {
+                    pa_log_debug("Failed to change profile to %s",
+                                 make_active->name);
+                }
+            }
         }
     }
 }
