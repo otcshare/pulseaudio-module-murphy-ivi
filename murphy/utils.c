@@ -146,12 +146,14 @@ char *pa_utils_get_card_name(pa_card *card)
 char *pa_utils_get_card_bus(pa_card *card)
 {
     const char *bus = NULL;
+    char       *name;
 
     if (card && !(bus = pa_proplist_gets(card->proplist,PA_PROP_DEVICE_BUS))) {
-        if (!strncmp(card->name, "alsa_card.", 10)) {
-            if (!strncmp(card->name + 10, "pci-", 4))
+        name = pa_utils_get_card_name(card);
+        if (!strncmp(name, "alsa_card.", 10)) {
+            if (!strncmp(name + 10, "pci-", 4))
                 bus = "pci";
-            else if (!strncmp(card->name + 10, "usb-", 4))
+            else if (!strncmp(name + 10, "usb-", 4))
                 bus = "usb";
         }
     }
