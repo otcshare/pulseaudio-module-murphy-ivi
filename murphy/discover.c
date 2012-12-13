@@ -254,6 +254,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
     mir_node        *node;
     void            *state;
     uint32_t         index;
+    pa_bool_t        need_routing;
 
     pa_assert(u);
     pa_assert(card);
@@ -303,14 +304,24 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 
         if (!prof->n_sinks && !prof->n_sources) {
             /* switched off but not unloaded yet */
+            need_routing = FALSE;
             PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
                 if (node->implement == mir_device &&
                     node->pacard.index == card->index)
                 {
-                    node->available = FALSE;
+                    if (node->type != mir_bluetooth_a2dp &&
+                        node->type != mir_bluetooth_sco)
+                    {
+                        if (node->available) {
+                            node->available = FALSE;
+                            need_routing = TRUE;
+                        }
+                    }
                 }
             }
-            schedule_deferred_routing(u);
+
+            if (need_routing)
+                schedule_deferred_routing(u);
         }
     }
     else {
