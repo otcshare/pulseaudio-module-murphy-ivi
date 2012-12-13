@@ -1457,6 +1457,9 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     char             paname[MAX_NAME_LENGTH+1];
     char             amname[MAX_NAME_LENGTH+1];
     char             key[MAX_NAME_LENGTH+1];
+    int              len;
+    pa_bool_t        input;
+    pa_bool_t        output;
 
     pa_assert_se((discover = u->discover));
 
@@ -1492,11 +1495,19 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
             pa_assert(port->profiles);
 
 
+            input = output = TRUE;
+            len = strlen(port->name);
+            if (len >= 6 && !strcmp("-input", port->name + (len-6)))
+                output = FALSE;
+            else if (len >= 7 && !strcmp("-output", port->name + (len-7)))
+                input  = FALSE;
+            
+
             PA_HASHMAP_FOREACH(prof, port->profiles, state1) {
                 data.pacard.profile = prof->name;
                 data.available = get_bluetooth_port_availability(&data, port);
 
-                if (prof->n_sinks > 0) {
+                if (output && prof->n_sinks > 0) {
                     data.direction = mir_output;
                     data.channels = prof->max_sink_channels;
                     data.amname = amname;
@@ -1509,7 +1520,7 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
                     pa_utils_set_port_properties(port, node);
                 }
 
-                if (prof->n_sources > 0) {
+                if (input && prof->n_sources > 0) {
                     data.direction = mir_input;
                     data.channels = prof->max_source_channels;
                     data.amname = amname;
