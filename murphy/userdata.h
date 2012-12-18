@@ -25,6 +25,8 @@
 #include <pulsecore/client.h>
 #include <pulsecore/protocol-native.h>
 
+#include <murphy/domain-control/client.h>
+
 #include "multiplex.h"
 #include "loopback.h"
 
@@ -91,6 +93,7 @@ typedef struct am_nodeunreg_data        am_nodeunreg_data;
 typedef struct am_ack_data              am_ack_data;
 typedef struct am_connect_data          am_connect_data;
 
+typedef struct pa_domctl                pa_domctl;
 
 
 typedef struct {
@@ -123,6 +126,7 @@ struct userdata {
     pa_mir_state   state;
     pa_extapi     *extapi;
     pa_native_protocol *protocol;
+    pa_domctl     *domctl;
 };
 
 #endif

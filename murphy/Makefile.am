@@ -1,6 +1,9 @@
+CONDITIONAL_LIBS   =
+CONDITIONAL_CFLAGS =
+
 if BUILD_WITH_DBUS
-CONDITIONAL_LIBS    = $(DBUS_LIBS)
-CONDITIONAL_CFLAGS = $(DBUS_CFLAGS)
+CONDITIONAL_LIBS   += $(DBUS_LIBS)
+CONDITIONAL_CFLAGS += $(DBUS_CFLAGS)
 ROUTERIF  = dbusif.c
 AM_CFLAGS = -I.. -DWITH_DBUS
 else
@@ -28,8 +31,8 @@ module_murphy_ivi_la_SOURCES = \
 			classify.c \
 			utils.c \
 			scripting.c \
-			extapi.c
-
+			extapi.c \
+			murphyif.c
 
 configdir = $(sysconfdir)/pulse
 config_DATA = murphy-ivi.lua
@@ -43,13 +46,19 @@ dbussys_DATA = pulseaudio-murphy-ivi.conf
 EXTRA_DIST += $(dbussys_DATA)
 endif
 
+if BUILD_WITH_MURPHYIF
+CONDITIONAL_CFLAGS += -DWITH_MURPHYIF
+endif
+
 
 module_murphy_ivi_la_LDFLAGS = -module -avoid-version -Wl,--no-undefined
-module_murphy_ivi_la_LIBADD = $(AM_LIBADD) $(CONDITIONAL_LIBS)            \
-                              $(LIBPULSE_LIBS) $(PULSEDEVEL_LIBS)         \
-                              $(MURPHYCOMMON_LIBS) $(LUAUTILS_LIBS)       \
-                              $(LUA_LIBS)
-module_murphy_ivi_la_CFLAGS = $(AM_CFLAGS) $(CONDITIONAL_CFLAGS)          \
-                              $(LIBPULSE_CFLAGS) $(PULSEDEVEL_CFLAGS)     \
-                              $(MURPHYCOMMON_CFLAGS) $(LUAUTILS_CFLAGS)   \
-                              $(LUA_CFLAGS)
+
+module_murphy_ivi_la_LIBADD = $(AM_LIBADD) $(CONDITIONAL_LIBS)              \
+                              $(LIBPULSE_LIBS) $(PULSEDEVEL_LIBS)           \
+                              $(MURPHYCOMMON_LIBS) $(MURPHYDOMCTL_LIBS)     \
+                              $(LUAUTILS_LIBS) $(LUA_LIBS)
+module_murphy_ivi_la_CFLAGS = $(AM_CFLAGS) $(CONDITIONAL_CFLAGS)            \
+                              $(LIBPULSE_CFLAGS) $(PULSEDEVEL_CFLAGS)       \
+                              $(MURPHYCOMMON_CFLAGS) $(MURPHYDOMCTL_CFLAGS) \
+                              $(LUAUTILS_CFLAGS) $(LUA_CFLAGS)
+

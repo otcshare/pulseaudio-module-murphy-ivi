@@ -99,6 +99,31 @@ AC_ARG_WITH([dbus],
 
 AM_CONDITIONAL(BUILD_WITH_DBUS,  [ test "x$build_with_dbus" = "xyes" ])
 
+# murphy interface
+AC_ARG_WITH([murphyif],
+            [ AS_HELP_STRING([--with-murphyif],
+                             [Enable murphy domain-controller interface])
+            ],
+            [ build_with_murphyif="yes" ;
+              PKG_CHECK_MODULES(MURPHYIF,
+                                [murphy-domain-controller murphy-pulse])
+              AC_SUBST(MURPHYIF_CFLAGS)
+              AC_SUBST(MURPHYIF_LIBS)
+              AC_DEFINE([WITH_MURPHYIF], 1, [Enable Murphy interface ?])
+            ],
+            [ build_with_murphyif="no" ]
+)
+
+AM_CONDITIONAL(BUILD_WITH_MURPHYIF,  [ test "x$build_with_murphyif" = "xyes" ])
+
+
+
+PKG_CHECK_MODULES(MURPHYDOMCTL, [murphy-domain-controller murphy-pulse])
+AC_SUBST(MURPHYDOMCTL_CFLAGS)
+AC_SUBST(MURPHYDOMCTL_LIBS)
+
+
+
 
 # module directory
 AC_ARG_WITH([module-dir],
@@ -205,4 +230,5 @@ echo "
     LUAUTILS_LIBS         ${LUAUTILS_LIBS}
     LUA_CFLAGS:           ${LUA_CFLAGS}
     LUA_LIBS:             ${LUA_LIBS}
+    murphyif enabled:     $build_with_murphyif
 "
