@@ -1,3 +1,7 @@
+%{!?_with_debug:%{!?_without_debug:%define _without_debug 0}}
+%{!?_with_dbus:%{!?_without_dbus:%define _with_dbus 1}}
+%{!?_with_murphyif:%{!?_without_murphyif:%define _without_murphyif 1}}
+
 Summary: Pulseaudio module for enforcing policy decisions in the audio domain
 Name: pulseaudio-module-murphy-ivi
 Version:  @VERSION@
@@ -26,13 +30,27 @@ corking and muting policy decisions.
 %setup -q
 
 %build
-PAVER="`/usr/bin/pkg-config --silence-errors --modversion libpulse | \
-        tr -d \\n | sed -e 's/\([0123456789.]\+\).*/\1/'`"
-./bootstrap.sh
+MODDIR="`pkg-config --variable modlibexecdir pulseaudio-module-devel`"
+CONFIG_OPTIONS="--disable-static \
+                --with-module-dir=$MODDIR"
 
+%if %{?_with_dbus:1}%{!?_with_dbus:0}
+CONFIG_OPTIONS="$CONFIG_OPTIONS --with-dbus"
+%endif
+%if %{?_with_murphyif:1}%{!?_with_murphyif:0}
+CONFIG_OPTIONS="$CONFIG_OPTIONS --with-murphyif"
+%endif
+
+./bootstrap.sh
 unset LD_AS_NEEDED
-%configure --disable-static --with-module-dir=%{_libdir}/pulse-$PAVER/modules
-make
+%configure $CONFIG_OPTIONS
+
+%if %{?_with_debug:1}%{!?_with_debug:0}
+export CFLAGS="-O0 -g3"
+V="V=1"
+%endif
+
+make $V
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -49,5 +67,8 @@ rm -f %{_libdir}/pulse-*/modules/module-*.la
 
 %files
 %defattr(-,root,root,-)
+%{_sysconfdir}/pulse/murphy-ivi.lua
 %{_libdir}/pulse-*/modules/module-*.so
+%if %{?_with_dbus:1}%{!?_with_dbus:0}
 %{_sysconfdir}/dbus-1/system.d/pulseaudio-murphy-ivi.conf
+%endif

@@ -36,7 +36,17 @@ function make_tarball() {
 }
 
 # generate tarball
-make_tarball ${1:-current}
+case $1 in
+    
+esac
+if [ "$1" = "current" -o "$1" = "git" ]; then
+    type="$1"
+    shift
+else
+    type=current
+fi
+
+make_tarball $type
 
 # patch up spec file
 sed "s/@VERSION@/$VERSION/g" $PKG.spec.in > ../$PKG.spec
@@ -57,4 +67,4 @@ if [ -n "$sources" ]; then
     cp $sources ~/rpmbuild/SOURCES
 fi
 
-rpmbuild -bb ~/rpmbuild/SPECS/$PKG.spec
+rpmbuild $* -bb ~/rpmbuild/SPECS/$PKG.spec
