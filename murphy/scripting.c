@@ -232,7 +232,7 @@ MRP_LUA_CLASS_DEF (
 MRP_LUA_CLASS_DEF_SIMPLE (
    routing_group,                /* class name */
    scripting_rtgroup,            /* userdata type */
-   node_destroy,                 /* userdata destructor */
+   rtgroup_destroy,              /* userdata destructor */
    MRP_LUA_METHOD_LIST (         /* methods */
       MRP_LUA_METHOD_CONSTRUCTOR  (rtgroup_create)
    ),
