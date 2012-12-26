@@ -204,6 +204,9 @@ static int make_id(char *buf, size_t len, const char *fmt, ...);
 static bool define_constants(lua_State *);
 static bool register_methods(lua_State *);
 
+static void *alloc(void *, void *, size_t, size_t);
+static int panic(lua_State *);
+
 
 MRP_LUA_METHOD_LIST_TABLE (
     node_methods,             /* methodlist name */
@@ -283,10 +286,12 @@ pa_scripting *pa_scripting_init(struct userdata *u)
 
     scripting = pa_xnew0(pa_scripting, 1);
 
-    if (!(L = luaL_newstate()))
+    if (!(L = lua_newstate(alloc, u)))
         pa_log("failed to initialize Lua");
     else {
+        lua_atpanic(L, &panic);
         luaL_openlibs(L);
+
         mrp_create_funcbridge_class(L);
         mrp_lua_create_object_class(L, NODE_CLASS);
         mrp_lua_create_object_class(L, RTGROUP_CLASS);
@@ -1577,6 +1582,34 @@ static bool register_methods(lua_State *L)
     return success;
 }
 
+
+
+static void *alloc(void *ud, void *ptr, size_t osize, size_t nsize)
+{
+    void *mem;
+
+    (void)ud;
+    (void)osize;
+
+    if (nsize)
+        mem = pa_xrealloc(ptr, nsize);
+    else {
+        mem = NULL;
+        pa_xfree(ptr);
+    }
+
+    return mem;
+}
+
+static int panic(lua_State *L)
+{
+    (void)L;
+
+    pa_log("PANIC: unprotected error in call to Lua API (%s)",
+           lua_tostring(L,-1));
+
+    return 0;
+}
 
                                   
 /*
