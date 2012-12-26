@@ -73,6 +73,8 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     
     node = pa_xnew0(mir_node, 1);
 
+    pa_idxset_put(ns->nodes, node, &node->index);
+
     node->key       = pa_xstrdup(data->key);
     node->direction = data->direction;
     node->implement = data->implement;
@@ -103,8 +105,6 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
             node->paport = pa_xstrdup(data->paport);
     }
 
-    pa_idxset_put(ns->nodes, node, &node->index);
-
     mir_router_register_node(u, node);
     
     return node;
@@ -118,8 +118,8 @@ void mir_node_destroy(struct userdata *u, mir_node *node)
     pa_assert_se((ns = u->nodeset));
 
     if (node) {
-        pa_scripting_node_destroy(u, node);
         mir_router_unregister_node(u, node);
+        pa_scripting_node_destroy(u, node);
 
         pa_idxset_remove_by_index(ns->nodes, node->index);
 

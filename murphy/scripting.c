@@ -384,6 +384,7 @@ void pa_scripting_node_destroy(struct userdata *u, mir_node *node)
 
     if ((sn = node->scripting)) {
         mrp_lua_destroy_object(L, sn->id, sn);
+        sn->node = NULL;
         node->scripting = NULL;
     }
 
@@ -464,12 +465,10 @@ static void node_destroy(void *data)
 
     MRP_LUA_ENTER;
 
-    pa_assert_se((node = sn->node));
-    pa_assert(sn == node->scripting);
+    if ((node = sn->node) && sn == node->scripting)
+        node->scripting = NULL;
 
     pa_xfree((void *)sn->id);
-
-    node->scripting = NULL;
 
     MRP_LUA_LEAVE_NOARG;
 }
