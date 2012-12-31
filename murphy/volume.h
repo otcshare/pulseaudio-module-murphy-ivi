@@ -32,6 +32,7 @@ struct mir_vlim {
     size_t         maxentry;    /**< length of the class table  */
     size_t         nclass;      /**< number of classes (0 - maxentry) */
     int           *classes;     /**< class table  */
+    uint32_t       clmask;      /**< bits of the classes */
     uint32_t       stamp;
 };
 

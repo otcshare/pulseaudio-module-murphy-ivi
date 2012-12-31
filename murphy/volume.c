@@ -149,7 +149,7 @@ void mir_volume_add_limiting_class(struct userdata *u,
     mir_vlim      *vlim;
     int           *classes;
     size_t         classes_size;
-    size_t         i;
+    uint32_t       mask;
 
     pa_assert(u);
     pa_assert(node);
@@ -158,30 +158,33 @@ void mir_volume_add_limiting_class(struct userdata *u,
 
     if (node->implement == mir_device && node->direction == mir_output) {
 
+        pa_assert(class >= mir_application_class_begin);
+        pa_assert(class <  mir_application_class_end);
+
         vlim = &node->vlim;
+        mask = ((uint32_t)1) << (class - mir_application_class_begin);
 
         reset_outdated_volume_limit(vlim, stamp);
 
         if (class < volume->classlen && volume->classlim[class].nentry > 0) {
-            for (i = 0;   i < vlim->nclass;   i++) {
-                if (class == vlim->classes[i])
-                    return; /* it is already registered */
+            if (!(vlim->clmask & mask)) {
+
+                pa_log_debug("add limiting class %d (%s) to node '%s'",
+                             class, mir_node_type_str(class), node->amname);
+
+                if (vlim->nclass < vlim->maxentry)
+                    classes = vlim->classes;
+                else {
+                    vlim->maxentry += VLIM_CLASS_ALLOC_BUCKET;
+                    classes_size    = sizeof(int *) * vlim->maxentry;
+                    vlim->classes   = realloc(vlim->classes, classes_size);
+
+                    pa_assert_se((classes = vlim->classes));
+                }
+
+                vlim->classes[vlim->nclass++] = class;
+                vlim->clmask |= mask;
             }
-
-            pa_log_debug("add limiting class %d (%s) to node '%s'",
-                         class, mir_node_type_str(class), node->amname);
-
-            if (vlim->nclass < vlim->maxentry)
-                classes = vlim->classes;
-            else {
-                vlim->maxentry += VLIM_CLASS_ALLOC_BUCKET;
-                classes_size    = sizeof(int *) * vlim->maxentry;
-                vlim->classes   = realloc(vlim->classes, classes_size);
-
-                pa_assert_se((classes = vlim->classes));
-            }
-
-            vlim->classes[vlim->nclass++] = class;
         }
     }
 }
@@ -324,6 +327,7 @@ static void reset_outdated_volume_limit(mir_vlim *vl, uint32_t stamp)
 {
     if (stamp > vl->stamp) {
         vl->nclass = 0;
+        vl->clmask = 0;
         vl->stamp  = stamp;
     }
 }
