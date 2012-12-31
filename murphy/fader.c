@@ -46,14 +46,14 @@ struct pa_fader {
 };
 
 static void set_stream_volume_limit(struct userdata *, pa_sink_input *,
-                                    double, uint32_t);
+                                    pa_volume_t, uint32_t);
 
 pa_fader *pa_fader_init(const char *fade_out_str, const char *fade_in_str)
 {
     pa_fader *fader = pa_xnew0(pa_fader, 1);
 
     if (!fade_out_str || pa_atou(fade_out_str, &fader->transit.fade_out) < 0)
-        fader->transit.fade_out = 200;
+        fader->transit.fade_out = 100;
 
     if (!fade_in_str || pa_atou(fade_in_str, &fader->transit.fade_in) < 0)
         fader->transit.fade_in = 1000;
@@ -85,17 +85,22 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
     transition_time *transit;
     pa_sink         *sink;
     pa_sink_input   *sinp;
+    pa_volume_ramp  *ramp;
     mir_node        *node;
-    double           atten;
+    double           dB;
+    pa_volume_t      newvol;
+    pa_volume_t      oldvol;
     uint32_t         time;
     uint32_t         i,j;
     int              class;
+    pa_bool_t        rampit;
 
     pa_assert(u);
     pa_assert_se(u->fader);
     pa_assert_se((core = u->core));
 
     transit = &u->fader->transit;
+    rampit  = transit->fade_in > 0 &&  transit->fade_out > 0;
 
     pa_log_debug("applying volume limits ...");
 
@@ -105,33 +110,56 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
             
             PA_IDXSET_FOREACH(sinp, sink->inputs, j) {
                 class = pa_utils_get_stream_class(sinp->proplist);
-                atten = mir_volume_apply_limits(u, node, class, stamp);
-                time  = (atten == 0.0) ? transit->fade_in : transit->fade_out;
 
-                pa_log_debug("     stream %u attenuation %.2lf dB "
-                             "transition time %u ms", sinp->index, atten,time);
+                pa_log_debug("     stream %u (class %u)", sinp->index, class);
 
-                set_stream_volume_limit(u, sinp, atten, time);
-            }
+                if (!class)
+                    pa_log_debug("        skipping");
+                else {
+                    dB = mir_volume_apply_limits(u, node, class, stamp);
+                    newvol = pa_sw_volume_from_dB(dB);
+
+                    if (rampit) {
+                        ramp   = &sinp->ramp;
+                        oldvol = ramp->end_mapped.values[0];
+                        
+                        if (oldvol > newvol)
+                            time = transit->fade_out;
+                        else if (oldvol < newvol)
+                            time = transit->fade_in;
+                        else
+                            time = 0;
+                    }
+                    else {
+                        oldvol = sinp->volume_factor.values[0];
+                        time = 0;
+                    }
+                    
+                    if (oldvol == newvol)
+                        pa_log_debug("         attenuation %.2lf dB",dB);
+                    else {
+                        pa_log_debug("         attenuation %.2lf dB "
+                                     "transition time %u ms", dB, time);
+                        set_stream_volume_limit(u, sinp, newvol, time);
+                    }
+                }
+            } /* PA_IDXSET_FOREACH sinp */
         }
-    }
+    } /* PA_IDXSET_FOREACH sink */
 }
 
 
 static void set_stream_volume_limit(struct userdata *u,
                                     pa_sink_input   *sinp,
-                                    double           limit,
+                                    pa_volume_t      vol,
                                     uint32_t         ramp_time)
 {
     pa_sink *sink;
-    pa_volume_t vol;
     pa_cvolume rampvol;
 
     pa_assert(u);
     pa_assert(sinp);
     pa_assert_se((sink = sinp->sink));
-
-    vol = pa_sw_volume_from_dB(limit);
 
     if (!ramp_time) {
         pa_cvolume_set(&sinp->volume_factor, sinp->volume.channels, vol);

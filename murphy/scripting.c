@@ -1006,7 +1006,9 @@ static int vollim_create(lua_State *L)
     pa_bool_t suppress = FALSE;
     pa_bool_t correct = FALSE;
     size_t arglgh = 0;
-    size_t i;
+    size_t i, n;
+    int class;
+    uint32_t mask, clmask;
     char id[256];
 
     MRP_LUA_ENTER;
@@ -1076,12 +1078,46 @@ static int vollim_create(lua_State *L)
     if (suppress) {
         mir_volume_suppress_arg *args = (mir_volume_suppress_arg *)vlim->args;
         size_t size = sizeof(int) * classes->nint;
+        size_t n = mir_application_class_end - mir_application_class_begin;
+
+        for (i = 0, clmask = 0;   i < classes->nint;   i++) {
+            class = classes->ints[i];
+
+            if (class <= mir_application_class_begin ||
+                class >  mir_application_class_end     )
+            {
+                pa_log("invalid triggering class id %d", class);
+                clmask = 0;
+                classes->nint = n = 0;
+                break;
+            }
+
+            mask = ((uint32_t)1) << (class - mir_application_class_begin);
+
+            if (!(clmask & mask) && n > 0)
+                n--;
+
+            clmask |= mask;
+        }
 
         args->attenuation = limit->value;
-        args->exception.nclass = classes->nint;
-        args->exception.classes = pa_xmalloc(size);
+        args->trigger.nclass = classes->nint;
+        args->trigger.classes = pa_xmalloc(size);
+        args->trigger.clmask = clmask;
 
-        memcpy(args->exception.classes, classes->ints, size);
+        memcpy(args->trigger.classes, classes->ints, size);
+
+        if (n > classes->nint)
+            classes->ints = pa_xrealloc(classes->ints, sizeof(int) * n);
+        classes->nint = n;
+
+        for (i = mir_application_class_begin, n = 0;
+             i < mir_application_class_end;
+             i++)
+        {
+            if (!(clmask & (((uint32_t)1) << (i-mir_application_class_begin))))
+                classes->ints[n++] = i;
+        }
     }
     else if (correct) {
         *(double **)vlim->args = limit->value;

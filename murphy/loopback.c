@@ -208,9 +208,9 @@ int pa_loopback_print(pa_loopnode *loop, char *buf, int len)
 static int get_latency(const char *media_role)
 {
     static latency_def  latencies[] = {
-        { "phone"   , 5 },
-        { "ringtone", 5 },
-        {    NULL   , 0 }
+        { "phone"   , 50 },
+        { "ringtone", 50 },
+        {    NULL   , 0  }
     };
 
     latency_def *l;

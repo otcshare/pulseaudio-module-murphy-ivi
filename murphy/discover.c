@@ -950,6 +950,7 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
     mir_node       *node;
     mir_node       *sinknod;
     char           *name;
+    pa_bool_t       had_properties;
 
     pa_assert(u);
     pa_assert(sinp);
@@ -958,6 +959,8 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
     name = pa_utils_get_sink_input_name(sinp);
 
     pa_log("sink-input '%s' going to be destroyed", name);
+
+    had_properties = pa_utils_unset_stream_routing_properties(sinp->proplist);
 
     if (!(node = pa_discover_remove_node_from_ptr_hash(u, sinp)))
         pa_log_debug("can't find node for sink-input (name '%s')", name);
@@ -976,9 +979,10 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
         }
 
         destroy_node(u, node);
-
-        mir_router_make_routing(u);
     }
+
+    if (node || had_properties)
+        mir_router_make_routing(u);
 }
 
 

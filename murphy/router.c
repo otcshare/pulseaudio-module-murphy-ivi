@@ -57,6 +57,8 @@ static int uint32_cmp(uint32_t, uint32_t);
 
 static int node_priority(struct userdata *, mir_node *);
 
+static int volume_class(mir_node *);
+
 static int print_routing_table(pa_hashmap *, const char *, char *, int);
 
 
@@ -753,7 +755,7 @@ static void make_explicit_routes(struct userdata *u, uint32_t stamp)
             from->stamp = stamp;
 
         if (to->implement == mir_device)
-            mir_volume_add_limiting_class(u, to, from->type, stamp);
+            mir_volume_add_limiting_class(u, to, volume_class(from), stamp);
     }
 }
 
@@ -860,7 +862,7 @@ static void implement_default_route(struct userdata *u,
         mir_switch_setup_link(u, end, start, FALSE);
     else {
         mir_switch_setup_link(u, start, end, FALSE);
-        mir_volume_add_limiting_class(u, end, start->type, stamp);
+        mir_volume_add_limiting_class(u, end, volume_class(start), stamp);
     }
 }
 
@@ -873,7 +875,6 @@ static int uint32_cmp(uint32_t v1, uint32_t v2)
         return -1;
     return 0;
 }
-
 
 static int node_priority(struct userdata *u, mir_node *node)
 {
@@ -892,6 +893,29 @@ static int node_priority(struct userdata *u, mir_node *node)
 
     return router->priormap[class];
 }
+
+static int volume_class(mir_node *node)
+{
+    int device_class[mir_device_class_end - mir_device_class_begin] = {
+        [ mir_bluetooth_carkit - mir_device_class_begin ] = mir_phone,
+        [ mir_bluetooth_source - mir_device_class_begin ] = mir_player,
+    };
+
+    int t;
+
+    pa_assert(node);
+
+    t = node->type;
+
+    if (t >= mir_application_class_begin && t < mir_application_class_end)
+        return t;
+
+    if (t >= mir_device_class_begin && t < mir_device_class_end)
+        return device_class[t - mir_device_class_begin];
+
+    return mir_node_type_unknown;
+}
+
 
 static int print_routing_table(pa_hashmap  *table,
                                const char  *type,

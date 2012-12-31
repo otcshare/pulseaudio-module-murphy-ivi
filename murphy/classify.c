@@ -359,4 +359,3 @@ const char *pa_classify_loopback_stream(mir_node *node)
 
     return NULL;
 }
-

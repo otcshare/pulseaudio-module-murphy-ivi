@@ -213,9 +213,9 @@ char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data*data)
 }
 
 
-void pa_utils_set_stream_routing_properties(pa_proplist *pl,
-                                            int          styp,
-                                            void        *target)
+pa_bool_t pa_utils_set_stream_routing_properties(pa_proplist *pl,
+                                                 int          styp,
+                                                 void        *target)
 {
     const char    *clnam;
     const char    *method;
@@ -233,7 +233,25 @@ void pa_utils_set_stream_routing_properties(pa_proplist *pl,
         pa_proplist_sets(pl, PA_PROP_ROUTING_METHOD    , method) < 0  )
     {
         pa_log("failed to set some stream property");
+        return FALSE;
     }
+
+    return TRUE;
+}
+
+pa_bool_t pa_utils_unset_stream_routing_properties(pa_proplist *pl)
+{
+    pa_assert(pl);
+
+    if (pa_proplist_unset(pl, PA_PROP_ROUTING_CLASS_NAME) < 0 ||
+        pa_proplist_unset(pl, PA_PROP_ROUTING_CLASS_ID  ) < 0 ||
+        pa_proplist_unset(pl, PA_PROP_ROUTING_METHOD    ) < 0  )
+    {
+        pa_log("failed to unset some stream property");
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 void pa_utils_set_stream_routing_method_property(pa_proplist *pl,

@@ -41,7 +41,8 @@ struct mir_volume_suppress_arg {
     struct {
         size_t nclass;
         int *classes;
-    } exception;
+        uint32_t clmask;
+    } trigger;
 };
 
 
