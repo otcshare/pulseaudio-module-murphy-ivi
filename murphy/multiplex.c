@@ -140,14 +140,14 @@ void pa_multiplex_destroy(pa_multiplex *multiplex,
     pa_assert(core);
 
     if (mux) {
-        PA_LLIST_REMOVE(pa_muxnode, multiplex->muxnodes, mux);
         pa_module_unload_by_index(core, mux->module_index, FALSE);
+        PA_LLIST_REMOVE(pa_muxnode, multiplex->muxnodes, mux);
         pa_xfree(mux);
     }
 }
 
-
-pa_muxnode *pa_multiplex_find(pa_multiplex *multiplex, uint32_t sink_index)
+pa_muxnode *pa_multiplex_find_by_sink(pa_multiplex *multiplex,
+                                      uint32_t sink_index)
 {
     pa_muxnode *mux;
 
@@ -165,6 +165,56 @@ pa_muxnode *pa_multiplex_find(pa_multiplex *multiplex, uint32_t sink_index)
     return NULL;
 }
 
+pa_muxnode *pa_multiplex_find_by_module(pa_multiplex *multiplex,
+                                        pa_module    *module)
+{
+    uint32_t module_index;
+    pa_muxnode *mux;
+
+    pa_assert(multiplex);
+
+    if (module) {
+        module_index = module->index;
+
+        PA_LLIST_FOREACH(mux, multiplex->muxnodes) {
+            if (module_index == mux->module_index)
+                return mux;
+        }
+    }
+    
+    return NULL;
+}
+
+pa_bool_t pa_multiplex_sink_input_remove(pa_multiplex  *multiplex,
+                                         pa_sink_input *sinp)
+{
+    pa_muxnode *mux;
+    char *name;
+
+    pa_assert(multiplex);
+    pa_assert(sinp);
+
+    if ((mux = pa_multiplex_find_by_module(multiplex, sinp->module))) {
+        name = pa_utils_get_sink_input_name(sinp);
+
+        pa_log_debug("multiplex (module %u) found for sink-input "
+                     "(name %s)", mux->module_index, name);
+
+        if (sinp->index == mux->defstream_index) {
+            pa_log_debug("reseting default route on multiplex (module %u)",
+                         mux->module_index);
+            mux->defstream_index = PA_IDXSET_INVALID;
+        }
+        else {
+            pa_log_debug("reseting explicit route on multiplex (module %u)",
+                         mux->module_index);
+        }
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
 
 pa_bool_t pa_multiplex_add_default_route(pa_core    *core,
                                          pa_muxnode *mux,

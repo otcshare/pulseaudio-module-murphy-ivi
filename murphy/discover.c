@@ -589,7 +589,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
                                             loopback_role);
             if (node->loop) {
                 sink_index = pa_loopback_get_sink_index(core, node->loop);
-                node->mux = pa_multiplex_find(u->multiplex, sink_index);
+                node->mux = pa_multiplex_find_by_sink(u->multiplex,sink_index);
             }
 
             mir_node_print(node, nbf, sizeof(nbf));
@@ -758,23 +758,39 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     pa_module     *m;
     pa_proplist   *pl;
     pa_discover   *discover;
+    pa_multiplex  *multiplex;
     mir_node       fake;
     pa_sink       *sink;
+    pa_sink_input *sinp;
     const char    *mnam;
     const char    *role;
     mir_node_type  type;
     mir_node      *node;
+    pa_muxnode    *mux;
 
     pa_assert(u);
     pa_assert(data);
     pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
+    pa_assert_se((multiplex = u->multiplex));
     pa_assert_se((pl = data->proplist));
 
     mnam = (m = data->module) ? m->name : "";
 
-    if (pa_streq(mnam, "module-combine-sink"))
+    if (pa_streq(mnam, "module-combine-sink")) {
         type = mir_node_type_unknown;
+
+        if (!(mux  = pa_multiplex_find_by_module(multiplex, m)) ||
+            !(sink = pa_idxset_get_by_index(core->sinks, mux->sink_index)) ||
+            !(sinp = pa_idxset_first(sink->inputs, NULL)) ||
+            !(type = pa_utils_get_stream_class(sinp->proplist)))
+        {
+            pa_log_debug("can't figure out the type of multiplex stream");
+        }
+        else {
+            pa_utils_set_stream_routing_properties(data->proplist, type, NULL);
+        }
+    }
     else {
         if (pa_streq(mnam, "module-loopback")) {
 
@@ -833,6 +849,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     pa_sink_input  *csinp;
     pa_proplist    *pl;
     pa_discover    *discover;
+    pa_multiplex   *multiplex;
     mir_node        data;
     mir_node       *node;
     mir_node       *snod;
@@ -841,18 +858,30 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     mir_node_type   type;
     char            key[256];
     pa_bool_t       created;
+    pa_muxnode     *mux;
 
     pa_assert(u);
     pa_assert(sinp);
     pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
+    pa_assert_se((multiplex = u->multiplex));
     pa_assert_se((pl = sinp->proplist));
 
     if (!(media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME)))
         media = "<unknown>";
 
     if (!strncmp(media, combine_pattern, sizeof(combine_pattern)-1)) {
-        pa_log_debug("New stream is a combine stream. Nothing to do ...");
+        if (!pa_utils_stream_has_default_route(sinp->proplist) ||
+            !(mux = pa_multiplex_find_by_module(multiplex, sinp->module)) ||
+            mux->defstream_index != PA_IDXSET_INVALID)
+        {
+            pa_log_debug("New stream is a combine stream. Nothing to do ...");
+        }
+        else {
+            pa_log_debug("New stream is a combine stream. Setting as default");
+            mux->defstream_index = sinp->index;
+            mir_router_make_routing(u);
+        }
         return;
     } else if (!strncmp(media, loopback_outpatrn,sizeof(loopback_outpatrn)-1)){
         pa_log_debug("New stream is a loopback output stream");
@@ -906,8 +935,8 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         data.amid      = AM_ID_INVALID;
         data.paname    = name;
         data.paidx     = sinp->index;
-        data.mux       = pa_multiplex_find(u->multiplex, sinp->sink->index);
-
+        data.mux       = pa_multiplex_find_by_sink(u->multiplex,
+                                                   sinp->sink->index);
         node = create_node(u, &data, &created);
 
         pa_assert(node);
@@ -962,8 +991,10 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
 
     had_properties = pa_utils_unset_stream_routing_properties(sinp->proplist);
 
-    if (!(node = pa_discover_remove_node_from_ptr_hash(u, sinp)))
-        pa_log_debug("can't find node for sink-input (name '%s')", name);
+    if (!(node = pa_discover_remove_node_from_ptr_hash(u, sinp))) {
+        if (!pa_multiplex_sink_input_remove(u->multiplex, sinp))
+            pa_log_debug("nothing to do for sink-input (name '%s')", name);
+    }
     else {
         pa_log_debug("node found for '%s'. After clearing routes "
                      "it will be destroyed", name);
