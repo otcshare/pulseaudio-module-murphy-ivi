@@ -22,6 +22,7 @@
 
 #include "userdata.h"
 
+
 pa_scripting *pa_scripting_init(struct userdata *);
 void pa_scripting_done(struct userdata *);
 

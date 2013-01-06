@@ -25,20 +25,27 @@
 
 #include <pulsecore/pulsecore-config.h>
 
+#include <murphy/common/macros.h>
 #include <murphy/core/lua-utils/object.h>
 #include <murphy/core/lua-utils/funcbridge.h>
 #include <murphy/core/lua-utils/strarray.h>
+#include <murphy/core/lua-utils/funcbridge.h>
+#include <murphy/domain-control/client.h>
 
 #include "scripting.h"
 #include "node.h"
 #include "router.h"
 #include "volume.h"
+#include "murphyif.h"
 #include "murphy-config.h"
 
+#define IMPORT_CLASS       MRP_LUA_CLASS(mdb, import)
 #define NODE_CLASS         MRP_LUA_CLASS(node, instance)
 #define RTGROUP_CLASS      MRP_LUA_CLASS_SIMPLE(routing_group)
 #define APPLICATION_CLASS  MRP_LUA_CLASS_SIMPLE(application_class)
 #define VOLLIM_CLASS       MRP_LUA_CLASS_SIMPLE(volume_limit)
+
+#define ARRAY_CLASSID      MRP_LUA_CLASSID_ROOT "mdb_array"
 
 #define USERDATA           "murphy_ivi_userdata"
 
@@ -57,8 +64,20 @@
 #define MRP_LUA_LEAVE_NOARG                                     \
     pa_log_debug("%s() leave", __FUNCTION__)
 
+typedef void (*update_func_t)(struct userdata *);
+
 struct pa_scripting {
     lua_State *L;
+    pa_bool_t configured;
+};
+
+struct scripting_import {
+    struct userdata    *userdata;
+    const char         *table;
+    mrp_lua_strarray_t *columns;
+    const char         *condition;
+    pa_value           *values;
+    mrp_funcbridge_t   *update;
 };
 
 struct scripting_node {
@@ -129,23 +148,50 @@ typedef struct {
 typedef enum {
     NAME = 1,
     TYPE,
-    NODE_TYPE,
-    PRIORITY,
-    ROUTE,
     INPUT,
-    OUTPUT,
+    LIMIT,
+    ROUTE,
+    TABLE,
     ACCEPT,
+    MAXROW,
+    OUTPUT,
+    TABLES,
+    UPDATE,
     COMPARE,
-    DIRECTION,
-    IMPLEMENT,
+    COLUMNS,
+    PRIVACY,
     CHANNELS,
     LOCATION,
-    PRIVACY,
-    DESCRIPTION,
+    PRIORITY,
     AVAILABLE,
     CALCULATE,
-    LIMIT,
+    CONDITION,
+    DIRECTION,
+    IMPLEMENT,
+    NODE_TYPE,
+    DESCRIPTION,
 } field_t;
+
+static int  import_create(lua_State *);
+static int  import_getfield(lua_State *);
+static int  import_setfield(lua_State *);
+static int  import_tostring(lua_State *);
+static void import_destroy(void *);
+
+static int  import_link(lua_State *);
+
+static void import_data_changed(struct userdata *, const char *,
+                                int, mrp_domctl_value_t **);
+static bool update_bridge(lua_State *, void *, const char *,
+                          mrp_funcbridge_value_t *, char *,
+                          mrp_funcbridge_value_t *);
+
+static void array_class_create(lua_State *);
+static pa_value *array_create(lua_State *, int, mrp_lua_strarray_t *);
+static int  array_getfield(lua_State *);
+static int  array_setfield(lua_State *);
+static int  array_getlength(lua_State *);
+static void array_destroy(void *);
 
 static int  node_create(lua_State *);
 static int  node_getfield(lua_State *);
@@ -158,6 +204,7 @@ static int  rtgroup_getfield(lua_State *);
 static int  rtgroup_setfield(lua_State *);
 static int  rtgroup_tostring(lua_State *);
 static void rtgroup_destroy(void *);
+
 static pa_bool_t rtgroup_accept(struct userdata *, mir_rtgroup *, mir_node *);
 static int  rtgroup_compare(struct userdata *, mir_rtgroup *,
                             mir_node *, mir_node *);
@@ -201,6 +248,10 @@ static void intarray_destroy(intarray_t *);
 static field_t field_check(lua_State *, int, const char **);
 static field_t field_name_to_type(const char *, size_t);
 static int make_id(char *buf, size_t len, const char *fmt, ...);
+
+static void setup_murphy_interface(struct userdata *);
+static char *comma_separated_list(mrp_lua_strarray_t *, char *, int);
+
 static bool define_constants(lua_State *);
 static bool register_methods(lua_State *);
 
@@ -209,10 +260,31 @@ static int panic(lua_State *);
 
 
 MRP_LUA_METHOD_LIST_TABLE (
+    import_methods,           /* methodlist name */
+    MRP_LUA_METHOD_CONSTRUCTOR  (import_create)
+    MRP_LUA_METHOD        (link, import_link  )
+);
+
+MRP_LUA_METHOD_LIST_TABLE (
     node_methods,             /* methodlist name */
     MRP_LUA_METHOD_CONSTRUCTOR  (node_create)
 );
 
+
+MRP_LUA_METHOD_LIST_TABLE (
+    import_overrides,        /* methodlist_name */
+    MRP_LUA_OVERRIDE_CALL       (import_create)
+    MRP_LUA_OVERRIDE_GETFIELD   (import_getfield)
+    MRP_LUA_OVERRIDE_SETFIELD   (import_setfield)
+    MRP_LUA_OVERRIDE_STRINGIFY  (import_tostring)
+);
+
+MRP_LUA_METHOD_LIST_TABLE (
+    array_overrides,         /* methodlist_name */
+    MRP_LUA_OVERRIDE_GETFIELD   (array_getfield)
+    MRP_LUA_OVERRIDE_SETFIELD   (array_setfield)
+    MRP_LUA_OVERRIDE_GETLENGTH  (array_getlength)
+);
 
 MRP_LUA_METHOD_LIST_TABLE (
     node_overrides,           /* methodlist name */
@@ -222,6 +294,15 @@ MRP_LUA_METHOD_LIST_TABLE (
     MRP_LUA_OVERRIDE_STRINGIFY  (node_tostring)
 );
 
+
+MRP_LUA_CLASS_DEF (
+   mdb,                         /* class name */
+   import,                      /* constructor name */
+   scripting_import,            /* userdata type */
+   import_destroy,              /* userdata destructor */
+   import_methods,              /* class methods */
+   import_overrides             /* override methods */
+);
 
 MRP_LUA_CLASS_DEF (
    node,                        /* class name */
@@ -277,6 +358,7 @@ MRP_LUA_CLASS_DEF_SIMPLE (
    )
 );
 
+
 pa_scripting *pa_scripting_init(struct userdata *u)
 {
     pa_scripting *scripting;
@@ -293,10 +375,13 @@ pa_scripting *pa_scripting_init(struct userdata *u)
         luaL_openlibs(L);
 
         mrp_create_funcbridge_class(L);
+        mrp_lua_create_object_class(L, IMPORT_CLASS);
         mrp_lua_create_object_class(L, NODE_CLASS);
         mrp_lua_create_object_class(L, RTGROUP_CLASS);
         mrp_lua_create_object_class(L, APPLICATION_CLASS);
         mrp_lua_create_object_class(L, VOLLIM_CLASS);
+
+        array_class_create(L);
 
         define_constants(L);
         register_methods(L);
@@ -305,6 +390,7 @@ pa_scripting *pa_scripting_init(struct userdata *u)
         lua_setglobal(L, USERDATA);
 
         scripting->L = L;
+        scripting->configured = FALSE;
     }
 
     return scripting;
@@ -332,16 +418,499 @@ pa_bool_t pa_scripting_dofile(struct userdata *u, const char *file)
     pa_assert_se((scripting = u->scripting));
     pa_assert_se((L = scripting->L));
 
-    if (!luaL_loadfile(L, file) && !lua_pcall(L, 0, 0, 0))
-        success =TRUE;
-    else {
+    if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
         success = FALSE;
         pa_log("%s", lua_tostring(L, -1));
         lua_pop(L, 1);
     }
+    else {
+        success =TRUE;
+        scripting->configured = TRUE;
+        setup_murphy_interface(u);
+    }
 
     return success;
 }
+
+static int import_create(lua_State *L)
+{
+    struct userdata *u;
+    pa_scripting *scripting;
+    size_t fldnamlen;
+    const char *fldnam;
+    scripting_import *imp;
+    const char *table = NULL;
+    mrp_lua_strarray_t *columns = NULL;
+    const char *condition = NULL;
+    int maxrow = 0;
+    mrp_funcbridge_t *update = NULL;
+    size_t maxcol;
+    pa_value **rows;
+    pa_value **cols;
+    int i,j;
+    int top;
+
+    MRP_LUA_ENTER;
+
+    top = lua_gettop(L);
+
+    lua_getglobal(L, USERDATA);
+    if (!lua_islightuserdata(L, -1) || !(u = lua_touserdata(L, -1)))
+        luaL_error(L, "missing or invalid global '" USERDATA "'");
+
+    pa_assert_se((scripting = u->scripting));
+
+    MRP_LUA_FOREACH_FIELD(L, 2, fldnam, fldnamlen) {
+
+        switch (field_name_to_type(fldnam, fldnamlen)) {
+        case TABLE:      table = luaL_checkstring(L, -1);                break;
+        case COLUMNS:    columns = mrp_lua_check_strarray(L, -1);        break;
+        case CONDITION:  condition = luaL_checkstring(L, -1);            break;
+        case MAXROW:     maxrow = luaL_checkint(L, -1);                  break;
+        case UPDATE:     update = mrp_funcbridge_create_luafunc(L, -1);  break;
+        default:         luaL_error(L, "bad field '%s'", fldnam);        break;
+        }
+
+    } /* MRP_LUA_FOREACH_FIELD */
+
+    lua_settop(L, top);
+
+    if (!table)
+        luaL_error(L, "missing table field");
+    if (!columns)
+        luaL_error(L, "missing columns field");
+    if (maxrow < 1 || maxrow >= MQI_QUERY_RESULT_MAX)
+        luaL_error(L, "missing or invalid maxrow field");
+    if (!update)
+        luaL_error(L, "missing update function");
+
+    maxcol = columns->nstring;
+
+    if (maxcol >= MQI_COLUMN_MAX)
+        luaL_error(L, "too many columns (max %d allowed)", MQI_COLUMN_MAX);
+
+    if (scripting->configured)
+        luaL_error(L, "refuse to import '%s' after configuration phase",table);
+
+    imp = (scripting_import *)mrp_lua_create_object(L, IMPORT_CLASS, table);
+
+    imp->userdata = u;
+    imp->table = pa_xstrdup(table);
+    imp->columns = columns;
+    imp->condition = condition;
+    imp->values = array_create(L, maxrow, NULL);
+    imp->update = update;
+
+    for (i = 0, rows = imp->values->array;  i < maxrow;   i++) {
+        cols = (rows[i] = array_create(L, maxcol, columns))->array;
+        lua_rawseti(L, -3, i+1); /* we add this to the import */
+        for (j = 0;  j < maxcol;  j++)
+            cols[j] = pa_xnew0(pa_value, 1);
+    }
+
+    lua_rawseti(L, -2, MQI_QUERY_RESULT_MAX);
+
+    MRP_LUA_LEAVE(1);
+}
+
+static int import_getfield(lua_State *L)
+{
+    scripting_import *imp;
+    pa_value *values;
+    int colidx;
+    field_t fld;
+
+    MRP_LUA_ENTER;
+
+    if (!(imp = (scripting_import *)mrp_lua_check_object(L, IMPORT_CLASS, 1)))
+        lua_pushnil(L);
+    else {
+        pa_assert_se((values = imp->values));
+
+        if (lua_type(L, 2) == LUA_TNUMBER) {
+            colidx = lua_tointeger(L, 2);
+
+            if (colidx < 1 || colidx > -values->type)
+                lua_pushnil(L);
+            else
+                lua_rawgeti(L, 1, colidx);
+        }
+        else {
+            fld = field_check(L, 2, NULL);
+            lua_pop(L, 1);
+
+            switch (fld) {
+            case TABLE:       lua_pushstring(L, imp->table);             break;
+            case COLUMNS:     mrp_lua_push_strarray(L, imp->columns);    break;
+            case CONDITION:   lua_pushstring(L, imp->condition);         break;
+            case MAXROW:      lua_pushinteger(L, -imp->values->type);    break;
+            default:          lua_pushnil(L);                            break;
+            }
+        }
+    }
+
+    MRP_LUA_LEAVE(1);
+}
+
+static int import_setfield(lua_State *L)
+{
+    const char *f;
+
+    MRP_LUA_ENTER;
+
+    f = luaL_checkstring(L, 2);
+    luaL_error(L, "attempt to set '%s' field of read-only mdb.import", f);
+    
+    MRP_LUA_LEAVE(0);
+}
+
+static int import_tostring(lua_State *L)
+{
+    scripting_import *imp;
+
+    MRP_LUA_ENTER;
+
+    imp = (scripting_import *)mrp_lua_check_object(L, IMPORT_CLASS, 1);
+
+    lua_pushstring(L, imp->table);
+
+    MRP_LUA_LEAVE(1);
+}
+
+static void import_destroy(void *data)
+{
+    scripting_import *imp = (scripting_import *)data;
+
+    MRP_LUA_ENTER;
+
+    pa_xfree((void *)imp->table);
+    mrp_lua_free_strarray(imp->columns);
+    pa_xfree((void *)imp->condition);
+
+    MRP_LUA_LEAVE_NOARG;
+}
+
+static int import_link(lua_State *L)
+{
+    scripting_import *imp;
+    mrp_lua_strarray_t *columns;
+    pa_value *values;
+    const char *table;
+    const char *colnam;
+    int rowidx;
+    size_t colidx;
+    pa_value *row;
+    pa_value *col;
+
+    MRP_LUA_ENTER;
+
+    imp = (scripting_import *)mrp_lua_check_object(L, IMPORT_CLASS, 1);
+    rowidx = luaL_checkint(L, 2) - 1;
+    colnam = luaL_checkstring(L, 3);
+
+    pa_assert(imp);
+    pa_assert_se((columns = imp->columns));
+
+    col = NULL;
+
+    if (rowidx >= 0 && rowidx < -imp->values->type) {
+        for (colidx = 0;   colidx < columns->nstring;   colidx++) {
+            if (!strcmp(colnam, columns->strings[colidx])) {
+                pa_assert_se((values = imp->values));
+                pa_assert_se((row = values->array[rowidx]));
+                pa_assert(colidx < (size_t)-row->type);
+                pa_assert_se((col = row->array[colidx]));
+                break;
+            }
+        }
+    }
+
+    pa_log("userdata: type:%d", col->type);
+
+    lua_pushlightuserdata(L, col);
+
+    MRP_LUA_LEAVE(1);
+}
+
+static void import_data_changed(struct userdata *u,
+                                const char *table,
+                                int nrow,
+                                mrp_domctl_value_t **mval)
+{
+    static mrp_domctl_value_t empty;
+
+    pa_scripting *scripting;
+    lua_State *L;
+    scripting_import *imp;
+    mrp_domctl_value_t *mrow;
+    mrp_domctl_value_t *mcol;
+    pa_value *ptval, *prval, *pcval;
+    pa_value **prow;
+    pa_value **pcol;
+    int maxcol;
+    int maxrow;
+    mrp_funcbridge_value_t arg;
+    mrp_funcbridge_value_t ret;
+    char t;
+    int i,j;
+
+    pa_assert(u);
+    pa_assert(table);
+    pa_assert(mval);
+    pa_assert_se((scripting = u->scripting));
+    pa_assert_se((L = scripting->L));
+
+    pa_log_debug("table '%s' data changed: got %d rows", table, nrow);
+
+    mrp_lua_get_class_table(L, IMPORT_CLASS);
+
+    if (!lua_istable(L, -1)){
+        luaL_error(L, "internal error: failed to find '%s' table",
+                   (IMPORT_CLASS)->constructor);
+    }
+
+    lua_pushstring(L, table);
+    lua_rawget(L, -2);
+
+    if (!(imp = mrp_lua_to_object(L, IMPORT_CLASS, -1)))
+        pa_log("can't find import '%s'", table);
+    else {
+        pa_assert(!strcmp(table, imp->table));
+        pa_assert(imp->columns);
+        pa_assert(imp->update);
+        pa_assert_se((ptval = imp->values));
+        pa_assert_se((prow = ptval->array));
+        
+        maxrow = -ptval->type;
+        maxcol = imp->columns->nstring;
+
+        pa_assert(maxrow >= 0);
+        pa_assert(nrow <= maxrow);
+
+        pa_log_debug("import '%s' found", imp->table);
+
+        for (i = 0; i < maxrow;  i++) {
+            pa_assert_se((prval = prow[i]));
+            pa_assert_se((pcol = prval->array));
+            pa_assert(prval->type < 0);
+            pa_assert(maxcol == -prval->type);
+
+            mrow = (i < nrow) ? mval[i] : NULL;
+
+            for (j = 0;  j < maxcol;  j++) {
+                pcval = pcol[j];
+                mcol = mrow ? mrow + j : &empty;
+
+                switch (mcol->type) {
+                case MRP_DOMCTL_STRING:
+                    pa_assert(!pcval->type || pcval->type == pa_value_string);
+                    pa_xfree((void *)pcval->string);
+                    pcval->type = pa_value_string;
+                    pcval->string = pa_xstrdup(mcol->str);
+                    break;
+                case MRP_DOMCTL_INTEGER:
+                    pa_assert(!pcval->type || pcval->type == pa_value_integer);
+                    pcval->type = pa_value_integer;
+                    pcval->integer = mcol->s32;
+                    break;
+                case MRP_DOMCTL_UNSIGNED:
+                    pa_assert(!pcval->type || pcval->type == pa_value_unsignd);
+                    pcval->type = pa_value_unsignd;
+                    pcval->unsignd = mcol->u32;
+                    break;
+                case MRP_DOMCTL_DOUBLE:
+                    pa_assert(!pcval->type || pcval->type ==pa_value_floating);
+                    pcval->type = pa_value_floating;
+                    pcval->floating = mcol->dbl;
+                    break;
+                default:
+                    if (pcval->type == pa_value_string)
+                        pa_xfree((void *)pcval->string);
+                    memset(pcval, 0, sizeof(pa_value));
+                    break;
+                }
+            }
+        }
+
+        arg.pointer = imp;
+
+        if (!mrp_funcbridge_call_from_c(L, imp->update, "o", &arg, &t, &ret)) {
+            pa_log("failed to call %s:update method (%s)",
+                   imp->table, ret.string);
+            pa_xfree((void *)ret.string);
+        }
+    }
+
+    lua_pop(L, 2);
+}
+
+
+static bool update_bridge(lua_State *L, void *data, const char *signature,
+                          mrp_funcbridge_value_t *args,
+                          char *ret_type, mrp_funcbridge_value_t *ret_val)
+{
+    update_func_t update;
+    scripting_import *imp;
+    struct userdata *u;
+    bool success;
+
+    (void)L;
+
+    pa_assert(signature);
+    pa_assert(args);
+    pa_assert(ret_type);
+    pa_assert(ret_val);
+
+    pa_assert_se((update = (update_func_t)data));
+
+    if (strcmp(signature, "o"))
+        success = false;
+    else {
+        pa_assert_se((imp = args[0].pointer));
+        pa_assert_se((u = imp->userdata));
+
+        success = true;
+        *ret_type = MRP_FUNCBRIDGE_NO_DATA;
+        memset(ret_val, 0, sizeof(mrp_funcbridge_value_t));
+        update(u);
+    }
+
+    return success;
+}
+
+
+
+static void array_class_create(lua_State *L)
+{
+    /* create a metatable for row's */
+    luaL_newmetatable(L, ARRAY_CLASSID);
+    lua_pushliteral(L, "__index");
+    lua_pushvalue(L, -2);
+    lua_settable(L, -3);        /* metatable.__index = metatable */
+    luaL_openlib(L, NULL, array_overrides, 0);
+}
+
+
+static pa_value *array_create(lua_State *L, int dimension,
+                              mrp_lua_strarray_t *names)
+{
+    pa_value  *value;
+    pa_value **array;
+
+    pa_assert(L);
+    pa_assert(dimension >= 0);
+    pa_assert(dimension < MQI_QUERY_RESULT_MAX);
+
+    array = pa_xnew0(pa_value *, dimension + 1);
+    value = lua_newuserdata(L, sizeof(pa_value));
+    value->type = -dimension;
+    value->array = array;
+
+    array[dimension] = (pa_value *)names;
+
+    luaL_getmetatable(L, ARRAY_CLASSID);
+    lua_setmetatable(L, -2);
+
+    return value;
+}
+
+static int array_getfield(lua_State *L)
+{
+    pa_value *arr, *value;
+    int dimension;
+    int key_type;
+    const char *key;
+    mrp_lua_strarray_t *names;
+    int idx;
+    size_t i;
+
+    MRP_LUA_ENTER;
+
+    pa_assert(L);
+
+    arr = (pa_value *)luaL_checkudata(L, 1, ARRAY_CLASSID);
+
+    pa_assert(arr->type < 0);
+    
+    dimension = -arr->type;
+    key_type = lua_type(L, 2);
+    
+    switch (key_type) {
+    case LUA_TNUMBER:
+        idx = lua_tointeger(L, 2) - 1;
+        break;
+    case LUA_TSTRING:
+        idx = -1;
+        if ((names = (mrp_lua_strarray_t *)arr->array[dimension])) {
+            pa_assert(dimension == names->nstring);
+            key = lua_tostring(L, 2);
+            pa_assert(key);
+            for (i = 0;  i < dimension;  i++) {
+                if (!strcmp(key, names->strings[i])) {
+                    idx = i;
+                    break;
+                }
+            }
+        }
+        break;
+    default:
+        idx = -1;
+        break;
+    }
+
+
+    if (idx < 0 || idx >= dimension || !(value = arr->array[idx]))
+        lua_pushnil(L);
+    else if (value->type < 0)
+        lua_rawgeti(L, 1, 1 - value->type);
+    else {
+        switch (value->type) {
+        case pa_value_string:   lua_pushstring(L, value->string);   break;
+        case pa_value_integer:  lua_pushinteger(L, value->integer); break;
+        case pa_value_unsignd:  lua_pushinteger(L, value->unsignd); break;
+        case pa_value_floating: lua_pushnumber(L, value->floating); break;
+        default:                lua_pushnil(L);                     break;
+        }
+    }
+
+    MRP_LUA_LEAVE(1);
+}
+
+static int array_setfield(lua_State *L)
+{
+    MRP_LUA_ENTER;
+
+    pa_assert(L);
+
+    luaL_error(L, "attempt to write to a read-only object");
+
+    MRP_LUA_LEAVE(0);
+}
+
+static int array_getlength(lua_State *L)
+{
+    MRP_LUA_ENTER;
+
+    pa_assert(L);
+
+    MRP_LUA_LEAVE(1);
+}
+
+
+static void array_destroy(void *data)
+{
+    pa_value *value = (pa_value *)data; 
+
+    MRP_LUA_ENTER;
+
+    if (value) {
+        pa_assert(value->type < 0);
+        pa_xfree(value->array);
+    }
+
+    MRP_LUA_LEAVE_NOARG;
+}
+
 
 scripting_node *pa_scripting_node_create(struct userdata *u, mir_node *node)
 {
@@ -1296,16 +1865,26 @@ static limit_data_t *limit_data_check(lua_State *L, int idx)
 
     limit_data_t *ld;
     double value;
+    pa_value *v;
 
     switch (lua_type(L, idx)) {
     case LUA_TNUMBER:
         if ((value = lua_tonumber(L, idx)) > 0.0)
             luaL_error(L, "volume limit is in dB and can't be positive");
         else {
-            ld = pa_xmalloc0(sizeof(limit_data_t));
+            ld = pa_xnew0(limit_data_t, 1);
             ld->mallocd = TRUE;
-            ld->value = pa_xmalloc(sizeof(double));
+            ld->value = pa_xnew0(double, 1);
             *ld->value = value;
+        }
+        break;
+    case LUA_TLIGHTUSERDATA:
+        if (!(v = lua_touserdata(L, idx)) || v->type < 0)
+            luaL_error(L, "broken link for volume limit value");
+        else {
+            ld = pa_xnew0(limit_data_t, 1);
+            ld->mallocd = FALSE;
+            ld->value = &v->floating;
         }
         break;
     default:
@@ -1425,55 +2004,133 @@ static field_t field_name_to_type(const char *name, size_t len)
     switch (len) {
 
     case 4:
-        if (!strcmp(name, "name"))
-            return NAME;
-        if (!strcmp(name, "type"))
-            return TYPE;
+        switch (name[0]) {
+        case 'n':
+            if (!strcmp(name, "name"))
+                return NAME;
+            break;
+        case 't':
+            if (!strcmp(name, "type"))
+                return TYPE;
+            break;
+        default:
+            break;
+        }
         break;
 
     case 5:
-        if (!strcmp(name, "route"))
-            return ROUTE;
-        if (!strcmp(name, "input"))
-            return INPUT;
-        if (!strcmp(name, "limit"))
-            return LIMIT;
+        switch (name[0]) {
+        case 'i':
+            if (!strcmp(name, "input"))
+                return INPUT;
+            break;
+        case 'l':
+            if (!strcmp(name, "limit"))
+                return LIMIT;
+            break;
+        case 'r':
+            if (!strcmp(name, "route"))
+                return ROUTE;
+            break;
+        case 't':
+            if (!strcmp(name, "table"))
+                return TABLE;
+            break;
+        default:
+            break;
+        }
         break;
 
     case 6:
-        if (!strcmp(name, "output"))
-            return OUTPUT;
-        if (!strcmp(name, "accept"))
-            return ACCEPT;
+        switch (name[0]) {
+        case 'a':
+            if (!strcmp(name, "accept"))
+                return ACCEPT;
+            break;
+        case 'm':
+            if (!strcmp(name, "maxrow"))
+                return MAXROW;
+            break;
+        case 'o':
+            if (!strcmp(name, "output"))
+                return OUTPUT;
+            break;
+        case 't':
+            if (!strcmp(name, "tables"))
+                return TABLES;
+            break;
+        case 'u':
+            if (!strcmp(name, "update"))
+                return UPDATE;
+            break;
+        default:
+            break;
+        }
         break;
 
     case 7:
-        if (!strcmp(name, "compare"))
-            return COMPARE;
-        if (!strcmp(name, "privacy"))
-            return PRIVACY;
+        switch (name[0]) {
+        case 'c':
+            if (!strcmp(name, "compare"))
+                return COMPARE;
+            if (!strcmp(name, "columns"))
+                return COLUMNS;
+            break;
+        case 'p':
+            if (!strcmp(name, "privacy"))
+                return PRIVACY;
+            break;
+        default:
+            break;
+        }
         break;
 
     case 8:
-        if (!strcmp(name, "priority"))
-            return PRIORITY;
-        if (!strcmp(name, "channels"))
-            return CHANNELS;
-        if (!strcmp(name, "location"))
-            return LOCATION;
+        switch (name[0]) {
+        case 'c':
+            if (!strcmp(name, "channels"))
+                return CHANNELS;
+            break;
+        case 'l':
+            if (!strcmp(name, "location"))
+                return LOCATION;
+            break;
+        case 'p':
+            if (!strcmp(name, "priority"))
+                return PRIORITY;
+            break;
+        default:
+            break;
+        }
         break;
 
     case 9:
-        if (!strcmp(name, "node_type"))
-            return NODE_TYPE;
-        if (!strcmp(name, "direction"))
-            return DIRECTION;
-        if (!strcmp(name, "implement"))
-            return IMPLEMENT;
-        if (!strcmp(name, "available"))
-            return AVAILABLE;
-        if (!strcmp(name, "calculate"))
-            return CALCULATE;
+        switch (name[0]) {
+        case 'a':
+            if (!strcmp(name, "available"))
+                return AVAILABLE;
+            break;
+        case 'c':
+            if (!strcmp(name, "calculate"))
+                return CALCULATE;
+            if (!strcmp(name, "condition"))
+                return CONDITION;
+            break;
+        case 'd':
+            if (!strcmp(name, "direction"))
+                return DIRECTION;
+            break;
+        case 'i':
+            if (!strcmp(name, "implement"))
+                return IMPLEMENT;
+            break;
+        case 'n':
+            if (!strcmp(name, "node_type"))
+                return NODE_TYPE;
+            break;
+        default:
+            break;
+        }
         break;
 
     case 11:
@@ -1509,6 +2166,83 @@ static int make_id(char *buf, size_t len, const char *fmt, ...)
     return l;
 }
 
+
+static void setup_murphy_interface(struct userdata *u)
+{
+    pa_scripting *scripting;
+    scripting_import *imp;
+    const char *key;
+    lua_State *L;
+    int class;
+    pa_bool_t need_domainctl;
+    char buf[8192];
+    const char *columns;
+    int top;
+    pa_value *values;
+
+    MRP_LUA_ENTER;
+
+    pa_assert(u);
+    pa_assert_se((scripting = u->scripting));
+    pa_assert_se((L = scripting->L));
+
+    top = lua_gettop(L);
+
+    mrp_lua_get_class_table(L, IMPORT_CLASS);
+    class = lua_gettop(L);
+
+    if (!lua_istable(L, class)){
+        luaL_error(L, "internal error: failed to find '%s' table",
+                   (IMPORT_CLASS)->constructor);
+    }
+
+    need_domainctl = FALSE;
+
+    lua_pushnil(L);
+    while (lua_next(L, class)) {
+        if (lua_isstring(L, -2)) {
+            if ((imp = mrp_lua_to_object(L, IMPORT_CLASS, -1))) {
+                key = lua_tostring(L, -2);
+
+                pa_assert(!strcmp(key, imp->table));
+                pa_assert_se((values = imp->values));
+
+                pa_log_debug("adding import '%s'", imp->table);
+
+                need_domainctl = TRUE;
+                columns = comma_separated_list(imp->columns, buf,sizeof(buf));
+
+                pa_murphyif_add_watch(u, imp->table, columns, imp->condition,
+                                      -values->type);
+            }
+        }
+        lua_pop(L, 1);
+    }
+
+    if (need_domainctl)
+        pa_murphyif_setup_domainctl(u, import_data_changed);
+
+    lua_settop(L, top);
+
+    MRP_LUA_LEAVE_NOARG;
+}
+
+
+static char *comma_separated_list(mrp_lua_strarray_t *arr, char *buf, int len)
+{
+    char *list;
+    char *p, *e;
+    size_t i;
+
+    pa_assert(arr);
+    pa_assert(buf);
+    pa_assert(len > 0);
+
+    for (i = 0, e = (p = buf) + len;   i < arr->nstring && p < e;    i++)
+        p += snprintf(p, e-p, "%s%s", (p == buf ? "" : ","), arr->strings[i]);
+
+    return (p < e) ? buf : NULL;
+}
 
 
 static bool define_constants(lua_State *L)
@@ -1593,6 +2327,8 @@ static bool define_constants(lua_State *L)
 static bool register_methods(lua_State *L)
 {
     static funcbridge_def_t funcbridge_defs[] = {
+        {"make_routes"    ,"o"  , update_bridge   ,mir_router_make_routing   },
+        {"make_volumes"   ,"o"  , update_bridge   ,mir_volume_make_limiting  },
         {"accept_default" ,"oo" , accept_bridge   ,mir_router_default_accept },
         {"compare_default","ooo", compare_bridge  ,mir_router_default_compare},
         {"accept_phone"   ,"oo" , accept_bridge   ,mir_router_phone_accept   },
