@@ -61,6 +61,7 @@
 #include "utils.h"
 #include "scripting.h"
 #include "extapi.h"
+#include "murphyif.h"
 
 #ifndef DEFAULT_CONFIG_DIR
 #define DEFAULT_CONFIG_DIR "/etc/pulse"
@@ -139,6 +140,8 @@ int pa__init(pa_module *m) {
     const char      *nsnam;
     const char      *cfgpath;
     char             buf[4096];
+    const char      *mrpaddr;
+
     
     pa_assert(m);
     
@@ -164,7 +167,7 @@ int pa__init(pa_module *m) {
     amport   = pa_modargs_get_value(ma, "audiomgr_port", NULL);
 #endif
     nsnam    = pa_modargs_get_value(ma, "null_sink_name", NULL);
-    
+
     u = pa_xnew0(struct userdata, 1);
     u->core      = m->core;
     u->module    = m;
@@ -195,6 +198,9 @@ int pa__init(pa_module *m) {
     if (u->nullsink == NULL || u->routerif == NULL  ||
         u->audiomgr == NULL || u->discover == NULL)
         goto fail;
+
+    mrpaddr   = pa_modargs_get_value(ma, "murphy_address", NULL);
+    u->domctl = pa_murphyif_init(u, mrpaddr);
 
     m->userdata = u;
 
@@ -231,8 +237,8 @@ void pa__done(pa_module *m) {
     pa_assert(m);
     
     if ((u = m->userdata)) {
-    
         pa_scripting_done(u);
+        pa_murphyif_done(u);
         pa_tracker_done(u);
         pa_discover_done(u);
         pa_constrain_done(u);

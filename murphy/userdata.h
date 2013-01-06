@@ -25,6 +25,8 @@
 #include <pulsecore/client.h>
 #include <pulsecore/protocol-native.h>
 
+#include <murphy/domain-control/client.h>
+
 #include "multiplex.h"
 #include "loopback.h"
 
@@ -39,11 +41,8 @@
 #define PA_ROUTING_DEFAULT             "default"
 #define PA_ROUTING_EXPLICIT            "explicit"
 
-#if 0
-typedef struct pa_card                  pa_card;
-typedef struct pa_sink                  pa_sink;
-#endif
-
+typedef enum   pa_value_type            pa_value_type;
+typedef struct pa_value                 pa_value;
 typedef struct pa_null_sink             pa_null_sink;
 typedef struct pa_tracker               pa_tracker;
 typedef struct pa_audiomgr              pa_audiomgr;
@@ -64,6 +63,7 @@ typedef struct pa_source_hooks          pa_source_hooks;
 typedef struct pa_sink_input_hooks      pa_sink_input_hooks;
 typedef struct pa_source_output_hooks   pa_source_output_hooks;
 typedef struct pa_extapi                pa_extapi;
+typedef struct pa_domctl                pa_domctl;
 
 typedef enum   mir_direction            mir_direction;
 typedef enum   mir_implement            mir_implement;
@@ -83,6 +83,7 @@ typedef struct scripting_node           scripting_node;
 typedef struct scripting_rtgroup        scripting_rtgroup;
 typedef struct scripting_apclass        scripting_apclass;
 typedef struct scripting_vollim         scripting_vollim;
+typedef struct scripting_import         scripting_import;
 
 typedef enum   am_method                am_method;
 typedef struct am_domainreg_data        am_domainreg_data;
@@ -90,7 +91,6 @@ typedef struct am_nodereg_data          am_nodereg_data;
 typedef struct am_nodeunreg_data        am_nodeunreg_data;
 typedef struct am_ack_data              am_ack_data;
 typedef struct am_connect_data          am_connect_data;
-
 
 
 typedef struct {
@@ -101,6 +101,29 @@ typedef struct {
     uint32_t sink;
     uint32_t source;
 } pa_mir_state;
+
+enum pa_value_type {
+    pa_value_unknown = 0,
+    pa_value_string,
+    pa_value_integer,
+    pa_value_unsignd,
+    pa_value_floating,
+};
+
+struct pa_value {
+    /* positive values are enumerations of pa_value_type
+     * negative values represent array dimensions,
+     * eg. -2 menas an array with two element
+     */
+    int             type;
+    union {
+        const char *string;
+        int32_t     integer;
+        uint32_t    unsignd;
+        double      floating;
+        pa_value  **array;
+    };
+};
 
 
 struct userdata {
@@ -123,6 +146,7 @@ struct userdata {
     pa_mir_state   state;
     pa_extapi     *extapi;
     pa_native_protocol *protocol;
+    pa_domctl     *domctl;
 };
 
 #endif
