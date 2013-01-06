@@ -77,10 +77,34 @@ application_class {
     }
 }
 
+mdb.import {
+    table = "speedvol",
+    columns = {"value"},
+    condition = "zone = 'driver' AND device = 'speaker'",
+    maxrow = 1,
+    update = builtin.method.make_volumes
+}
+
+mdb.import {
+    table = "audio_playback_owner",
+    columns = {"zone_id", "application_class", "role"},
+    condition = "zone_name = 'driver'",
+    maxrow = 1,
+    update = function(self)
+    	zid = self[1].zone_id
+	if (zid == nil) then zid = "<nil>" end
+	class = self[1].application_class
+	if (class == nil) then class = "<nil>" end
+	role = self[1].role
+	if (role == nil) then role = "<nil>" end
+        print("*** import "..self.table.." update: zone:"..zid.." class:"..class.." role:"..role)
+    end
+}
+
 volume_limit {
     name = "speed_adjust",
     type = volume_limit.generic,
-    limit = -10;
+    limit = mdb.import.speedvol:link(1,"value"),
     calculate = builtin.method.volume_correct
 }
 
