@@ -29,6 +29,7 @@
 #include <pulsecore/module.h>
 
 #include "volume.h"
+#include "fader.h"
 #include "node.h"
 #include "utils.h"
 
@@ -143,6 +144,17 @@ void mir_volume_add_generic_limit(struct userdata  *u,
     add_to_table(&volume->genlim, func, arg);
 }
 
+
+void mir_volume_make_limiting(struct userdata *u)
+{
+    uint32_t stamp;
+
+    pa_assert(u);
+
+    stamp = pa_utils_new_stamp();
+
+    pa_fader_apply_volume_limits(u, stamp);
+}
 
 void mir_volume_add_limiting_class(struct userdata *u,
                                    mir_node        *node,

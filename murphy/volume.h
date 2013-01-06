@@ -52,6 +52,8 @@ void pa_mir_volume_done(struct userdata *);
 void mir_volume_add_class_limit(struct userdata *,int,mir_volume_func_t,void*);
 void mir_volume_add_generic_limit(struct userdata *, mir_volume_func_t,void *);
 
+void mir_volume_make_limiting(struct userdata *);
+
 void mir_volume_add_limiting_class(struct userdata *,mir_node *,int,uint32_t);
 double mir_volume_apply_limits(struct userdata *, mir_node *, int, uint32_t);
 
