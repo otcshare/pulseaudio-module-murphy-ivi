@@ -1611,9 +1611,11 @@ static int vollim_create(lua_State *L)
         luaL_error(L, "can't specify node_type for generic volume limit");
     if (!limit)
         luaL_error(L, "missing or invalid limit");
-    if (!calculate || strcmp(calculate->c.signature, "odo"))
-        luaL_error(L, "missing or invalid calculate field");
+    if (!calculate)
+        luaL_error(L, "missing calculate field");
     if (calculate->type == MRP_C_FUNCTION) {
+        if (strcmp(calculate->c.signature, "odo"))
+            luaL_error(L, "invalid calculate field (mismatching signature)");
         if (calculate->c.data == mir_volume_suppress) {
             if (type != vollim_class)
                 luaL_error(L, "attempt to make generic volume supression");
