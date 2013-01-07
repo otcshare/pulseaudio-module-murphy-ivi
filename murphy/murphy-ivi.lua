@@ -97,8 +97,16 @@ mdb.import {
 	if (class == nil) then class = "<nil>" end
 	role = self[1].role
 	if (role == nil) then role = "<nil>" end
-        print("*** import "..self.table.." update: zone:"..zid.." class:"..class.." role:"..role)
+--      print("*** import "..self.table.." update: zone:"..zid.." class:"..class.." role:"..role)
     end
+}
+
+mdb.import {
+    table = "amb_shift_position",
+    columns = {"shift_position"},
+    condition = "id = 0",
+    maxrow = 1,
+    update = builtin.method.make_volumes
 }
 
 volume_limit {
@@ -115,3 +123,20 @@ volume_limit {
     node_type = { node.phone, node.navigator },
     calculate = builtin.method.volume_supress
 }
+
+volume_limit {
+    name = "video",
+    type = volume_limit.class,
+    limit = -90,
+    node_type = { node.player, node.game },
+    calculate = function(self, class, device)
+--    	print("*** limit "..self.name.." class:"..class.." stream:"..device.name)
+    	position = mdb.import.amb_shift_position[1].shift_position
+    	if (position  and position == 128) then
+    	    return self.limit
+    	end
+    	return 0
+    end
+}
+
+
