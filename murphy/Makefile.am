@@ -61,4 +61,3 @@ module_murphy_ivi_la_CFLAGS = $(AM_CFLAGS) $(CONDITIONAL_CFLAGS)            \
                               $(LIBPULSE_CFLAGS) $(PULSEDEVEL_CFLAGS)       \
                               $(MURPHYCOMMON_CFLAGS) $(MURPHYDOMCTL_CFLAGS) \
                               $(LUAUTILS_CFLAGS) $(LUA_CFLAGS)
-

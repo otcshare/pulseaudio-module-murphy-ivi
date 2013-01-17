@@ -521,17 +521,42 @@ void mir_router_make_routing(struct userdata *u)
 pa_bool_t mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
                                     mir_node *node)
 {
+    pa_core *core;
+    pa_sink *sink;
+    pa_source *source;
+    pa_proplist *pl;
+    mir_node_type class;
     pa_bool_t accept;
+    const char *role, *excluded_role;
 
     pa_assert(u);
     pa_assert(rtg);
     pa_assert(node);
 
-    if (node->type == mir_bluetooth_carkit)
+    class = node->type;
+
+    if (class == mir_bluetooth_carkit)
         accept = FALSE;
-    else
-        accept = (node->type >= mir_device_class_begin &&
-                  node->type < mir_device_class_end);
+    else if (class == mir_jack || class == mir_hdmi) {
+        pa_assert_se((core = u->core));
+            
+        if (node->direction == mir_input) {
+            source = pa_idxset_get_by_index(core->sources,node->paidx);
+            pl = source ? source->proplist : NULL;
+            excluded_role = "hfp_uplink";
+        }
+        else {
+            sink = pa_idxset_get_by_index(core->sinks, node->paidx);
+            pl = sink ? sink->proplist : NULL;
+            excluded_role = "hfp_downlink";
+        }
+        role = pl ? pa_proplist_gets(pl, PA_PROP_NODE_ROLE) : NULL;
+        accept = role ? strcmp(role, excluded_role) : TRUE;
+    }
+    else {
+        accept = (class >= mir_device_class_begin &&
+                  class < mir_device_class_end);
+    }
         
     return accept;
 }
@@ -540,7 +565,12 @@ pa_bool_t mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
 pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
                                   mir_node *node)
 {
+    pa_core *core;
+    pa_sink *sink;
+    pa_source *source;
+    pa_proplist *pl;
     mir_node_type class;
+    const char *role, *expected_role;
 
     pa_assert(u);
     pa_assert(rtg);
@@ -552,13 +582,31 @@ pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
         if (class != mir_bluetooth_a2dp   &&
             class != mir_usb_headphone    &&
             class != mir_wired_headphone  &&
-            class != mir_jack             &&
-            class != mir_hdmi             &&
             class != mir_spdif            &&
             class != mir_bluetooth_source &&
             class != mir_bluetooth_sink   &&
             class != mir_bluetooth_carkit   )
         {
+            if (class == mir_jack || class == mir_hdmi) {
+                pa_assert_se((core = u->core));
+
+                if (node->direction == mir_input) {
+                    source = pa_idxset_get_by_index(core->sources,node->paidx);
+                    pl = source ? source->proplist : NULL;
+                    expected_role = "hfp_uplink";
+                }
+                else {
+                    sink = pa_idxset_get_by_index(core->sinks, node->paidx);
+                    pl = sink ? sink->proplist : NULL;
+                    expected_role = "hfp_downlink";
+                }
+                if (!pl || !(role = pa_proplist_gets(pl, PA_PROP_NODE_ROLE)) ||
+                    strcmp(role, expected_role))
+                {
+                    return FALSE;
+                }
+            }
+
             return TRUE;
         }
     }

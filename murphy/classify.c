@@ -175,6 +175,36 @@ void pa_classify_node_by_card(mir_node        *node,
     }
 }
 
+pa_bool_t pa_classify_node_by_property(mir_node *node, pa_proplist *pl)
+{
+    typedef struct {
+        const char *name;
+        mir_node_type value;
+    } type_mapping_t;
+
+    static type_mapping_t  map[] = {
+        {"jack", mir_jack},
+        {"hdmi", mir_hdmi},
+        {NULL, mir_node_type_unknown}
+    };
+
+    const char *type;
+    int i;
+
+    pa_assert(node);
+    pa_assert(pl);
+
+    if ((type = pa_proplist_gets(pl, PA_PROP_NODE_TYPE))) {
+        for (i = 0; map[i].name;  i++) {
+            if (pa_streq(type, map[i].name)) {
+                node->type = map[i].value;
+                return TRUE;
+            }
+        }
+    }
+
+    return FALSE;
+}
 
 /* data->direction must be set */
 void pa_classify_guess_device_node_type_and_name(mir_node   *node,
@@ -359,3 +389,11 @@ const char *pa_classify_loopback_stream(mir_node *node)
 
     return NULL;
 }
+
+/*
+ * Local Variables:
+ * c-basic-offset: 4
+ * indent-tabs-mode: nil
+ * End:
+ *
+ */

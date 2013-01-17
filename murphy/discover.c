@@ -485,20 +485,27 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         data.direction = mir_output;
         data.implement = mir_device;
         data.channels  = sink->channel_map.channels;
+        data.available = TRUE;
+        data.paidx     = sink->index;
 
         if (sink == pa_utils_get_null_sink(u)) {
             data.visible = FALSE;
-            data.available = TRUE;
             data.type = mir_null;
             data.amname = pa_xstrdup("Silent");
             data.amid = AM_ID_INVALID;
             data.paname = pa_xstrdup(sink->name);
-            data.paidx = sink->index;
+        }
+        else if (pa_classify_node_by_property(&data, sink->proplist)) {
+            data.privacy = mir_public;
+            data.visible = TRUE;
+            data.amname = pa_xstrdup(mir_node_type_str(data.type));
+            data.amid = AM_ID_INVALID;
+            data.paname = pa_xstrdup(sink->name);
         }
         else {
             pa_xfree(data.key); /* for now */
-            pa_log_info("currently we do not support "
-                        "statically loaded sinks");
+            pa_log_info("currently we do not support statically loaded "
+                        "sinks without " PA_PROP_NODE_TYPE " property");
             return;
         }
 
@@ -612,10 +619,16 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
             data.paname = pa_xstrdup(source->name);
             data.paidx = source->index;
         }
+        else if (pa_classify_node_by_property(&data, source->proplist)) {
+            data.visible = TRUE;
+            data.amname = pa_xstrdup(mir_node_type_str(data.type));
+            data.amid = AM_ID_INVALID;
+            data.paname = pa_xstrdup(source->name);
+        }
         else {
             pa_xfree(data.key); /* for now */
-            pa_log_info("currently we do not support "
-                        "statically loaded sources");
+            pa_log_info("currently we do not support statically loaded "
+                        "sources without " PA_PROP_NODE_TYPE " property");
             return;
         }
 

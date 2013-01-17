@@ -248,8 +248,12 @@ double mir_volume_correction(struct userdata *u, int class, mir_node *node,
     pa_assert(u);
     pa_assert(node);
 
-    if (arg && node->implement == mir_device && node->privacy == mir_public)
+    if (arg && *(double **)arg &&
+        node->implement == mir_device &&
+        node->privacy == mir_public)
+    {
         return **(double **)arg;
+    }
 
     return 0.0;
 }

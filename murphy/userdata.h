@@ -37,6 +37,8 @@
 #define PA_PROP_ROUTING_METHOD         "routing.method"
 #define PA_PROP_ROUTING_TABLE          "routing.table"
 #define PA_PROP_NODE_INDEX             "node.index"
+#define PA_PROP_NODE_TYPE              "node.type"
+#define PA_PROP_NODE_ROLE              "node.role"
 
 #define PA_ROUTING_DEFAULT             "default"
 #define PA_ROUTING_EXPLICIT            "explicit"
