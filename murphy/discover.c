@@ -609,10 +609,10 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
         data.direction = mir_input;
         data.implement = mir_device;
         data.channels  = source->channel_map.channels;
+        data.available = TRUE;
 
         if (source == pa_utils_get_null_source(u)) {
             data.visible = FALSE;
-            data.available = TRUE;
             data.type = mir_null;
             data.amname = pa_xstrdup("Silent");
             data.amid = AM_ID_INVALID;
@@ -622,7 +622,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
         else if (pa_classify_node_by_property(&data, source->proplist)) {
             data.visible = TRUE;
             data.amname = pa_xstrdup(mir_node_type_str(data.type));
-            data.amid = AM_ID_INVALID;
+            data.amid   = AM_ID_INVALID;
             data.paname = pa_xstrdup(source->name);
         }
         else {
