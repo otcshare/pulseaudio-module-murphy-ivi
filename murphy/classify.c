@@ -183,9 +183,14 @@ pa_bool_t pa_classify_node_by_property(mir_node *node, pa_proplist *pl)
     } type_mapping_t;
 
     static type_mapping_t  map[] = {
-        {"jack", mir_jack},
-        {"hdmi", mir_hdmi},
-        {NULL, mir_node_type_unknown}
+        {"speakers"      , mir_speakers         },
+        {"front-speakers", mir_front_speakers   },
+        {"rear-speakers" , mir_rear_speakers    },
+        {"microphone"    , mir_microphone       },
+        {"jack"          , mir_jack             },
+        {"hdmi"          , mir_hdmi             },
+        {"spdif"         , mir_spdif            },
+        { NULL           , mir_node_type_unknown}
     };
 
     const char *type;
