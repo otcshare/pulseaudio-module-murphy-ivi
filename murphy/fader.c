@@ -85,7 +85,7 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
     transition_time *transit;
     pa_sink         *sink;
     pa_sink_input   *sinp;
-    pa_volume_ramp  *ramp;
+    pa_cvolume_ramp_int  *ramp;
     mir_node        *node;
     double           dB;
     pa_volume_t      newvol;
@@ -121,7 +121,7 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
 
                     if (rampit) {
                         ramp   = &sinp->ramp;
-                        oldvol = ramp->end_mapped.values[0];
+                        oldvol = ramp->ramps[0].target;
                         
                         if (oldvol > newvol)
                             time = transit->fade_out;
@@ -155,7 +155,7 @@ static void set_stream_volume_limit(struct userdata *u,
                                     uint32_t         ramp_time)
 {
     pa_sink *sink;
-    pa_cvolume rampvol;
+    pa_cvolume_ramp rampvol;
 
     pa_assert(u);
     pa_assert(sinp);
@@ -177,11 +177,13 @@ static void set_stream_volume_limit(struct userdata *u,
         }
     }
     else {
-        pa_cvolume_set(&rampvol, sinp->volume.channels, vol);
+        pa_cvolume_ramp_set(&rampvol,
+                            sinp->volume.channels,
+                            PA_VOLUME_RAMP_TYPE_LINEAR,
+                            ramp_time,
+                            vol);
 
-        pa_sink_input_set_volume_ramp(sinp, &rampvol, ramp_time,
-                                      PA_VOLUME_RAMP_TYPE_LINEAR,
-                                      TRUE, FALSE);
+        pa_sink_input_set_volume_ramp(sinp, &rampvol, TRUE, FALSE);
     }
 }
 
