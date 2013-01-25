@@ -184,8 +184,6 @@ double mir_volume_apply_limits(struct userdata *u,
     double devlim, classlim;
     vlim_table *tbl;
     uint32_t clmask;
-    size_t i;
-    int c;
 
     pa_assert(u);
     pa_assert_se((volume = u->volume));
@@ -329,7 +327,6 @@ static void reset_volume_limit(struct userdata *u,
     pa_sink       *sink;
     pa_sink_input *sinp;
     int            class;
-    uint32_t       mask;
     uint32_t       i;
 
     pa_assert(u);

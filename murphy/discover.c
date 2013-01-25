@@ -2201,8 +2201,8 @@ static void set_bluetooth_profile(struct userdata *u, mir_node *node)
             else {
                 nport++;
 
-                if (node->direction == mir_input  && prof->n_sources > 0 ||
-                    node->direction == mir_output && prof->n_sinks   > 0   ) {
+                if ((node->direction == mir_input  && prof->n_sources > 0) ||
+                    (node->direction == mir_output && prof->n_sinks   > 0)   ) {
                     if (make_active && prof->priority < make_active->priority)
                         pa_log_debug("   ruling out %s (low priority)", prof->name);
                     else {

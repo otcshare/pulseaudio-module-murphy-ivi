@@ -58,11 +58,13 @@ static const char *mir_direction_names[] = {
     [mir_output] = "output"
 };
 
+#if 0
 static const char *mir_implement_names[] = {
     [mir_implementation_unknown] = "unknown",
     [mir_device] = "device",
     [mir_stream] = "stream"
 };
+#endif
 
 static const char *mir_location_names[] = {
     [mir_location_unknown] = "unknown",
@@ -251,7 +253,7 @@ int extension_cb(pa_native_protocol *p, pa_module *m, pa_native_connection *c, u
             !pa_tagstruct_eof(t))
             goto fail;
 
-        pa_log_debug("got id in disconnect %d and hash %d", id, conn_hash(id));
+        pa_log_debug("got id in disconnect %d and hash %ld", id, (long)conn_hash(id));
 
         /* get conn from somewhere with id */
 
@@ -308,7 +310,7 @@ void extapi_signal_node_change(struct userdata *u) {
     uint32_t idx;
     pa_extapi *ap;
 
-    if (ap = u->extapi) {
+    if ((ap = u->extapi)) {
 
         pa_log_debug("signalling node change to extapi subscribers");
 

@@ -191,7 +191,10 @@ static pa_value *array_create(lua_State *, int, mrp_lua_strarray_t *);
 static int  array_getfield(lua_State *);
 static int  array_setfield(lua_State *);
 static int  array_getlength(lua_State *);
+
+#if 0
 static void array_destroy(void *);
+#endif
 
 static int  node_create(lua_State *);
 static int  node_getfield(lua_State *);
@@ -238,7 +241,11 @@ static bool calculate_bridge(lua_State *, void *, const char *,
                              mrp_funcbridge_value_t *);
 
 static limit_data_t *limit_data_check(lua_State *, int);
+
+#if 0
 static int limit_data_push(lua_State *, limit_data_t *);
+#endif
+
 static void limit_data_destroy(limit_data_t *);
 
 static intarray_t *intarray_check(lua_State *, int, int, int);
@@ -595,7 +602,6 @@ static int import_link(lua_State *L)
     scripting_import *imp;
     mrp_lua_strarray_t *columns;
     pa_value *values;
-    const char *table;
     const char *colnam;
     int rowidx;
     size_t colidx;
@@ -896,7 +902,7 @@ static int array_getlength(lua_State *L)
     MRP_LUA_LEAVE(1);
 }
 
-
+#if 0
 static void array_destroy(void *data)
 {
     pa_value *value = (pa_value *)data; 
@@ -910,7 +916,7 @@ static void array_destroy(void *data)
 
     MRP_LUA_LEAVE_NOARG;
 }
-
+#endif
 
 scripting_node *pa_scripting_node_create(struct userdata *u, mir_node *node)
 {
@@ -1575,7 +1581,7 @@ static int vollim_create(lua_State *L)
     pa_bool_t suppress = FALSE;
     pa_bool_t correct = FALSE;
     size_t arglgh = 0;
-    size_t i, n;
+    size_t i;
     int class;
     uint32_t mask, clmask;
     char id[256];
@@ -1691,7 +1697,9 @@ static int vollim_create(lua_State *L)
         }
     }
     else if (correct) {
-        *(double **)vlim->args = limit->value;
+        /* *(double **)vlim->args = limit->value; */
+    
+        memcpy(vlim->args, &limit->value, sizeof(limit->value));
     }
 
     if (type == vollim_generic)
@@ -1789,7 +1797,6 @@ static double vollim_calculate(struct userdata *u, int class, mir_node *node,
     pa_assert(!class || (class >= mir_application_class_begin &&
                          class <  mir_application_class_end)     );
     pa_assert(node);
-    pa_assert(args);
 
     vlim = (scripting_vollim *)(data - offset);
 
@@ -1898,6 +1905,7 @@ static limit_data_t *limit_data_check(lua_State *L, int idx)
     return ld;
 }
 
+#if 0
 static int limit_data_push(lua_State *L, limit_data_t *ld)
 {
     if (ld)
@@ -1907,6 +1915,7 @@ static int limit_data_push(lua_State *L, limit_data_t *ld)
 
     return 1;
 }
+#endif
 
 static void limit_data_destroy(limit_data_t *ld)
 {
@@ -2232,7 +2241,6 @@ static void setup_murphy_interface(struct userdata *u)
 
 static char *comma_separated_list(mrp_lua_strarray_t *arr, char *buf, int len)
 {
-    char *list;
     char *p, *e;
     size_t i;
 
@@ -2341,7 +2349,6 @@ static bool register_methods(lua_State *L)
     };
 
     funcbridge_def_t *d;
-    mrp_funcbridge_t *f;
     bool success = true;
 
     for (d = funcbridge_defs;   d->name;    d++) {

@@ -216,8 +216,10 @@ static int catch_all(
 }
 
 static void parse_file(struct rule *r, const char *fn, pa_config_item *table, pa_bool_t first) {
-    char *application_name, *icon_name, *role;
-    pa_proplist *p;
+    char *application_name = NULL;
+    char *icon_name = NULL;
+    char *role = NULL;
+    pa_proplist *p = NULL;
 
     if (first) {
         /* clean up before update */

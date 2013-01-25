@@ -104,8 +104,10 @@ static mir_volume_suppress_arg suppress = {
 
 
 static pa_bool_t use_default_configuration(struct userdata *);
-static pa_bool_t parse_config_file(struct userdata *, FILE *);
 
+#if 0
+static pa_bool_t parse_config_file(struct userdata *, FILE *);
+#endif
 
 pa_mir_config *pa_mir_config_init(struct userdata *u)
 {
@@ -181,11 +183,13 @@ static pa_bool_t use_default_configuration(struct userdata *u)
     return TRUE;
 }
 
+#if 0
 static pa_bool_t parse_config_file(struct userdata *u, FILE *f)
 {
     return TRUE;
 }
-                                  
+#endif
+                             
 /*
  * Local Variables:
  * c-basic-offset: 4
