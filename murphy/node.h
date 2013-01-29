@@ -28,8 +28,7 @@
 #include "loopback.h"
 #include "volume.h"
 
-#define AM_ID_INVALID  65535
-
+#define AM_ID_INVALID   65535
 
 enum mir_direction {
     mir_direction_unknown,
@@ -123,6 +122,7 @@ struct mir_node {
     mir_location   location;  /**< mir_internal | mir_external */
     mir_privacy    privacy;   /**< mir_public | mir_private */
     mir_node_type  type;      /**< mir_speakers | mir_headset | ...  */
+    char          *zone;      /**< zone where the node belong */
     pa_bool_t      visible;   /**< internal or can appear on UI  */
     pa_bool_t      available; /**< eg. is the headset connected?  */
     pa_bool_t      ignore;    /**< do not consider it while routing  */

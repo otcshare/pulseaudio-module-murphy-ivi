@@ -728,6 +728,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     data.implement = mir_stream;
     data.channels  = sinp->channel_map.channels;
     data.type      = type;
+    data.zone      = pa_utils_get_zone(sinp->proplist);
     data.visible   = TRUE;
     data.available = TRUE;
     data.amname    = name;
@@ -831,6 +832,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
         fake.implement = mir_stream;
         fake.channels  = data->channel_map.channels;
         fake.type      = type;
+        fake.zone      = pa_utils_get_zone(data->proplist);
         fake.visible   = TRUE;
         fake.available = TRUE;
         fake.amname    = "<preroute sink-input>";
@@ -941,6 +943,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         data.implement = mir_stream;
         data.channels  = sinp->channel_map.channels;
         data.type      = type;
+        data.zone      = pa_utils_get_zone(pl);
         data.visible   = TRUE;
         data.available = TRUE;
         data.amname    = name;
@@ -1079,6 +1082,7 @@ void pa_discover_register_source_output(struct userdata  *u,
     data.implement = mir_stream;
     data.channels  = sout->channel_map.channels;
     data.type      = type;
+    data.zone      = pa_utils_get_zone(sout->proplist);
     data.visible   = TRUE;
     data.available = TRUE;
     data.amname    = name;
@@ -1161,6 +1165,7 @@ void pa_discover_preroute_source_output(struct userdata *u,
         fake.implement = mir_stream;
         fake.channels  = data->channel_map.channels;
         fake.type      = type;
+        fake.zone      = pa_utils_get_zone(data->proplist);
         fake.visible   = TRUE;
         fake.available = TRUE;
         fake.amname    = "<preroute source-output>";
@@ -1249,6 +1254,7 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
         data.implement = mir_stream;
         data.channels  = sout->channel_map.channels;
         data.type      = type;
+        data.zone      = pa_utils_get_zone(pl);
         data.visible   = TRUE;
         data.available = TRUE;
         data.amname    = name;
@@ -1383,12 +1389,13 @@ mir_node *pa_discover_remove_node_from_ptr_hash(struct userdata *u, void *ptr)
 
 static void handle_alsa_card(struct userdata *u, pa_card *card)
 {
-    mir_node         data;
-    const char      *udd;
-    char            *cnam;
-    char            *cid;
+    mir_node    data;
+    const char *udd;
+    char       *cnam;
+    char       *cid;
 
     memset(&data, 0, sizeof(data));
+    data.zone = pa_utils_get_zone(card->proplist);
     data.visible = TRUE;
     data.amid = AM_ID_INVALID;
     data.implement = mir_device;
@@ -1532,6 +1539,7 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
 
     memset(&data, 0, sizeof(data));
     data.key = key;
+    data.zone = pa_utils_get_zone(card->proplist);
     data.visible = TRUE;
     data.amid = AM_ID_INVALID;
     data.implement = mir_device;

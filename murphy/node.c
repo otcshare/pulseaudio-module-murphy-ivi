@@ -82,6 +82,7 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     node->location  = data->location;
     node->privacy   = data->privacy;
     node->type      = data->type;
+    node->zone      = pa_xstrdup(data->zone);
     node->visible   = data->visible;
     node->available = data->available;
     node->amname    = pa_xstrdup(data->amname ? data->amname : data->paname);
@@ -124,6 +125,7 @@ void mir_node_destroy(struct userdata *u, mir_node *node)
         pa_idxset_remove_by_index(ns->nodes, node->index);
 
         pa_xfree(node->key);
+        pa_xfree(node->zone);
         pa_xfree(node->amname);
         pa_xfree(node->amdescr);
         pa_xfree(node->paname);
@@ -174,6 +176,7 @@ int mir_node_print(mir_node *node, char *buf, int len)
     PRINT("   location      : %s"  ,  mir_location_str(node->location));
     PRINT("   privacy       : %s"  ,  mir_privacy_str(node->privacy));
     PRINT("   type          : %s"  ,  mir_node_type_str(node->type));
+    PRINT("   zone          : '%s'",  node->zone ? node->zone : "");
     PRINT("   visible       : %s"  ,  node->visible ? "yes" : "no");
     PRINT("   available     : %s"  ,  node->available ? "yes" : "no");
     PRINT("   amname        : '%s'",  node->amname ? node->amname : "");

@@ -39,6 +39,8 @@ char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *);
 char *pa_utils_get_source_output_name(pa_source_output *);
 char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data *);
 
+char *pa_utils_get_zone(pa_proplist *);
+
 pa_bool_t pa_utils_set_stream_routing_properties(pa_proplist *, int, void *);
 pa_bool_t pa_utils_unset_stream_routing_properties(pa_proplist *);
 void      pa_utils_set_stream_routing_method_property(pa_proplist *,pa_bool_t);

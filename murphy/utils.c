@@ -212,6 +212,17 @@ char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data*data)
     return "<unknown>";
 }
 
+char *pa_utils_get_zone(pa_proplist *pl)
+{
+    const char *zone;
+
+    pa_assert(pl);
+
+    if (!(zone = pa_proplist_gets(pl, PA_PROP_ZONE_NAME)))
+        zone = PA_ZONE_NAME_DEFAULT;
+
+    return (char *)zone;
+}
 
 pa_bool_t pa_utils_set_stream_routing_properties(pa_proplist *pl,
                                                  int          styp,

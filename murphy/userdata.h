@@ -32,6 +32,7 @@
 
 #define DIM(a) (sizeof(a)/sizeof((a)[0]))
 
+#define PA_PROP_ZONE_NAME              "zone.name"
 #define PA_PROP_ROUTING_CLASS_NAME     "routing.class.name"
 #define PA_PROP_ROUTING_CLASS_ID       "routing.class.id"
 #define PA_PROP_ROUTING_METHOD         "routing.method"
@@ -39,6 +40,8 @@
 #define PA_PROP_NODE_INDEX             "node.index"
 #define PA_PROP_NODE_TYPE              "node.type"
 #define PA_PROP_NODE_ROLE              "node.role"
+
+#define PA_ZONE_NAME_DEFAULT           "driver"
 
 #define PA_ROUTING_DEFAULT             "default"
 #define PA_ROUTING_EXPLICIT            "explicit"
