@@ -126,6 +126,7 @@ struct mir_node {
     pa_bool_t      visible;   /**< internal or can appear on UI  */
     pa_bool_t      available; /**< eg. is the headset connected?  */
     pa_bool_t      ignore;    /**< do not consider it while routing  */
+    pa_bool_t      localrset; /**< locally generated resource set */
     char          *amname;    /**< audiomanager name */
     char          *amdescr;   /**< UI description */
     uint16_t       amid;      /**< handle to audiomanager, if any */
@@ -140,6 +141,7 @@ struct mir_node {
                                                                    pa_router)*/
     mir_dlist      constrains;/**< listhead of constrains */
     mir_vlim       vlim;      /**< volume limit */
+    char          *rsetid;    /**< resource set id, if any */
     uint32_t       stamp;
     scripting_node *scripting;/** scripting data, if any */
 };

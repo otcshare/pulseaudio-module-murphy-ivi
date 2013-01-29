@@ -71,6 +71,11 @@
 #define DEFAULT_CONFIG_FILE "murphy-ivi.lua"
 #endif
 
+#ifdef WITH_MURPHYIF
+#define WITH_DOMCTL
+#define WITH_RESOURCES
+#endif
+
 
 PA_MODULE_AUTHOR("Janos Kovacs");
 PA_MODULE_DESCRIPTION("Murphy and GenIVI compliant audio policy module");
@@ -81,6 +86,12 @@ PA_MODULE_USAGE(
     "config_file=<policy configuration file> "
     "fade_out=<stream fade-out time in msec> "
     "fade_in=<stream fade-in time in msec> "
+#ifdef WITH_DOMCTL
+    "murphy_domain_controller=<address of Murphy's domain controller service> "
+#endif
+#ifdef WITH_RESOURCES
+    "murphy_resources=<address of Murphy's native resource service> "
+#endif
 #ifdef WITH_DBUS
     "dbus_bus_type=<system|session> "
     "dbus_if_name=<policy dbus interface> "
@@ -101,6 +112,12 @@ static const char* const valid_modargs[] = {
     "config_file",
     "fade_out",
     "fade_in",
+#ifdef WITH_DOMCTL
+    "murphy_domain_controller",
+#endif
+#ifdef WITH_RESOURCES
+    "murphy_resources",
+#endif
 #ifdef WITH_DBUS
     "dbus_bus_type",
     "dbus_if_name",
@@ -125,6 +142,12 @@ int pa__init(pa_module *m) {
     const char      *cfgfile;
     const char      *fadeout;
     const char      *fadein;
+#ifdef WITH_DOMCTL
+    const char      *ctladdr;
+#endif
+#ifdef WITH_RESOURCES
+    const char      *resaddr;
+#endif
 #ifdef WITH_DBUS
     const char      *dbustype;
     const char      *ifnam;
@@ -140,7 +163,6 @@ int pa__init(pa_module *m) {
     const char      *nsnam;
     const char      *cfgpath;
     char             buf[4096];
-    const char      *mrpaddr;
 
     
     pa_assert(m);
@@ -154,6 +176,12 @@ int pa__init(pa_module *m) {
     cfgfile  = pa_modargs_get_value(ma, "config_file", DEFAULT_CONFIG_FILE);
     fadeout  = pa_modargs_get_value(ma, "fade_out", NULL);
     fadein   = pa_modargs_get_value(ma, "fade_in", NULL);
+#ifdef WITH_DOMCTL
+    ctladdr  = pa_modargs_get_value(ma, "murphy_domain_controller", NULL);
+#endif
+#ifdef WITH_RESOURCES
+    resaddr  = pa_modargs_get_value(ma, "murphy_resources", NULL);
+#endif
 #ifdef WITH_DBUS
     dbustype = pa_modargs_get_value(ma, "dbus_bus_type", NULL);
     ifnam    = pa_modargs_get_value(ma, "dbus_if_name", NULL);
@@ -191,16 +219,15 @@ int pa__init(pa_module *m) {
     u->scripting = pa_scripting_init(u);
     u->config    = pa_mir_config_init(u);
     u->extapi    = pa_extapi_init(u);
+    u->murphyif  = pa_murphyif_init(u, ctladdr, resaddr);
 
     u->state.sink   = PA_IDXSET_INVALID;
     u->state.source = PA_IDXSET_INVALID;
 
     if (u->nullsink == NULL || u->routerif == NULL  ||
-        u->audiomgr == NULL || u->discover == NULL)
+        u->audiomgr == NULL || u->discover == NULL  ||
+        u->murphyif == NULL)
         goto fail;
-
-    mrpaddr   = pa_modargs_get_value(ma, "murphy_address", NULL);
-    u->domctl = pa_murphyif_init(u, mrpaddr);
 
     m->userdata = u;
 

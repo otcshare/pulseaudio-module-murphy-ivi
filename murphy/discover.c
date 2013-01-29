@@ -736,6 +736,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     data.amid      = AM_ID_INVALID;
     data.paname    = name;
     data.paidx     = sinp->index;
+    data.rsetid    = (char *)pa_proplist_gets(pl, PA_PROP_RESOURCE_SET_ID);
 
     /*
      * here we can't guess whether the application requested an explicit
@@ -953,6 +954,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         data.paidx     = sinp->index;
         data.mux       = pa_multiplex_find_by_sink(u->multiplex,
                                                    sinp->sink->index);
+        data.rsetid    = (char *)pa_proplist_gets(pl, PA_PROP_RESOURCE_SET_ID);
         node = create_node(u, &data, &created);
 
         pa_assert(node);
@@ -1090,6 +1092,7 @@ void pa_discover_register_source_output(struct userdata  *u,
     data.amid      = AM_ID_INVALID;
     data.paname    = name;
     data.paidx     = sout->index;
+    data.rsetid    = (char *)pa_proplist_gets(pl, PA_PROP_RESOURCE_SET_ID);
 
     /*
      * here we can't guess whether the application requested an explicit
@@ -1262,6 +1265,7 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
         data.amid      = AM_ID_INVALID;
         data.paname    = name;
         data.paidx     = sout->index;
+        data.rsetid    = (char *)pa_proplist_gets(pl, PA_PROP_RESOURCE_SET_ID);
 
         node = create_node(u, &data, &created);
 

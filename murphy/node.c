@@ -255,6 +255,7 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     node->mux       = data->mux;
     node->loop      = data->loop;
     node->stamp     = data->stamp;
+    node->rsetid    = data->rsetid ? pa_xstrdup(data->rsetid) : NULL;
     node->scripting = pa_scripting_node_create(u, node);
     MIR_DLIST_INIT(node->rtentries);
     MIR_DLIST_INIT(node->rtprilist);
@@ -270,6 +271,18 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
 
     mir_router_register_node(u, node);
     
+    if (node->implement == mir_stream) {
+        if (node->type >= mir_application_class_begin &&
+            node->type <  mir_application_class_end   &&
+            !node->rsetid && ns->need_resource[node->type])
+        {
+            pa_murphyif_create_resource_set(u, node);
+        }
+        else {
+            pa_murphyif_add_node(u, node);
+        }
+    }
+
     return node;
 }
 
@@ -281,6 +294,18 @@ void mir_node_destroy(struct userdata *u, mir_node *node)
     pa_assert_se((ns = u->nodeset));
 
     if (node) {
+        if (node->implement == mir_stream) {
+            if (node->type >= mir_application_class_begin &&
+                node->type <  mir_application_class_end   &&
+                ns->need_resource[node->type])
+            {
+                pa_murphyif_destroy_resource_set(u, node);
+            }
+            else {
+                pa_murphyif_delete_node(u, node);
+            }
+        }
+
         mir_router_unregister_node(u, node);
         pa_scripting_node_destroy(u, node);
 
@@ -293,6 +318,7 @@ void mir_node_destroy(struct userdata *u, mir_node *node)
         pa_xfree(node->paname);
         pa_xfree(node->pacard.profile);
         pa_xfree(node->paport);
+        pa_xfree(node->rsetid);
 
         pa_xfree(node);
     }
@@ -341,6 +367,8 @@ int mir_node_print(mir_node *node, char *buf, int len)
     PRINT("   zone          : '%s'",  node->zone ? node->zone : "");
     PRINT("   visible       : %s"  ,  node->visible ? "yes" : "no");
     PRINT("   available     : %s"  ,  node->available ? "yes" : "no");
+    PRINT("   ignore        : %s"  ,  node->ignore ? "yes" : "no");
+    PRINT("   localrset     : %s"  ,  node->localrset ? "yes" : "no");
     PRINT("   amname        : '%s'",  node->amname ? node->amname : "");
     PRINT("   amdescr       : '%s'",  node->amdescr ? node->amdescr : "");
     PRINT("   amid          : %u"  ,  node->amid);
@@ -353,6 +381,7 @@ int mir_node_print(mir_node *node, char *buf, int len)
     PRINT("   mux           : %s"  ,  mux);
     PRINT("   loop          : %s"  ,  loop);
     PRINT("   constrain     : %s"  ,  constr);
+    PRINT("   rsetid        : '%s'",  node->rsetid ? node->rsetid : "");
     PRINT("   stamp         : %u"  ,  node->stamp);
 
 #undef PRINT

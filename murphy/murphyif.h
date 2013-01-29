@@ -20,6 +20,8 @@
 #ifndef foomurphyiffoo
 #define foomurphyiffoo
 
+#include <stdarg.h>
+
 #ifdef WITH_MURPHYIF
 #include <murphy/domain-control/client.h>
 #else
@@ -31,7 +33,7 @@ typedef void mrp_domctl_value_t;
 typedef void (*pa_murphyif_watch_cb)(struct userdata *u, const char *,
                                          int, mrp_domctl_value_t **);
 
-pa_domctl *pa_murphyif_init(struct userdata *, const char *);
+pa_murphyif *pa_murphyif_init(struct userdata *, const char *, const char *);
 void pa_murphyif_done(struct userdata *);
 
 void pa_murphyif_add_table(struct userdata *, const char *, const char *,
@@ -39,6 +41,18 @@ void pa_murphyif_add_table(struct userdata *, const char *, const char *,
 void pa_murphyif_add_watch(struct userdata *, const char *, const char *,
                            const char *, int);
 void pa_murphyif_setup_domainctl(struct userdata *, pa_murphyif_watch_cb);
+
+void pa_murphyif_add_audio_resource(struct userdata *, mir_direction,
+                                    const char *);
+void pa_murphyif_add_audio_attribute(struct userdata *, const char *,
+                                     const char *, mqi_data_type_t, ... );
+void pa_murphyif_create_resource_set(struct userdata *, mir_node *);
+void pa_murphyif_destroy_resource_set(struct userdata *, mir_node *);
+
+int pa_murphyif_add_node(struct userdata *, mir_node *);
+void pa_murphyif_delete_node(struct userdata *, mir_node *);
+mir_node *pa_murphyif_find_node(struct userdata *, const char *);
+
 
 #endif /* foomurphyiffoo */
 

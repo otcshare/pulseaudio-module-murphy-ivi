@@ -40,6 +40,7 @@
 #define PA_PROP_NODE_INDEX             "node.index"
 #define PA_PROP_NODE_TYPE              "node.type"
 #define PA_PROP_NODE_ROLE              "node.role"
+#define PA_PROP_RESOURCE_SET_ID        "resource.set.id"
 
 #define PA_ZONE_NAME_DEFAULT           "driver"
 
@@ -68,7 +69,7 @@ typedef struct pa_source_hooks          pa_source_hooks;
 typedef struct pa_sink_input_hooks      pa_sink_input_hooks;
 typedef struct pa_source_output_hooks   pa_source_output_hooks;
 typedef struct pa_extapi                pa_extapi;
-typedef struct pa_domctl                pa_domctl;
+typedef struct pa_murphyif              pa_murphyif;
 
 typedef enum   mir_direction            mir_direction;
 typedef enum   mir_implement            mir_implement;
@@ -84,11 +85,12 @@ typedef struct mir_constr_def           mir_constr_def;
 typedef struct mir_vlim                 mir_vlim;
 typedef struct mir_volume_suppress_arg  mir_volume_suppress_arg;
 
+typedef struct scripting_import         scripting_import;
 typedef struct scripting_node           scripting_node;
+typedef struct scripting_resource       scripting_resource;
 typedef struct scripting_rtgroup        scripting_rtgroup;
 typedef struct scripting_apclass        scripting_apclass;
 typedef struct scripting_vollim         scripting_vollim;
-typedef struct scripting_import         scripting_import;
 
 typedef enum   am_method                am_method;
 typedef struct am_domainreg_data        am_domainreg_data;
@@ -151,7 +153,7 @@ struct userdata {
     pa_mir_state   state;
     pa_extapi     *extapi;
     pa_native_protocol *protocol;
-    pa_domctl     *domctl;
+    pa_murphyif   *murphyif;
 };
 
 #endif
