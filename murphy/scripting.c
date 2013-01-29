@@ -31,6 +31,7 @@
 #include <murphy/core/lua-utils/strarray.h>
 #include <murphy/core/lua-utils/funcbridge.h>
 #include <murphy/domain-control/client.h>
+#include <murphy/resource/data-types.h>
 
 #include "scripting.h"
 #include "node.h"
@@ -41,6 +42,7 @@
 
 #define IMPORT_CLASS       MRP_LUA_CLASS(mdb, import)
 #define NODE_CLASS         MRP_LUA_CLASS(node, instance)
+#define RESOURCE_CLASS     MRP_LUA_CLASS_SIMPLE(audio_resource)
 #define RTGROUP_CLASS      MRP_LUA_CLASS_SIMPLE(routing_group)
 #define APPLICATION_CLASS  MRP_LUA_CLASS_SIMPLE(application_class)
 #define VOLLIM_CLASS       MRP_LUA_CLASS_SIMPLE(volume_limit)
@@ -81,30 +83,52 @@ struct scripting_import {
 };
 
 struct scripting_node {
-    struct userdata  *userdata;
-    const char       *id;
-    mir_node         *node;
-};
-
-struct scripting_rtgroup {
-    struct userdata  *userdata;
-    mir_rtgroup      *rtg;
-    mir_direction     type;
-    mrp_funcbridge_t *accept;
-    mrp_funcbridge_t *compare;
+    struct userdata    *userdata;
+    const char         *id;
+    mir_node           *node;
 };
 
 typedef struct {
-    const char       *input;
-    const char       *output;
+    const char         *recording;
+    const char         *playback;
+} resource_name_t;
+
+typedef struct {
+    const char         *prop;
+    mrp_attr_t          def;
+} attribute_t;
+
+struct scripting_resource {
+    struct userdata    *userdata;
+    resource_name_t    *name;
+    attribute_t        *attributes;
+};
+
+struct scripting_rtgroup {
+    struct userdata    *userdata;
+    mir_rtgroup        *rtg;
+    mir_direction       type;
+    mrp_funcbridge_t   *accept;
+    mrp_funcbridge_t   *compare;
+};
+
+typedef struct {
+    const char         *input;
+    const char         *output;
 } route_t;
 
 struct scripting_apclass {
-    struct userdata  *userdata;
-    const char       *name;
-    mir_node_type     type;
-    int               priority;
-    route_t          *route;
+    struct userdata    *userdata;
+    const char         *name;
+    const char         *class;
+    mir_node_type       type;
+    int                 priority;
+    route_t            *route;
+    mrp_lua_strarray_t *roles;
+    mrp_lua_strarray_t *binaries;
+    struct {
+        pa_bool_t resource;
+    }                   needs;
 };
 
 typedef enum {
@@ -148,9 +172,13 @@ typedef struct {
 typedef enum {
     NAME = 1,
     TYPE,
+    ZONE,
+    CLASS,
     INPUT,
     LIMIT,
+    NEEDS,
     ROUTE,
+    ROLES,
     TABLE,
     ACCEPT,
     MAXROW,
@@ -160,6 +188,7 @@ typedef enum {
     COMPARE,
     COLUMNS,
     PRIVACY,
+    BINARIES,
     CHANNELS,
     LOCATION,
     PRIORITY,
@@ -169,6 +198,7 @@ typedef enum {
     DIRECTION,
     IMPLEMENT,
     NODE_TYPE,
+    ATTRIBUTES,
     DESCRIPTION,
 } field_t;
 
@@ -201,6 +231,11 @@ static int  node_getfield(lua_State *);
 static int  node_setfield(lua_State *);
 static int  node_tostring(lua_State *);
 static void node_destroy(void *);
+
+static int  resource_create(lua_State *);
+static int  resource_getfield(lua_State *);
+static int  resource_setfield(lua_State *);
+static void resource_destroy(void *);
 
 static int  rtgroup_create(lua_State *);
 static int  rtgroup_getfield(lua_State *);
@@ -251,6 +286,12 @@ static void limit_data_destroy(limit_data_t *);
 static intarray_t *intarray_check(lua_State *, int, int, int);
 static int intarray_push(lua_State *, intarray_t *);
 static void intarray_destroy(intarray_t *);
+
+static resource_name_t *resource_names_check(lua_State *, int);
+static void resource_names_destroy(resource_name_t *);
+
+static attribute_t *attributes_check(lua_State *, int);
+static void attributes_destroy(attribute_t *);
 
 static field_t field_check(lua_State *, int, const char **);
 static field_t field_name_to_type(const char *, size_t);
@@ -321,6 +362,20 @@ MRP_LUA_CLASS_DEF (
 );
 
 MRP_LUA_CLASS_DEF_SIMPLE (
+   audio_resource,               /* class name */
+   scripting_resource,           /* userdata type */
+   resource_destroy,             /* userdata destructor */
+   MRP_LUA_METHOD_LIST (         /* methods */
+      MRP_LUA_METHOD_CONSTRUCTOR  (resource_create)
+   ),
+   MRP_LUA_METHOD_LIST (         /* overrides */
+      MRP_LUA_OVERRIDE_CALL       (resource_create)
+      MRP_LUA_OVERRIDE_GETFIELD   (resource_getfield)
+      MRP_LUA_OVERRIDE_SETFIELD   (resource_setfield)
+   )
+);
+
+MRP_LUA_CLASS_DEF_SIMPLE (
    routing_group,                /* class name */
    scripting_rtgroup,            /* userdata type */
    rtgroup_destroy,              /* userdata destructor */
@@ -384,6 +439,7 @@ pa_scripting *pa_scripting_init(struct userdata *u)
         mrp_create_funcbridge_class(L);
         mrp_lua_create_object_class(L, IMPORT_CLASS);
         mrp_lua_create_object_class(L, NODE_CLASS);
+        mrp_lua_create_object_class(L, RESOURCE_CLASS);
         mrp_lua_create_object_class(L, RTGROUP_CLASS);
         mrp_lua_create_object_class(L, APPLICATION_CLASS);
         mrp_lua_create_object_class(L, VOLLIM_CLASS);
@@ -999,6 +1055,7 @@ static int node_getfield(lua_State *L)
         case CHANNELS:       lua_pushinteger(L, node->channels);      break;
         case LOCATION:       lua_pushinteger(L, node->location);      break;
         case PRIVACY:        lua_pushinteger(L, node->privacy);       break;
+        case ZONE:           lua_pushstring(L, node->zone);           break;
         case TYPE:           lua_pushinteger(L, node->type);          break;
         case AVAILABLE:      lua_pushboolean(L, node->available);     break;
         default:             lua_pushnil(L);                          break;
@@ -1047,6 +1104,141 @@ static void node_destroy(void *data)
 
     MRP_LUA_LEAVE_NOARG;
 }
+
+static int resource_create(lua_State *L)
+{
+    struct userdata *u;
+    size_t fldnamlen;
+    const char *fldnam;
+    mir_rtgroup *rtg;
+    scripting_resource *res;
+    resource_name_t *name = NULL;
+    attribute_t *attributes = NULL;
+    attribute_t *attr;
+
+    MRP_LUA_ENTER;
+
+    lua_getglobal(L, USERDATA);
+    if (!lua_islightuserdata(L, -1) || !(u = lua_touserdata(L, -1)))
+        luaL_error(L, "missing or invalid global '" USERDATA "'");
+    lua_pop(L, 1);
+
+
+    MRP_LUA_FOREACH_FIELD(L, 2, fldnam, fldnamlen) {
+
+        switch (field_name_to_type(fldnam, fldnamlen)) {
+        case NAME:         name = resource_names_check(L, -1);       break;
+        case ATTRIBUTES:   attributes = attributes_check(L, -1);     break;
+        default:           luaL_error(L, "bad field '%s'", fldnam);  break;
+        }
+
+    } /* MRP_LUA_FOREACH_FIELD */
+
+    if (!name)
+        luaL_error(L, "missing or invalid name field");
+
+    pa_murphyif_add_audio_resource(u, mir_input,  name->playback);
+    pa_murphyif_add_audio_resource(u, mir_output, name->recording);
+
+    if (attributes) {
+        for (attr = attributes;   attr->prop && attr->def.name;   attr++) {
+            switch (attr->def.type) {
+            case mqi_string:
+                pa_murphyif_add_audio_attribute(u, attr->prop,
+                                                attr->def.name,
+                                                attr->def.type,
+                                                attr->def.value.string);
+                break;
+            case mqi_integer:
+                pa_murphyif_add_audio_attribute(u, attr->prop,
+                                                attr->def.name,
+                                                attr->def.type,
+                                                attr->def.value.integer);
+                break;
+            case mqi_unsignd:
+                pa_murphyif_add_audio_attribute(u, attr->prop,
+                                                attr->def.name,
+                                                attr->def.type,
+                                                attr->def.value.unsignd);
+                break;
+            case mqi_floating:
+                pa_murphyif_add_audio_attribute(u, attr->prop,
+                                                attr->def.name,
+                                                attr->def.type,
+                                                attr->def.value.floating);
+                break;
+            default:
+                luaL_error(L, "invalid audio resource attribute '%s'",
+                           attr->def.name);
+                break;
+            }
+        }
+    }
+
+    res = (scripting_resource *)mrp_lua_create_object(L, RTGROUP_CLASS,
+                                                      "definition");
+
+    res->userdata = u;
+    res->name = name;
+    res->attributes = attributes;
+
+    MRP_LUA_LEAVE(1);
+}
+
+static int resource_getfield(lua_State *L)
+{
+    scripting_resource *res;
+    field_t fld;
+
+    MRP_LUA_ENTER;
+
+    fld = field_check(L, 2, NULL);
+    lua_pop(L, 1);
+
+    if (!(res = (scripting_resource*)mrp_lua_check_object(L,RESOURCE_CLASS,1)))
+        lua_pushnil(L);
+    else {
+#if 0
+        switch (fld) {
+        case NAME:           lua_pushstring(L, rtg->name);         break;
+        case ATTRIBUTES:     lua_pushinteger(L, rtgs->type);       break;
+        default:             lua_pushnil(L);                       break;
+        }
+#else
+        lua_pushnil(L);
+#endif
+    }
+
+    MRP_LUA_LEAVE(1);
+}
+
+static int resource_setfield(lua_State *L)
+{
+    const char *f;
+
+    MRP_LUA_ENTER;
+
+    f = luaL_checkstring(L, 2);
+    luaL_error(L, "attempt to set '%s' field of read-only resource_class", f);
+    
+    MRP_LUA_LEAVE(0);
+}
+
+static void resource_destroy(void *data)
+{
+    scripting_resource *res = (scripting_resource *)data;
+
+    MRP_LUA_ENTER;
+
+    resource_names_destroy(res->name);
+    attributes_destroy(res->attributes);
+    
+    res->name = NULL;
+    res->attributes = NULL;
+
+    MRP_LUA_LEAVE_NOARG;
+}
+
 
 static int rtgroup_create(lua_State *L)
 {
@@ -1356,9 +1548,18 @@ static int apclass_create(lua_State *L)
     const char *fldnam;
     scripting_apclass *ac;
     char name[256];
+    const char *class = NULL;
     mir_node_type type = -1;
     int priority = -1;
     route_t *route = NULL;
+    mrp_lua_strarray_t *roles = NULL;
+    mrp_lua_strarray_t *binaries = NULL;
+    mrp_lua_strarray_t *needs = NULL;
+    pa_bool_t needs_resource = FALSE;
+    const char *role;
+    const char *binary;
+    const char *need;
+    size_t i;
     pa_bool_t ir, or;
 
     MRP_LUA_ENTER;
@@ -1372,14 +1573,31 @@ static int apclass_create(lua_State *L)
     MRP_LUA_FOREACH_FIELD(L, 2, fldnam, fldnamlen) {
 
         switch (field_name_to_type(fldnam, fldnamlen)) {
-        case NODE_TYPE:   type = luaL_checkint(L, -1);               break;
-        case PRIORITY:    priority = luaL_checkint(L, -1);           break;
-        case ROUTE:       route = route_check(L, -1);                break;
-        default:          luaL_error(L, "bad field '%s'", fldnam);   break;
+        case CLASS:       class = luaL_checkstring(L, -1);             break;
+        case NODE_TYPE:   type = luaL_checkint(L, -1);                 break;
+        case PRIORITY:    priority = luaL_checkint(L, -1);             break;
+        case ROUTE:       route = route_check(L, -1);                  break;
+        case ROLES:       roles = mrp_lua_check_strarray(L, -1);       break;
+        case BINARIES:    binaries = mrp_lua_check_strarray(L, -1);    break;
+        case NEEDS:       needs = mrp_lua_check_strarray(L, -1);       break;
+        default:          luaL_error(L, "bad field '%s'", fldnam);     break;
         }
 
     } /* MRP_LUA_FOREACH_FIELD */
 
+    if (needs) {
+        for (i = 0;   i < needs->nstring;   i++) {
+            need = needs->strings[i];
+
+            if (!strcmp(need, "resource"))
+                needs_resource = TRUE;
+            else
+                luaL_error(L, "invalid need '%s'", need);
+        }
+    }
+
+    if (needs_resource && !class)
+        luaL_error(L, "missing or invalid class field");
     if (type < mir_application_class_begin ||
         type >= mir_application_class_end    )
         luaL_error(L, "missing or invalid node_type %d", type);
@@ -1400,16 +1618,52 @@ static int apclass_create(lua_State *L)
                                                         u, type,
                                                         mir_output,
                                                         route->output);
-    ac = (scripting_apclass *)mrp_lua_create_object(L, APPLICATION_CLASS,
-                                                    name);
+
+    ac = (scripting_apclass *)mrp_lua_create_object(L,APPLICATION_CLASS,name);
+
     if (!ir || !or || !ac)
         luaL_error(L, "failed to create application class '%s'", name);
 
     ac->userdata = u;
-    ac->name     = pa_xstrdup(name);
-    ac->type     = type;
+    ac->name = pa_xstrdup(name);
+    ac->class = class ? pa_xstrdup(class) : NULL;
+    ac->type = type;
     ac->priority = priority;
-    ac->route    = route;
+    ac->route = route;
+    ac->roles = roles;
+    ac->binaries = binaries;
+
+    if (class) {
+        if (pa_nodeset_add_class(u, type, class)) {
+            luaL_error(L, "node type '%s' is defined multiple times",
+                       mir_node_type_str(type));
+        }
+    }
+
+    if (roles) {
+        for (i = 0;  i < roles->nstring;  i++) {
+            role = roles->strings[i];
+
+            if (pa_nodeset_add_role(u, role, type)) {
+                luaL_error(L, "role '%s' is added to mutiple application "
+                           "classes", role);
+            }
+        }
+    }
+
+    if (binaries) {
+        for (i = 0;  i < binaries->nstring;  i++) {
+            binary = binaries->strings[i];
+
+            if (pa_nodeset_add_binary(u, binary, type)) {
+                luaL_error(L, "binary '%s' is added to multiple application "
+                           "classes", binary);
+            }
+        }
+    }
+
+    if (needs_resource)
+        pa_nodeset_need_resource(u, type);
 
     MRP_LUA_LEAVE(1);
 }
@@ -1428,11 +1682,13 @@ static int apclass_getfield(lua_State *L)
         lua_pushnil(L);
     else {
         switch (fld) {
-        case NAME:           lua_pushstring(L, ac->name);        break;
-        case NODE_TYPE:      lua_pushinteger(L, ac->type);       break;
-        case PRIORITY:       lua_pushinteger(L, ac->priority);   break;
-        case ROUTE:          route_push(L, ac->route);           break;
-        default:             lua_pushnil(L);                     break;
+        case NAME:           lua_pushstring(L, ac->name);              break;
+        case NODE_TYPE:      lua_pushinteger(L, ac->type);             break;
+        case PRIORITY:       lua_pushinteger(L, ac->priority);         break;
+        case ROUTE:          route_push(L, ac->route);                 break;
+        case ROLES:          mrp_lua_push_strarray(L, ac->roles);      break;
+        case BINARIES:       mrp_lua_push_strarray(L, ac->binaries);   break;
+        default:             lua_pushnil(L);                           break;
         }
     }
 
@@ -1467,11 +1723,41 @@ static int apclass_tostring(lua_State *L)
 static void apclass_destroy(void *data)
 {
     scripting_apclass *ac = (scripting_apclass *)data;
+    struct userdata *u;
+    mrp_lua_strarray_t *roles;
+    mrp_lua_strarray_t *binaries;
+    size_t i;
 
     MRP_LUA_ENTER;
 
+    pa_assert(ac);
+    pa_assert_se((u = ac->userdata));
+
     route_destroy(ac->route);
     ac->route = NULL;
+
+    pa_xfree((void *)ac->name);
+    ac->name = NULL;
+
+    pa_nodeset_delete_class(u, ac->type);
+    pa_xfree((void *)ac->class);
+    ac->class = NULL;
+
+    if ((roles = ac->roles)) {
+        for (i = 0;   i < roles->nstring;  i++)
+            pa_nodeset_delete_role(u, roles->strings[i]);
+
+        mrp_lua_free_strarray(ac->roles);
+        ac->roles = NULL;
+    }
+
+    if ((binaries = ac->binaries)) {
+        for (i = 0;   i < binaries->nstring;  i++)
+            pa_nodeset_delete_binary(u, binaries->strings[i]);
+
+        mrp_lua_free_strarray(ac->binaries);
+        ac->binaries = NULL;
+    }
 
     MRP_LUA_LEAVE_NOARG;
 }
@@ -1993,6 +2279,127 @@ static void intarray_destroy(intarray_t *arr)
     }
 }
 
+static resource_name_t *resource_names_check(lua_State *L, int tbl)
+{
+    resource_name_t *name;
+    size_t fldnamlen;
+    const char *fldnam;
+    const char *value;
+
+    tbl = (tbl < 0) ? lua_gettop(L) + tbl + 1 : tbl;
+
+    luaL_checktype(L, tbl, LUA_TTABLE);
+
+    name = pa_xnew0(resource_name_t, 1);
+
+    MRP_LUA_FOREACH_FIELD(L, tbl, fldnam, fldnamlen) {
+        value = luaL_checkstring(L, -1);
+
+        if (!strcmp(fldnam, "recording"))
+            name->recording = pa_xstrdup(value);
+        else if (!strcmp(fldnam, "playback"))
+            name->playback = pa_xstrdup(value);
+        else {
+            luaL_error(L, "invalid field '%s' in resource name definition",
+                       fldnam);
+        }
+    }
+
+    return name;
+}
+
+static void resource_names_destroy(resource_name_t *name)
+{
+    if (name) {
+        pa_xfree((void *)name->recording);
+        pa_xfree((void *)name->playback);
+        pa_xfree(name);
+    }
+}
+
+static attribute_t *attributes_check(lua_State *L, int tbl)
+{
+    int def;
+    size_t fldnamlen;
+    const char *fldnam;
+    attribute_t *attr, *attrs = NULL;
+    size_t nattr = 0;
+    mrp_attr_value_t *v;
+    size_t i, len;
+
+    tbl = (tbl < 0) ? lua_gettop(L) + tbl + 1 : tbl;
+
+    luaL_checktype(L, tbl, LUA_TTABLE);
+
+    MRP_LUA_FOREACH_FIELD(L, tbl, fldnam, fldnamlen) {
+        if (!fldnam[0])
+            luaL_error(L, "invalid attribute definition");
+
+        attrs = pa_xrealloc(attrs, sizeof(attribute_t) * (nattr + 2));
+        memset(attrs + nattr, 0, sizeof(attribute_t) * 2);
+
+        attr = attrs + nattr++;
+        v = &attr->def.value;
+        def = lua_gettop(L);
+
+        attr->def.name = pa_xstrdup(fldnam);
+        
+        if ((len = luaL_getn(L, def)) != 3)
+            luaL_error(L, "invalid attribute definition '%s'", fldnam);
+
+        for (i = 0;  i < len;  i++) {
+            lua_pushnumber(L, (int)(i+1));
+            lua_gettable(L, def);
+
+            switch (i) {
+            case 0:  attr->prop = pa_xstrdup(luaL_checkstring(L,-1));    break;
+            case 1:  attr->def.type = luaL_checkint(L,-1);               break;
+            case 2:
+                switch (attr->def.type) {
+                case mqi_string:   v->string = luaL_checkstring(L,-1);   break;
+                case mqi_integer:  v->integer = luaL_checkint(L,-1);     break;
+                case mqi_unsignd:  v->integer = luaL_checkint(L,-1);     break;
+                case mqi_floating: v->floating = luaL_checknumber(L,-1); break;
+                default:           memset(v, 0, sizeof(*v));             break;
+                }
+            }
+
+            lua_pop(L, 1);
+        }
+
+        if (!attr->prop)
+            luaL_error(L, "missing property name definition from '%s'",fldnam);
+        if (attr->def.type != mqi_string  && attr->def.type != mqi_integer &&
+            attr->def.type != mqi_unsignd && attr->def.type != mqi_floating)
+        {
+            luaL_error(L, "invalid attribute type %d for '%s'",
+                       attr->def.type, fldnam);
+        }
+        if (attr->def.type == mqi_unsignd && attr->def.value.integer < 0) {
+            luaL_error(L, "attempt to give negative value (%d) for field '%s'",
+                       attr->def.value.integer, fldnam);
+        }
+    }
+
+    return attrs;
+}
+
+static void attributes_destroy(attribute_t *attrs)
+{
+    attribute_t *attr;
+
+    if (attrs) {
+        for (attr = attrs;  attr->prop && attr->def.name;  attr++) {
+            pa_xfree((void *)attr->prop);
+            pa_xfree((void *)attr->def.name);
+            if (attr->def.type == mqi_string)
+                pa_xfree((void *)attr->def.value.string);
+        }
+        pa_xfree(attrs);
+    }
+}
+
+
 static field_t field_check(lua_State *L, int idx, const char **ret_fldnam)
 {
     const char *fldnam;
@@ -2024,6 +2431,10 @@ static field_t field_name_to_type(const char *name, size_t len)
             if (!strcmp(name, "type"))
                 return TYPE;
             break;
+        case 'z':
+            if (!strcmp(name, "zone"))
+                return ZONE;
+            break;
         default:
             break;
         }
@@ -2031,6 +2442,10 @@ static field_t field_name_to_type(const char *name, size_t len)
 
     case 5:
         switch (name[0]) {
+        case 'c':
+            if (!strcmp(name, "class"))
+                return CLASS;
+            break;
         case 'i':
             if (!strcmp(name, "input"))
                 return INPUT;
@@ -2039,9 +2454,15 @@ static field_t field_name_to_type(const char *name, size_t len)
             if (!strcmp(name, "limit"))
                 return LIMIT;
             break;
+        case 'n':
+            if (!strcmp(name, "needs"))
+                return NEEDS;
+            break;
         case 'r':
             if (!strcmp(name, "route"))
                 return ROUTE;
+            if (!strcmp(name, "roles"))
+                return ROLES;
             break;
         case 't':
             if (!strcmp(name, "table"))
@@ -2098,6 +2519,10 @@ static field_t field_name_to_type(const char *name, size_t len)
 
     case 8:
         switch (name[0]) {
+        case 'b':
+            if (!strcmp(name, "binaries"))
+                return BINARIES;
+            break;
         case 'c':
             if (!strcmp(name, "channels"))
                 return CHANNELS;
@@ -2144,10 +2569,15 @@ static field_t field_name_to_type(const char *name, size_t len)
         }
         break;
 
+    case 10:
+        if (!strcmp(name, "attributes"))
+            return ATTRIBUTES;
+        break;        
+
     case 11:
         if (!strcmp(name, "description"))
             return DESCRIPTION;
-        break;
+        break;        
 
     default:
         break;
@@ -2257,6 +2687,14 @@ static char *comma_separated_list(mrp_lua_strarray_t *arr, char *buf, int len)
 
 static bool define_constants(lua_State *L)
 {
+    static const_def_t mdb_const[] = {
+        { "string"           , mqi_string           },
+        { "integer"          , mqi_integer          },
+        { "unsigned"         , mqi_unsignd          },
+        { "floating"         , mqi_floating         },
+        {       NULL         ,         0            }
+    };
+
     static const_def_t node_const[] = {
         { "input"            , mir_input            },
         { "output"           , mir_output           },
@@ -2300,6 +2738,22 @@ static bool define_constants(lua_State *L)
     const_def_t *cd;
     bool success = true;
 
+
+    lua_getglobal(L, "mdb");
+
+    if (!lua_istable(L, -1))
+        success = false;
+    else {
+        for (cd = mdb_const;   cd->name;   cd++) {
+            lua_pushstring(L, cd->name);
+            lua_pushinteger(L, cd->value);
+            lua_rawset(L, -3);
+        }
+        lua_pop(L, 1);
+    }
+
+
+
     lua_getglobal(L, "node");
 
     if (!lua_istable(L, -1))
@@ -2310,7 +2764,6 @@ static bool define_constants(lua_State *L)
             lua_pushinteger(L, cd->value);
             lua_rawset(L, -3);
         }
-
         lua_pop(L, 1);
     }
 
@@ -2325,7 +2778,6 @@ static bool define_constants(lua_State *L)
             lua_pushinteger(L, cd->value);
             lua_rawset(L, -3);
         }
-
         lua_pop(L, 1);
     }
 

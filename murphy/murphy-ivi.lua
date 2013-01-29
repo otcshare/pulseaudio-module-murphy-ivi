@@ -21,59 +21,94 @@ routing_group {
 }
 
 application_class {
-    node_type = node.phone,
-    priority = 4,
+    node_type = node.event,
+    priority = 6,
     route = {
-        input = routing_group.phone_input,
-        output = routing_group.phone_output
-    }
+        output = routing_group.default_output
+    },
+    roles = { "event" },
 }
 
 application_class {
+    class = "phone",
+    node_type = node.phone,
+    priority = 5,
+    route = {
+        input = routing_group.phone_input,
+        output = routing_group.phone_output
+    },
+    roles = { "phone", "carkit" },
+}
+
+application_class {
+    node_type = node.alert,
+    priority = 4,
+    route = {
+        output = routing_group.default_output
+    },
+    roles = { "ringtone", "alarm" },
+}
+
+application_class {
+    class = "navigator",
+    node_type = node.navigator,
+    priority = 3,
+    route = {
+        output = routing_group.default_output
+    },
+    roles = { "navigator" },
+    needs = { "resource" }
+}
+
+application_class {
+    class = "game",
+    node_type = node.game,
+    priority = 2,
+    route = {
+        output = routing_group.default_output
+    },
+    roles = { "game" },
+    needs = { "resource" }
+}
+
+application_class {
+    class = "player",
     node_type = node.radio,
     priority = 1,
     route = {
         output = routing_group.default_output
-    }
+    },
+    roles = { "radio" },
+    needs = { "resource" }
 }
 
 application_class {
+    class = "player",
     node_type = node.player,
     priority = 1,
     route = {
         output = routing_group.default_output
-    }
+    },
+    roles = { "music", "video", "test" },
+    needs = { "resource" }
 }
 
 application_class {
-    node_type = node.navigator,
-    priority = 2,
-    route = {
-        output = routing_group.default_output
-    }
-}
-
-application_class {
-    node_type = node.game,
-    priority = 3,
-    route = {
-        output = routing_group.default_output
-    }
-}
-
-application_class {
+    class = "player",
     node_type = node.browser,
     priority = 1,
     route = {
         output = routing_group.default_output
-    }
+    },
+    roles = { "animation" },
+    binaries = { "firefox", "chrome" }
 }
 
-application_class {
-    node_type = node.event,
-    priority = 5,
-    route = {
-        output = routing_group.default_output
+audio_resource {
+    name = { recording = "audio_recording", playback = "audio_playback" },
+    attributes = {
+       role = {"media.role", mdb.string, "music"},
+       pid  = {"application.process.id", mdb.string, "<unknown>"}
     }
 }
 

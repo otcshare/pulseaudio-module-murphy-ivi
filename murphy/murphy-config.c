@@ -44,9 +44,15 @@ typedef struct {
 } classmap_def;
 
 typedef struct {
+    char          *id;
+    mir_node_type  type;
+} typemap_def;
+
+typedef struct {
     mir_node_type  class;
     int            priority;
 } prior_def;
+
 
 
 static rtgroup_def  rtgroups[] = {
@@ -82,6 +88,31 @@ static classmap_def classmap[] = {
     {mir_phone    , mir_output, "phone"  },
     {mir_event    , mir_output, "default"},
     {mir_node_type_unknown, mir_direction_unknown, NULL}
+};
+
+static typemap_def rolemap[] = {
+    {"video"    , mir_player    },
+    {"music"    , mir_player    },
+    {"game"     , mir_game      },
+    {"event"    , mir_event     },
+    {"navigator", mir_navigator },
+    {"phone"    , mir_phone     },
+    {"carkit"   , mir_phone     },
+    {"animation", mir_browser   },
+    {"test"     , mir_player    },
+    {"ringtone" , mir_alert     },
+    {"alarm"    , mir_alert     },
+    {"camera"   , mir_camera    },
+    {"system"   , mir_system    },
+    {NULL, mir_node_type_unknown}
+};
+
+static typemap_def binmap[] = {
+    {"rhytmbox"    , mir_player },
+    {"firefox"     , mir_browser},
+    {"chrome"      , mir_browser},
+    {"sound-juicer", mir_player },
+    {NULL, mir_node_type_unknown}
 };
 
 static prior_def priormap[] = {
@@ -160,6 +191,7 @@ static pa_bool_t use_default_configuration(struct userdata *u)
 {
     rtgroup_def  *r;
     classmap_def *c;
+    typemap_def  *t;
     prior_def    *p;
 
     pa_assert(u);
@@ -169,6 +201,12 @@ static pa_bool_t use_default_configuration(struct userdata *u)
 
     for (c = classmap;  c->rtgroup;  c++)
         mir_router_assign_class_to_rtgroup(u, c->class, c->type, c->rtgroup);
+
+    for (t = rolemap; t->id; t++)
+        pa_nodeset_add_role(u, t->id, t->type);
+
+    for (t = binmap; t->id; t++)
+        pa_nodeset_add_binary(u, t->id, t->type);
 
     for (p = priormap;  p->class;  p++)
         mir_router_assign_class_priority(u, p->class, p->priority);
@@ -183,13 +221,6 @@ static pa_bool_t use_default_configuration(struct userdata *u)
     return TRUE;
 }
 
-#if 0
-static pa_bool_t parse_config_file(struct userdata *u, FILE *f)
-{
-    return TRUE;
-}
-#endif
-                             
 /*
  * Local Variables:
  * c-basic-offset: 4

@@ -712,7 +712,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
 
     pa_log_debug("registering input stream '%s'", name);
 
-    if (!(type = pa_classify_guess_stream_node_type(pl))) {
+    if (!(type = pa_classify_guess_stream_node_type(u, pl))) {
         pa_log_debug("cant find stream class for '%s'. "
                      "Leaving it alone", name);
         return;
@@ -822,7 +822,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
 
             data->sink = NULL;
         }
-        type = pa_classify_guess_stream_node_type(pl);
+        type = pa_classify_guess_stream_node_type(u, pl);
         pa_utils_set_stream_routing_properties(pl, type, data->sink);
     }
 
@@ -922,7 +922,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         pa_log_debug("dealing with new input stream '%s'", name);
 
         if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
-            if (!(type = pa_classify_guess_stream_node_type(pl))) {
+            if (!(type = pa_classify_guess_stream_node_type(u, pl))) {
                 pa_log_debug("cant find stream class for '%s'. "
                              "Leaving it alone", name);
                 return;
@@ -1066,7 +1066,7 @@ void pa_discover_register_source_output(struct userdata  *u,
 
     pa_log_debug("registering output stream '%s'", name);
 
-    if (!(type = pa_classify_guess_stream_node_type(pl))) {
+    if (!(type = pa_classify_guess_stream_node_type(u, pl))) {
         pa_log_debug("cant find stream class for '%s'. "
                      "Leaving it alone", name);
         return;
@@ -1156,7 +1156,7 @@ void pa_discover_preroute_source_output(struct userdata *u,
 
         data->source = NULL;
     }
-    type = pa_classify_guess_stream_node_type(pl);
+    type = pa_classify_guess_stream_node_type(u, pl);
     pa_utils_set_stream_routing_properties(pl, type, data->source);
 
     if (!data->source) {
@@ -1233,7 +1233,7 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
         pa_log_debug("dealing with new output stream '%s'", name);
 
         if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
-            if (!(type = pa_classify_guess_stream_node_type(pl))) {
+            if (!(type = pa_classify_guess_stream_node_type(u, pl))) {
                 pa_log_debug("cant find stream class for '%s'. "
                              "Leaving it alone", name);
                 return;

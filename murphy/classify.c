@@ -254,74 +254,25 @@ void pa_classify_guess_device_node_type_and_name(mir_node   *node,
 }
 
 
-mir_node_type pa_classify_guess_stream_node_type(pa_proplist *pl)
+mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
+                                                 pa_proplist *pl)
 {
-    typedef struct {
-        char *id;
-        mir_node_type type;
-    } map_t;
-
-    static map_t role_map[] = {
-        {"video"    , mir_player    },
-        {"music"    , mir_player    },
-        {"game"     , mir_game      },
-        {"event"    , mir_event     },
-	{"navigator", mir_navigator },
-        {"phone"    , mir_phone     },
-        {"carkit"   , mir_phone     },
-        {"animation", mir_browser   },
-        {"test"     , mir_player    },
-        {"ringtone" , mir_alert     },
-        {"alarm"    , mir_alert     },
-        {"camera"   , mir_camera    },
-        {"system"   , mir_system    },
-        {NULL, mir_node_type_unknown}
-    };
-
-    static map_t bin_map[] = {
-        {"rhytmbox"    , mir_player },
-        {"firefox"     , mir_browser},
-        {"chrome"      , mir_browser},
-        {"sound-juicer", mir_player },
-        {NULL, mir_node_type_unknown}
-    };
-
-
-    mir_node_type  rtype, btype;
+    mir_node_type  type;
     const char    *role;
     const char    *bin;
-    map_t         *m;
 
+    pa_assert(u);
     pa_assert(pl);
 
-    rtype = btype = mir_node_type_unknown;
+    if ((bin  = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_BINARY)) &&
+        (type = pa_nodeset_get_type_by_binary(u, bin)))
+        return type;
 
-    role = pa_proplist_gets(pl, PA_PROP_MEDIA_ROLE);
-    bin  = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_BINARY);
+    if ((role = pa_proplist_gets(pl, PA_PROP_MEDIA_ROLE)) &&
+        (type = pa_nodeset_get_type_by_role(u, role)))
+        return type;
 
-    if (role) {
-        for (m = role_map;  m->id;  m++) {
-            if (pa_streq(role, m->id))
-                break;
-        }
-        rtype = m->type;
-    }
-
-    if (rtype != mir_node_type_unknown && rtype != mir_player)
-        return rtype;
-
-    if (bin) {
-        for (m = bin_map;  m->id;  m++) {
-            if (pa_streq(bin, m->id))
-                break;
-        }
-        btype = m->type;
-    }
-
-    if (btype == mir_node_type_unknown)
-        return rtype;
-
-    return btype;
+    return role ? mir_node_type_unknown : mir_player;
 }
 
 mir_node_type pa_classify_guess_application_class(mir_node *node)

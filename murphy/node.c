@@ -31,9 +31,16 @@
 #include "router.h"
 #include "constrain.h"
 #include "scripting.h"
+#include "murphyif.h"
+
+#define APCLASS_DIM  (mir_application_class_end - mir_application_class_begin)
 
 struct pa_nodeset {
-    pa_idxset *nodes;
+    pa_idxset  *nodes;
+    pa_hashmap *roles;
+    pa_hashmap *binaries;
+    const char *class_name[APCLASS_DIM];
+    pa_bool_t   need_resource[APCLASS_DIM];
 };
 
 
@@ -46,19 +53,174 @@ pa_nodeset *pa_nodeset_init(struct userdata *u)
     ns = pa_xnew0(pa_nodeset, 1);
     ns->nodes = pa_idxset_new(pa_idxset_trivial_hash_func,
                               pa_idxset_trivial_compare_func);
+    ns->roles = pa_hashmap_new(pa_idxset_string_hash_func,
+                               pa_idxset_string_compare_func);
+    ns->binaries = pa_hashmap_new(pa_idxset_string_hash_func,
+                                  pa_idxset_string_compare_func);
     return ns;
 }
 
 void pa_nodeset_done(struct userdata *u)
 {
     pa_nodeset *ns;
+    int i;
 
     if (u && (ns = u->nodeset)) {
         pa_idxset_free(ns->nodes, NULL, NULL);
+        pa_hashmap_free(ns->roles, NULL, NULL);
+        pa_hashmap_free(ns->binaries, NULL, NULL);
+
+        for (i = 0;  i < APCLASS_DIM;  i++)
+            pa_xfree((void *)ns->class_name[i]);
+
         free(ns);
     }    
 }
 
+int pa_nodeset_add_class(struct userdata *u, mir_node_type t,const char *clnam)
+{
+    pa_nodeset *ns;
+    
+    pa_assert(u);
+    pa_assert(t >= mir_application_class_begin &&
+              t <  mir_application_class_end);
+    pa_assert(clnam);
+    pa_assert_se((ns = u->nodeset));
+
+    if (!ns->class_name[t]) {
+        ns->class_name[t] = pa_xstrdup(clnam);
+        return 0;
+    }
+
+    return -1;
+}
+
+void pa_nodeset_delete_class(struct userdata *u, mir_node_type t)
+{
+    pa_nodeset *ns;
+
+    pa_assert(u);
+    pa_assert(t >= mir_application_class_begin &&
+              t <  mir_application_class_end);
+    pa_assert_se((ns = u->nodeset));
+
+    pa_xfree((void *)ns->class_name[t]);
+
+    ns->class_name[t] = NULL;
+}
+
+const char *pa_nodeset_get_class(struct userdata *u, mir_node_type t)
+{
+    pa_nodeset *ns;
+
+    pa_assert(u);
+    pa_assert_se((ns = u->nodeset));
+
+    if (t >= mir_application_class_begin && t <  mir_application_class_end)
+        return ns->class_name[t];
+
+    return NULL;
+}
+
+int pa_nodeset_add_role(struct userdata *u, const char *role, mir_node_type t)
+{
+    pa_nodeset *ns;
+    void *value = NULL + t;
+
+    pa_assert(u);
+    pa_assert(role);
+    pa_assert(t >= mir_application_class_begin &&
+              t <  mir_application_class_end);
+    pa_assert_se((ns = u->nodeset));
+
+    return pa_hashmap_put(ns->roles, role, value);
+}
+
+void pa_nodeset_delete_role(struct userdata *u, const char *role)
+{
+    pa_nodeset *ns;
+
+    pa_assert(u);
+    pa_assert(role);
+    pa_assert_se((ns = u->nodeset));
+
+    pa_hashmap_remove(ns->roles, role);
+}
+
+mir_node_type pa_nodeset_get_type_by_role(struct userdata *u, const char *role)
+{
+    pa_nodeset *ns;
+    mir_node_type t;
+
+    pa_assert(u);
+    pa_assert_se((ns = u->nodeset));
+
+    if (role) {
+        t = pa_hashmap_get(ns->roles, role) - NULL;
+
+        if (t >= mir_application_class_begin && t < mir_application_class_end)
+            return t;
+    }
+
+    return mir_node_type_unknown;
+}
+
+int pa_nodeset_add_binary(struct userdata *u, const char *bin, mir_node_type t)
+{
+    pa_nodeset *ns;
+    void *value = NULL + t;
+
+    pa_assert(u);
+    pa_assert(bin);
+    pa_assert(t >= mir_application_class_begin &&
+              t <  mir_application_class_end);
+    pa_assert_se((ns = u->nodeset));
+
+    return pa_hashmap_put(ns->binaries, bin, value);
+}
+
+void pa_nodeset_delete_binary(struct userdata *u, const char *bin)
+{
+    pa_nodeset *ns;
+
+    pa_assert(u);
+    pa_assert(bin);
+    pa_assert_se((ns = u->nodeset));
+
+    pa_hashmap_remove(ns->binaries, bin);
+}
+
+mir_node_type pa_nodeset_get_type_by_binary(struct userdata *u,const char *bin)
+{
+    pa_nodeset *ns;
+    mir_node_type t;
+
+    pa_assert(u);
+    pa_assert_se((ns = u->nodeset));
+
+    if (bin) {
+        t = pa_hashmap_get(ns->binaries, bin) - NULL;
+
+        if (t >= mir_application_class_begin && t < mir_application_class_end)
+            return t;
+    }
+
+    return mir_node_type_unknown;
+}
+
+void pa_nodeset_need_resource(struct userdata *u, mir_node_type t)
+{
+    pa_nodeset *ns;
+    int ac;
+
+    pa_assert(u);
+    pa_assert_se((ns = u->nodeset));
+
+    if (t >= mir_application_class_begin && t < mir_application_class_end) {
+        ac = t - mir_application_class_begin;
+        ns->need_resource[ac] = TRUE;
+    }    
+}
 
 mir_node *mir_node_create(struct userdata *u, mir_node *data)
 {

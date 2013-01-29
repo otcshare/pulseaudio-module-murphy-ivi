@@ -148,6 +148,20 @@ struct mir_node {
 pa_nodeset *pa_nodeset_init(struct userdata *);
 void pa_nodeset_done(struct userdata *);
 
+int pa_nodeset_add_class(struct userdata *u, mir_node_type , const char *);
+void pa_nodeset_delete_class(struct userdata *, mir_node_type);
+const char *pa_nodeset_get_class(struct userdata *, mir_node_type);
+
+int pa_nodeset_add_role(struct userdata *, const char *, mir_node_type);
+void pa_nodeset_delete_role(struct userdata *, const char *);
+mir_node_type pa_nodeset_get_type_by_role(struct userdata *, const char *);
+
+int pa_nodeset_add_binary(struct userdata *, const char *, mir_node_type);
+void pa_nodeset_delete_binary(struct userdata *, const char *);
+mir_node_type pa_nodeset_get_type_by_binary(struct userdata *, const char *);
+
+void pa_nodeset_need_resource(struct userdata *, mir_node_type);
+
 
 mir_node *mir_node_create(struct userdata *, mir_node *);
 void mir_node_destroy(struct userdata *, mir_node *);
