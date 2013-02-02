@@ -38,7 +38,7 @@ void pa_murphyif_done(struct userdata *);
 
 void pa_murphyif_add_table(struct userdata *, const char *, const char *,
                            const char *);
-void pa_murphyif_add_watch(struct userdata *, const char *, const char *,
+int  pa_murphyif_add_watch(struct userdata *, const char *, const char *,
                            const char *, int);
 void pa_murphyif_setup_domainctl(struct userdata *, pa_murphyif_watch_cb);
 

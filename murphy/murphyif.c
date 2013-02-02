@@ -64,6 +64,17 @@
 #define CONNECTED        0
 #define CONNECTING       1
 
+#define RESCOL_NAMES    "rsetid,autorel,state,grant,pid,policy"
+#define RESCOL_RSETID   0
+#define RESCOL_AUTOREL  1
+#define RESCOL_STATE    2
+#define RESCOL_GRANT    3
+#define RESCOL_PID      4
+#define RESCOL_POLICY   5
+
+#define RSET_RELEASE    1
+#define RSET_ACQUIRE    2
+
 #define PUSH_VALUE(msg, tag, typ, val) \
     mrp_msg_append(msg, MRP_MSG_TAG_##typ(RESPROTO_##tag, val))
 
@@ -101,9 +112,14 @@ typedef struct {
 } domctl_interface;
 
 typedef struct {
-    const char      *addr;
-    const char      *inpres;
-    const char      *outres;
+    const char *name;
+    int         tblidx;
+} audio_resource_t;
+
+typedef struct {
+    const char       *addr;
+    audio_resource_t  inpres;
+    audio_resource_t  outres;
 #ifdef WITH_RESOURCES
     mrp_transport_t *transp;
     mrp_sockaddr_t   saddr;
@@ -155,6 +171,9 @@ static pa_bool_t  resource_set_create_node(struct userdata *, mir_node *,
 static pa_bool_t  resource_set_create_all(struct userdata *);
 static pa_bool_t  resource_set_destroy_node(struct userdata *, uint32_t);
 static pa_bool_t  resource_set_destroy_all(struct userdata *);
+static void       resource_set_notification(struct userdata *, const char *,
+                                            int, mrp_domctl_value_t **);
+
 static pa_bool_t  resource_push_attributes(mrp_msg_t *, resource_interface *,
                                            pa_proplist *);
 
@@ -223,6 +242,8 @@ pa_murphyif *pa_murphyif_init(struct userdata *u,
         pa_log("can't resolve resource transport address '%s'", rif->addr);
     }
     else {
+        rif->inpres.tblidx = -1;
+        rif->outres.tblidx = -1;
         rif->connect.period = 1 * PA_USEC_PER_SEC;
 
         if (!resource_transport_create(u, murphyif)) {
@@ -242,8 +263,8 @@ pa_murphyif *pa_murphyif_init(struct userdata *u,
     PA_LLIST_HEAD_INIT(resource_request, rif->reqs);
 #endif
 
-    murphyif->nodes = pa_hashmap_new(pa_idxset_trivial_hash_func,
-                                     pa_idxset_trivial_compare_func);
+    murphyif->nodes = pa_hashmap_new(pa_idxset_string_hash_func,
+                                     pa_idxset_string_compare_func);
     return murphyif;
 }
 
@@ -265,7 +286,6 @@ void pa_murphyif_done(struct userdata *u)
         int i;
 
         dif = &murphyif->domctl;
-        rif = &murphyif->resource;
 
         mrp_domctl_destroy(dif->ctl);
         mrp_mainloop_destroy(murphyif->ml);
@@ -289,9 +309,13 @@ void pa_murphyif_done(struct userdata *u)
             }
             pa_xfree(dif->watches);
         }
+
+        pa_xfree((void *)dif->addr);
 #endif
 
 #ifdef WITH_RESOURCES
+        rif = &murphyif->resource;
+
         resource_transport_destroy(murphyif);
 
         pa_xfree((void *)rif->atype);
@@ -302,17 +326,17 @@ void pa_murphyif_done(struct userdata *u)
 
         PA_LLIST_FOREACH_SAFE(req, r, rif->reqs)
             pa_xfree(req);
-#endif
 
-        pa_xfree((void *)dif->addr);
         pa_xfree((void *)rif->addr);
+        pa_xfree((void *)rif->inpres.name);
+        pa_xfree((void *)rif->outres.name);
+#endif
 
         pa_hashmap_free(murphyif->nodes, NULL, NULL);
 
         pa_xfree(murphyif);
     }
 }
-
 
 
 void pa_murphyif_add_table(struct userdata *u,
@@ -342,11 +366,11 @@ void pa_murphyif_add_table(struct userdata *u,
     t->mql_index = index ? pa_xstrdup(index) : NULL;
 }
 
-void pa_murphyif_add_watch(struct userdata *u,
-                           const char *table,
-                           const char *columns,
-                           const char *where,
-                           int max_rows)
+int pa_murphyif_add_watch(struct userdata *u,
+                          const char *table,
+                          const char *columns,
+                          const char *where,
+                          int max_rows)
 {
     pa_murphyif *murphyif;
     domctl_interface *dif;
@@ -370,6 +394,8 @@ void pa_murphyif_add_watch(struct userdata *u,
     w->mql_columns = pa_xstrdup(columns);
     w->mql_where = where ? pa_xstrdup(where) : NULL;
     w->max_rows = max_rows;
+
+    return idx;
 }
 
 void pa_murphyif_setup_domainctl(struct userdata *u, pa_murphyif_watch_cb wcb)
@@ -412,8 +438,14 @@ void  pa_murphyif_add_audio_resource(struct userdata *u,
                                      mir_direction dir,
                                      const char *name)
 {
+#ifdef WITH_DOMCTL
+    static const char *columns = RESCOL_NAMES;
+    static int maxrow = MQI_QUERY_RESULT_MAX - 1;
+#endif
     pa_murphyif *murphyif;
     resource_interface *rif;
+    audio_resource_t *res;
+    char table[1024];
 
     pa_assert(u);
     pa_assert(dir == mir_input || dir == mir_output);
@@ -421,18 +453,27 @@ void  pa_murphyif_add_audio_resource(struct userdata *u,
 
     pa_assert_se((murphyif = u->murphyif));
     rif = &murphyif->resource;
+    res = NULL;
 
     if (dir == mir_input) {
-        if (rif->inpres)
+        if (rif->inpres.name)
             pa_log("attempt to register playback resource multiple time");
         else
-            rif->inpres = pa_xstrdup(name);
+            res = &rif->inpres;
     }
     else {
-        if (rif->outres)
+        if (rif->outres.name)
             pa_log("attempt to register recording resource multiple time");
         else
-            rif->outres = pa_xstrdup(name);
+            res = &rif->outres;
+    }
+
+    if (res) {
+        res->name = pa_xstrdup(name);
+#ifdef WITH_DOMCTL
+        snprintf(table, sizeof(table), "%s_users", name);
+        res->tblidx = pa_murphyif_add_watch(u, table, columns, NULL, maxrow);
+#endif
     }
 }
 
@@ -648,6 +689,7 @@ static void domctl_watch_notify(mrp_domctl_t *dc, mrp_domctl_data_t *tables,
     struct userdata *u = (struct userdata *)user_data;
     pa_murphyif *murphyif;
     domctl_interface *dif;
+    resource_interface *rif;
     mrp_domctl_data_t *t;
     mrp_domctl_watch_t *w;
     int i;
@@ -660,6 +702,7 @@ static void domctl_watch_notify(mrp_domctl_t *dc, mrp_domctl_data_t *tables,
     pa_assert_se((murphyif = u->murphyif));
 
     dif = &murphyif->domctl;
+    rif = &murphyif->resource;
 
     pa_log_info("Received change notification for %d tables.", ntable);
 
@@ -672,6 +715,13 @@ static void domctl_watch_notify(mrp_domctl_t *dc, mrp_domctl_data_t *tables,
         pa_assert(t->id < dif->nwatch);
 
         w = dif->watches + t->id;
+
+#ifdef WITH_RESOURCES
+        if (t->id == rif->inpres.tblidx || t->id == rif->outres.tblidx) {
+            resource_set_notification(u, w->table, t->nrow, t->rows);
+            continue;
+        }
+#endif
 
         dif->watchcb(u, w->table, t->nrow, t->rows);
     }
@@ -853,6 +903,7 @@ static pa_bool_t resource_set_create_node(struct userdata *u,
     const char *class;
     pa_sink_input *sinp;
     pa_source_output *sout;
+    audio_resource_t *res;
     const char *resnam;
     uint32_t audio_flags = 0;
     uint32_t priority = 0;
@@ -882,11 +933,11 @@ static pa_bool_t resource_set_create_node(struct userdata *u,
     pa_assert_se((murphyif = u->murphyif));
     rif = &murphyif->resource;
 
-    reqid  = RESPROTO_CREATE_RESOURCE_SET;
-    seqno  = rif->seqno.request++;
-    resnam = (node->direction == mir_input) ? rif->inpres : rif->outres;
+    reqid = RESPROTO_CREATE_RESOURCE_SET;
+    seqno = rif->seqno.request++;
+    res   = (node->direction == mir_input) ? &rif->inpres : &rif->outres;
 
-    pa_assert(resnam);
+    pa_assert_se((resnam = res->name));
 
     msg = resource_create_request(seqno, reqid);
 
@@ -1008,6 +1059,86 @@ static pa_bool_t resource_set_destroy_all(struct userdata *u)
     }
 
     return success;
+}
+
+static void resource_set_notification(struct userdata *u,
+                                      const char *table,
+                                      int nrow,
+                                      mrp_domctl_value_t **values)
+{
+    int r;
+    mrp_domctl_value_t *row;
+    mrp_domctl_value_t *crsetid;
+    mrp_domctl_value_t *cautorel;
+    mrp_domctl_value_t *cstate;
+    mrp_domctl_value_t *cgrant;
+    mrp_domctl_value_t *cpid;
+    mrp_domctl_value_t *cpolicy;
+    char rsetid[32];
+    pa_bool_t autorel;
+    int state;
+    pa_bool_t grant;
+    const char *pid;
+    const char *policy;
+    mir_node *node;
+
+    pa_assert(u);
+    pa_assert(table);
+
+    for (r = 0;  r < nrow;  r++) {
+        row = values[r];
+        crsetid  =  row + RESCOL_RSETID;
+        cautorel =  row + RESCOL_AUTOREL;
+        cstate   =  row + RESCOL_STATE;
+        cgrant   =  row + RESCOL_GRANT;
+        cpid     =  row + RESCOL_PID;
+        cpolicy  =  row + RESCOL_POLICY;
+
+        if (crsetid->type  != MRP_DOMCTL_UNSIGNED ||
+            cautorel->type != MRP_DOMCTL_INTEGER  ||
+            cstate->type   != MRP_DOMCTL_INTEGER  ||
+            cgrant->type   != MRP_DOMCTL_INTEGER  ||
+            cpid->type     != MRP_DOMCTL_STRING   ||
+            cpolicy->type  != MRP_DOMCTL_STRING    )
+        {
+            pa_log("invalid field type in '%s' (%d|%d|%d|%d|%d|%d)", table,
+                   crsetid->type, cautorel->type, cstate->type,
+                   cgrant->type, cpid->type, cpolicy->type);
+            continue;
+        }
+
+        snprintf(rsetid, sizeof(rsetid), "%d", crsetid->s32);
+
+        if (!(node = pa_murphyif_find_node(u, rsetid))) {
+            pa_log_debug("can't find node for resource set %s", rsetid);
+            continue;
+        }
+
+        autorel = cautorel->s32;
+        state   = cstate->s32;
+        grant   = cgrant->s32;
+        pid     = cpid->str;
+        policy  = cpolicy->str;
+
+        if (autorel != 0 && autorel != 1) {
+            pa_log_debug("invalid autorel %d in table '%s'", autorel, table);
+            continue;
+        }
+        if (state != RSET_RELEASE && state != RSET_ACQUIRE) {
+            pa_log_debug("invalid state %d in table '%s'", state, table);
+            continue;
+        }
+        if (grant != 0 && grant != 1) {
+            pa_log_debug("invalid grant %d in table '%s'", grant, table);
+            continue;
+        }
+
+        pa_log_debug("resource notification for node '%s' autorel:%s state:%s "
+                     "grant:%s pid:%s policy:%s", node->amname,
+                     autorel ? "yes":"no",
+                     state == RSET_ACQUIRE ? "acquire":"release",
+                     grant ? "yes":"no", pid, policy);
+    }
 }
 
 
