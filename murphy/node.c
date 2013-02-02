@@ -222,6 +222,25 @@ void pa_nodeset_need_resource(struct userdata *u, mir_node_type t)
     }    
 }
 
+mir_node *pa_nodeset_iterate_nodes(struct userdata *u, uint32_t *pidx)
+{
+    pa_nodeset *ns;
+    pa_idxset *idxset;
+    mir_node *node;
+
+    pa_assert(u);
+    pa_assert(pidx);
+    pa_assert_se((ns = u->nodeset));
+    pa_assert_se((idxset = ns->nodes));
+
+    if (*pidx == PA_IDXSET_INVALID)
+        node = pa_idxset_first(idxset, pidx);
+    else
+        node = pa_idxset_next(idxset, pidx);
+
+    return node;
+}
+
 mir_node *mir_node_create(struct userdata *u, mir_node *data)
 {
     pa_nodeset *ns;

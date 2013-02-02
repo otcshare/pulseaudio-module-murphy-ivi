@@ -164,6 +164,8 @@ mir_node_type pa_nodeset_get_type_by_binary(struct userdata *, const char *);
 
 void pa_nodeset_need_resource(struct userdata *, mir_node_type);
 
+mir_node *pa_nodeset_iterate_nodes(struct userdata *, uint32_t *);
+
 
 mir_node *mir_node_create(struct userdata *, mir_node *);
 void mir_node_destroy(struct userdata *, mir_node *);
