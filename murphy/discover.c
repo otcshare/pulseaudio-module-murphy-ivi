@@ -45,6 +45,7 @@
 #include "classify.h"
 #include "utils.h"
 #include "extapi.h"
+#include "stream-state.h"
 
 #define MAX_CARD_TARGET   4
 #define MAX_NAME_LENGTH   256
@@ -808,7 +809,6 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     }
     else {
         if (pa_streq(mnam, "module-loopback")) {
-
             if (!(node = pa_utils_get_node_from_data(u, mir_input, data))) {
                 pa_log_debug("can't find loopback node for sink-input");
                 return;
@@ -822,8 +822,15 @@ void pa_discover_preroute_sink_input(struct userdata *u,
             }
 
             data->sink = NULL;
+
+            type = pa_classify_guess_stream_node_type(u, pl);
         }
-        type = pa_classify_guess_stream_node_type(u, pl);
+        else {
+            type = pa_classify_guess_stream_node_type(u, pl);
+            if (pa_stream_state_start_corked(u, data, type)) {
+                pa_log("start corked");
+            }
+        }
         pa_utils_set_stream_routing_properties(pl, type, data->sink);
     }
 

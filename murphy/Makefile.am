@@ -22,6 +22,7 @@ module_murphy_ivi_la_SOURCES = \
 			router.c \
 			switch.c \
 			fader.c \
+			stream-state.c \
 			multiplex.c \
 			loopback.c \
 			volume.c \

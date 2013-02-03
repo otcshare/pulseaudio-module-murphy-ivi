@@ -172,6 +172,8 @@ void mir_node_destroy(struct userdata *, mir_node *);
 
 mir_node *mir_node_find_by_index(struct userdata *, uint32_t);
 
+pa_bool_t mir_node_need_resource(struct userdata *, mir_node_type);
+
 int mir_node_print(mir_node *, char *, int);
 
 const char *mir_direction_str(mir_direction);

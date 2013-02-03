@@ -291,15 +291,10 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     mir_router_register_node(u, node);
     
     if (node->implement == mir_stream) {
-        if (node->type >= mir_application_class_begin &&
-            node->type <  mir_application_class_end   &&
-            !node->rsetid && ns->need_resource[node->type])
-        {
+        if (!node->rsetid && mir_node_need_resource(u, node->type))
             pa_murphyif_create_resource_set(u, node);
-        }
-        else {
+        else
             pa_murphyif_add_node(u, node);
-        }
     }
 
     return node;
@@ -354,6 +349,21 @@ mir_node *mir_node_find_by_index(struct userdata *u, uint32_t nodidx)
     node = pa_idxset_get_by_index(ns->nodes, nodidx);
 
     return node;
+}
+
+pa_bool_t mir_node_need_resource(struct userdata *u, mir_node_type type)
+{
+    pa_nodeset *ns;
+
+    pa_assert(u);
+    pa_assert_se((ns = u->nodeset));
+    pa_assert(ns->need_resource);
+
+    if (type <  mir_application_class_begin ||
+        type >= mir_application_class_end     )
+        return FALSE;
+
+    return ns->need_resource[type];
 }
 
 int mir_node_print(mir_node *node, char *buf, int len)

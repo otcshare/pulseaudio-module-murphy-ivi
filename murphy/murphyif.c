@@ -53,6 +53,7 @@
 
 #include "murphyif.h"
 #include "node.h"
+#include "stream-state.h"
 
 #ifdef WITH_RESOURCES
 #define INVALID_ID      (~(uint32_t)0)
@@ -1081,6 +1082,7 @@ static void resource_set_notification(struct userdata *u,
     const char *pid;
     const char *policy;
     mir_node *node;
+    int req;
 
     pa_assert(u);
     pa_assert(table);
@@ -1114,6 +1116,8 @@ static void resource_set_notification(struct userdata *u,
             continue;
         }
 
+        pa_assert(node->implement == mir_stream);
+
         autorel = cautorel->s32;
         state   = cstate->s32;
         grant   = cgrant->s32;
@@ -1138,6 +1142,21 @@ static void resource_set_notification(struct userdata *u,
                      autorel ? "yes":"no",
                      state == RSET_ACQUIRE ? "acquire":"release",
                      grant ? "yes":"no", pid, policy);
+
+        if (pa_streq(policy, "relaxed"))
+            req = PA_STREAM_RUN;
+        else {
+            if (state == RSET_RELEASE)
+                req = PA_STREAM_KILL;
+            else {
+                if (grant)
+                    req = PA_STREAM_RUN;
+                else
+                    req = /* node->localrset ? PA_STREAM_KILL : */ PA_STREAM_BLOCK;
+            }
+        }
+
+        pa_stream_state_change(u, node, req);
     }
 }
 
