@@ -168,7 +168,7 @@ static mrp_msg_t *resource_create_request(uint32_t, mrp_resproto_request_t);
 static pa_bool_t  resource_send_message(resource_interface *, mrp_msg_t *,
                                         uint32_t, uint16_t, uint32_t);
 static pa_bool_t  resource_set_create_node(struct userdata *, mir_node *,
-                                           pa_bool_t);
+                                           pa_nodeset_resdef *, pa_bool_t);
 static pa_bool_t  resource_set_create_all(struct userdata *);
 static pa_bool_t  resource_set_destroy_node(struct userdata *, uint32_t);
 static pa_bool_t  resource_set_destroy_all(struct userdata *);
@@ -526,7 +526,9 @@ void pa_murphyif_add_audio_attribute(struct userdata *u,
 #endif
 }
 
-void pa_murphyif_create_resource_set(struct userdata *u, mir_node *node)
+void pa_murphyif_create_resource_set(struct userdata *u,
+                                     mir_node *node,
+                                     pa_nodeset_resdef *resdef)
 {
     pa_core *core;
     pa_murphyif *murphyif;
@@ -556,7 +558,7 @@ void pa_murphyif_create_resource_set(struct userdata *u, mir_node *node)
         break;
 
     case CONNECTED:
-        node->localrset = resource_set_create_node(u, node, TRUE);
+        node->localrset = resource_set_create_node(u, node, resdef, TRUE);
         break;
 
     case DISCONNECTED:
@@ -889,11 +891,9 @@ static pa_bool_t resource_send_message(resource_interface *rif,
 
 static pa_bool_t resource_set_create_node(struct userdata *u,
                                           mir_node *node,
+                                          pa_nodeset_resdef *resdef,
                                           pa_bool_t acquire)
 {
-    static uint32_t rset_flags = RESPROTO_RSETFLAG_NOEVENTS    |
-                                 RESPROTO_RSETFLAG_AUTOACQUIRE ;
-
     pa_core *core;
     pa_murphyif *murphyif;
     resource_interface *rif;
@@ -901,13 +901,14 @@ static pa_bool_t resource_set_create_node(struct userdata *u,
     mrp_msg_t *msg;
     uint16_t reqid;
     uint32_t seqno;
+    uint32_t rset_flags;
     const char *class;
     pa_sink_input *sinp;
     pa_source_output *sout;
     audio_resource_t *res;
     const char *resnam;
     uint32_t audio_flags = 0;
-    uint32_t priority = 0;
+    uint32_t priority;
     pa_proplist *proplist = NULL;
     pa_bool_t success = TRUE;
 
@@ -939,6 +940,14 @@ static pa_bool_t resource_set_create_node(struct userdata *u,
     res   = (node->direction == mir_input) ? &rif->inpres : &rif->outres;
 
     pa_assert_se((resnam = res->name));
+
+    rset_flags = RESPROTO_RSETFLAG_NOEVENTS;
+    rset_flags |= (acquire ? RESPROTO_RSETFLAG_AUTOACQUIRE : 0);
+    rset_flags |= (resdef ? resdef->flags.rset : 0);
+
+    audio_flags = (resdef ? resdef->flags.audio : 0);
+
+    priority = (resdef ? resdef->priority : 0);
 
     msg = resource_create_request(seqno, reqid);
 
@@ -982,7 +991,7 @@ static pa_bool_t resource_set_create_all(struct userdata *u)
 
     while ((node = pa_nodeset_iterate_nodes(u, &idx))) {
         if (node->implement == mir_stream && !node->rsetid) {
-            node->localrset = resource_set_create_node(u, node, FALSE);
+            node->localrset = resource_set_create_node(u, node, NULL, FALSE);
             success &= node->localrset;
         }
     }

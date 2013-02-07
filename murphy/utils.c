@@ -56,6 +56,7 @@ struct pa_null_sink {
 static uint32_t stamp;
 
 static char *stream_name(pa_proplist *);
+static pa_bool_t get_unsigned_property(pa_proplist *, const char *,uint32_t *);
 
 
 pa_null_sink *pa_utils_create_null_sink(struct userdata *u, const char *name)
@@ -309,6 +310,97 @@ int pa_utils_get_stream_class(pa_proplist *pl)
     return (int)clid;
 }
 
+
+pa_bool_t pa_utils_set_resource_properties(pa_proplist *pl,
+                                           pa_nodeset_resdef *resdef)
+{
+    char priority[32];
+    char rsetflags[32];
+    char audioflags[32];
+
+    pa_assert(pl);
+
+    if (!resdef)
+        return FALSE;
+
+    snprintf(priority  , sizeof(priority)  , "%d", resdef->priority   );
+    snprintf(rsetflags , sizeof(rsetflags) , "%d", resdef->flags.rset );
+    snprintf(audioflags, sizeof(audioflags), "%d", resdef->flags.audio);
+
+    if (pa_proplist_sets(pl, PA_PROP_RESOURCE_PRIORITY   , priority  ) < 0 ||
+        pa_proplist_sets(pl, PA_PROP_RESOURCE_SET_FLAGS  , rsetflags ) < 0 ||
+        pa_proplist_sets(pl, PA_PROP_RESOURCE_AUDIO_FLAGS, audioflags) < 0  )
+    {
+        pa_log("failed to set some resource property");
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+pa_bool_t pa_utils_unset_resource_properties(pa_proplist *pl)
+{
+    pa_assert(pl);
+
+    if (pa_proplist_unset(pl, PA_PROP_RESOURCE_PRIORITY   ) < 0 ||
+        pa_proplist_unset(pl, PA_PROP_RESOURCE_SET_FLAGS  ) < 0 ||
+        pa_proplist_unset(pl, PA_PROP_RESOURCE_AUDIO_FLAGS) < 0  )
+    {
+        pa_log("failed to unset some resource property");
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+pa_nodeset_resdef *pa_utils_get_resource_properties(pa_proplist *pl,
+                                                    pa_nodeset_resdef *rd)
+{
+    pa_assert(pl);
+    pa_assert(rd);
+
+    int success;
+
+    memset(rd, 0, sizeof(pa_nodeset_resdef));
+
+    success  = get_unsigned_property(pl, PA_PROP_RESOURCE_PRIORITY,
+                                     &rd->priority);
+    success |= get_unsigned_property(pl, PA_PROP_RESOURCE_SET_FLAGS,
+                                     &rd->flags.rset);
+    success |= get_unsigned_property(pl, PA_PROP_RESOURCE_AUDIO_FLAGS,
+                                     &rd->flags.audio);
+    
+    return success ? rd : NULL;
+}
+
+
+static pa_bool_t get_unsigned_property(pa_proplist *pl,
+                                       const char *name,
+                                       uint32_t *value)
+{
+    const char *str;
+    char *e;
+
+    pa_assert(pl);
+    pa_assert(name);
+    pa_assert(value);
+
+    if (!(str = pa_proplist_gets(pl, name))) {
+        *value = 0;
+        return FALSE;
+    }
+
+    *value = strtoul(str, &e, 10);
+
+    if (e == str || *e) {
+        *value = 0;
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+
 void pa_utils_set_port_properties(pa_device_port *port, mir_node *node)
 {
     char nodeidx[256];
@@ -465,7 +557,6 @@ uint32_t pa_utils_get_stamp(void)
 {
     return stamp;
 }
-
 
 
 

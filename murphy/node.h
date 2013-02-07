@@ -96,6 +96,20 @@ enum mir_privacy {
     mir_private
 };
 
+struct pa_nodeset_resdef {
+    uint32_t           priority;
+    struct {
+        uint32_t rset;
+        uint32_t audio;
+    }                  flags;
+};
+
+struct pa_nodeset_map {
+    const char        *name;
+    mir_node_type      type;
+    pa_nodeset_resdef *resdef;
+}; 
+
 struct pa_node_card {
     uint32_t  index;
     char     *profile;
@@ -154,15 +168,17 @@ int pa_nodeset_add_class(struct userdata *u, mir_node_type , const char *);
 void pa_nodeset_delete_class(struct userdata *, mir_node_type);
 const char *pa_nodeset_get_class(struct userdata *, mir_node_type);
 
-int pa_nodeset_add_role(struct userdata *, const char *, mir_node_type);
+int pa_nodeset_add_role(struct userdata *, const char *, mir_node_type,
+                        pa_nodeset_resdef *);
 void pa_nodeset_delete_role(struct userdata *, const char *);
-mir_node_type pa_nodeset_get_type_by_role(struct userdata *, const char *);
+pa_nodeset_map *pa_nodeset_get_map_by_role(struct userdata *, const char *);
 
-int pa_nodeset_add_binary(struct userdata *, const char *, mir_node_type);
+int pa_nodeset_add_binary(struct userdata *, const char *, mir_node_type,
+                        pa_nodeset_resdef *);
 void pa_nodeset_delete_binary(struct userdata *, const char *);
-mir_node_type pa_nodeset_get_type_by_binary(struct userdata *, const char *);
+pa_nodeset_map *pa_nodeset_get_map_by_binary(struct userdata *, const char *);
 
-void pa_nodeset_need_resource(struct userdata *, mir_node_type);
+int pa_nodeset_print_maps(struct userdata *, char *, int);
 
 mir_node *pa_nodeset_iterate_nodes(struct userdata *, uint32_t *);
 
@@ -172,7 +188,6 @@ void mir_node_destroy(struct userdata *, mir_node *);
 
 mir_node *mir_node_find_by_index(struct userdata *, uint32_t);
 
-pa_bool_t mir_node_need_resource(struct userdata *, mir_node_type);
 
 int mir_node_print(mir_node *, char *, int);
 

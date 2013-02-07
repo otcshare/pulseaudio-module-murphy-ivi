@@ -41,6 +41,9 @@
 #define PA_PROP_NODE_TYPE              "node.type"
 #define PA_PROP_NODE_ROLE              "node.role"
 #define PA_PROP_RESOURCE_SET_ID        "resource.set.id"
+#define PA_PROP_RESOURCE_PRIORITY      "resource.set.priority"
+#define PA_PROP_RESOURCE_SET_FLAGS     "resource.set.flags"
+#define PA_PROP_RESOURCE_AUDIO_FLAGS   "resource.audio.flags"
 
 #define PA_ZONE_NAME_DEFAULT           "driver"
 
@@ -61,6 +64,8 @@ typedef struct pa_scripting             pa_scripting;
 typedef struct pa_mir_volume            pa_mir_volume;
 typedef struct pa_mir_config            pa_mir_config;
 typedef struct pa_nodeset               pa_nodeset;
+typedef struct pa_nodeset_resdef        pa_nodeset_resdef;
+typedef struct pa_nodeset_map           pa_nodeset_map;
 typedef struct pa_node_card             pa_node_card;
 typedef struct pa_card_hooks            pa_card_hooks;
 typedef struct pa_port_hooks            pa_port_hooks;

@@ -31,7 +31,7 @@
 
 pa_bool_t pa_stream_state_start_corked(struct userdata *,
                                        pa_sink_input_new_data *,
-                                       mir_node_type);
+                                       pa_nodeset_resdef *);
 void pa_stream_state_change(struct userdata *u, mir_node *, int);
 
 

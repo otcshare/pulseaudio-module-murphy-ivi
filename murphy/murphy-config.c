@@ -167,6 +167,7 @@ pa_bool_t pa_mir_config_parse_file(struct userdata *u, const char *path)
     pa_module *module;
     pa_mir_config *config;
     int success;
+    char buf[4096];
 
     pa_assert(u);
     pa_assert_se((module = u->module));
@@ -183,6 +184,9 @@ pa_bool_t pa_mir_config_parse_file(struct userdata *u, const char *path)
         pa_log_info("%s: builtin default configuration applies", module->name);
         success = use_default_configuration(u);
     }
+
+    pa_nodeset_print_maps(u, buf, sizeof(buf));
+    pa_log_debug(buf);
 
     return success;
 }
@@ -203,10 +207,10 @@ static pa_bool_t use_default_configuration(struct userdata *u)
         mir_router_assign_class_to_rtgroup(u, c->class, c->type, c->rtgroup);
 
     for (t = rolemap; t->id; t++)
-        pa_nodeset_add_role(u, t->id, t->type);
+        pa_nodeset_add_role(u, t->id, t->type, NULL);
 
     for (t = binmap; t->id; t++)
-        pa_nodeset_add_binary(u, t->id, t->type);
+        pa_nodeset_add_binary(u, t->id, t->type, NULL);
 
     for (p = priormap;  p->class;  p++)
         mir_router_assign_class_priority(u, p->class, p->priority);

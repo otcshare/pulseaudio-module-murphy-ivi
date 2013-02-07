@@ -24,6 +24,7 @@
 #include <errno.h>
 
 #include <pulsecore/pulsecore-config.h>
+#include <pulsecore/core-util.h>
 
 #include <murphy/common/macros.h>
 #include <murphy/core/lua-utils/object.h>
@@ -32,6 +33,7 @@
 #include <murphy/core/lua-utils/funcbridge.h>
 #include <murphy/domain-control/client.h>
 #include <murphy/resource/data-types.h>
+#include <murphy/resource/protocol.h>
 
 #include "scripting.h"
 #include "node.h"
@@ -117,6 +119,12 @@ typedef struct {
     const char         *output;
 } route_t;
 
+typedef struct {
+    const char         *name;
+    pa_bool_t           needres;
+    pa_nodeset_resdef   resource;
+} map_t;
+
 struct scripting_apclass {
     struct userdata    *userdata;
     const char         *name;
@@ -124,8 +132,8 @@ struct scripting_apclass {
     mir_node_type       type;
     int                 priority;
     route_t            *route;
-    mrp_lua_strarray_t *roles;
-    mrp_lua_strarray_t *binaries;
+    map_t              *roles;
+    map_t              *binaries;
     struct {
         pa_bool_t resource;
     }                   needs;
@@ -176,7 +184,6 @@ typedef enum {
     CLASS,
     INPUT,
     LIMIT,
-    NEEDS,
     ROUTE,
     ROLES,
     TABLE,
@@ -199,6 +206,7 @@ typedef enum {
     IMPLEMENT,
     NODE_TYPE,
     ATTRIBUTES,
+    AUTORELEASE,
     DESCRIPTION,
 } field_t;
 
@@ -292,6 +300,10 @@ static void resource_names_destroy(resource_name_t *);
 
 static attribute_t *attributes_check(lua_State *, int);
 static void attributes_destroy(attribute_t *);
+
+static map_t *map_check(lua_State *, int);
+static int map_push(lua_State *, map_t *);
+static void map_destroy(map_t *);
 
 static field_t field_check(lua_State *, int, const char **);
 static field_t field_name_to_type(const char *, size_t);
@@ -1552,13 +1564,11 @@ static int apclass_create(lua_State *L)
     mir_node_type type = -1;
     int priority = -1;
     route_t *route = NULL;
-    mrp_lua_strarray_t *roles = NULL;
-    mrp_lua_strarray_t *binaries = NULL;
-    mrp_lua_strarray_t *needs = NULL;
+    map_t *roles = NULL;
+    map_t *binaries = NULL;
     pa_bool_t needs_resource = FALSE;
-    const char *role;
-    const char *binary;
-    const char *need;
+    pa_nodeset_resdef *resdef;
+    map_t *r, *b;
     size_t i;
     pa_bool_t ir, or;
 
@@ -1577,27 +1587,13 @@ static int apclass_create(lua_State *L)
         case NODE_TYPE:   type = luaL_checkint(L, -1);                 break;
         case PRIORITY:    priority = luaL_checkint(L, -1);             break;
         case ROUTE:       route = route_check(L, -1);                  break;
-        case ROLES:       roles = mrp_lua_check_strarray(L, -1);       break;
-        case BINARIES:    binaries = mrp_lua_check_strarray(L, -1);    break;
-        case NEEDS:       needs = mrp_lua_check_strarray(L, -1);       break;
+        case ROLES:       roles = map_check(L, -1);                    break;
+        case BINARIES:    binaries = map_check(L, -1);                 break;
         default:          luaL_error(L, "bad field '%s'", fldnam);     break;
         }
 
     } /* MRP_LUA_FOREACH_FIELD */
 
-    if (needs) {
-        for (i = 0;   i < needs->nstring;   i++) {
-            need = needs->strings[i];
-
-            if (!strcmp(need, "resource"))
-                needs_resource = TRUE;
-            else
-                luaL_error(L, "invalid need '%s'", need);
-        }
-    }
-
-    if (needs_resource && !class)
-        luaL_error(L, "missing or invalid class field");
     if (type < mir_application_class_begin ||
         type >= mir_application_class_end    )
         luaL_error(L, "missing or invalid node_type %d", type);
@@ -1605,6 +1601,8 @@ static int apclass_create(lua_State *L)
         luaL_error(L, "missing or invalid priority field");
     if (!route)
         luaL_error(L, "missing or invalid route field");
+    if (!roles && !binaries)
+        luaL_error(L, "missing roles or binaries");
 
     make_id(name, sizeof(name), "%s", mir_node_type_str(type));
 
@@ -1641,29 +1639,26 @@ static int apclass_create(lua_State *L)
     }
 
     if (roles) {
-        for (i = 0;  i < roles->nstring;  i++) {
-            role = roles->strings[i];
+        for (r = roles;  r->name;  r++) {
+            resdef = r->needres ? &r->resource : NULL;
 
-            if (pa_nodeset_add_role(u, role, type)) {
+            if (pa_nodeset_add_role(u, r->name, type, resdef)) {
                 luaL_error(L, "role '%s' is added to mutiple application "
-                           "classes", role);
+                           "classes", r->name);
             }
         }
     }
 
     if (binaries) {
-        for (i = 0;  i < binaries->nstring;  i++) {
-            binary = binaries->strings[i];
+        for (b = binaries;  b->name;  b++) {
+            resdef = b->needres ? &b->resource : NULL;
 
-            if (pa_nodeset_add_binary(u, binary, type)) {
+            if (pa_nodeset_add_binary(u, b->name, type, resdef)) {
                 luaL_error(L, "binary '%s' is added to multiple application "
-                           "classes", binary);
+                           "classes", b->name);
             }
         }
     }
-
-    if (needs_resource)
-        pa_nodeset_need_resource(u, type);
 
     MRP_LUA_LEAVE(1);
 }
@@ -1682,13 +1677,13 @@ static int apclass_getfield(lua_State *L)
         lua_pushnil(L);
     else {
         switch (fld) {
-        case NAME:           lua_pushstring(L, ac->name);              break;
-        case NODE_TYPE:      lua_pushinteger(L, ac->type);             break;
-        case PRIORITY:       lua_pushinteger(L, ac->priority);         break;
-        case ROUTE:          route_push(L, ac->route);                 break;
-        case ROLES:          mrp_lua_push_strarray(L, ac->roles);      break;
-        case BINARIES:       mrp_lua_push_strarray(L, ac->binaries);   break;
-        default:             lua_pushnil(L);                           break;
+        case NAME:           lua_pushstring(L, ac->name);          break;
+        case NODE_TYPE:      lua_pushinteger(L, ac->type);         break;
+        case PRIORITY:       lua_pushinteger(L, ac->priority);     break;
+        case ROUTE:          route_push(L, ac->route);             break;
+        case ROLES:          map_push(L, ac->roles);               break;
+        case BINARIES:       map_push(L, ac->binaries);            break;
+        default:             lua_pushnil(L);                       break;
         }
     }
 
@@ -1724,8 +1719,7 @@ static void apclass_destroy(void *data)
 {
     scripting_apclass *ac = (scripting_apclass *)data;
     struct userdata *u;
-    mrp_lua_strarray_t *roles;
-    mrp_lua_strarray_t *binaries;
+    map_t *r, *b;
     size_t i;
 
     MRP_LUA_ENTER;
@@ -1743,19 +1737,19 @@ static void apclass_destroy(void *data)
     pa_xfree((void *)ac->class);
     ac->class = NULL;
 
-    if ((roles = ac->roles)) {
-        for (i = 0;   i < roles->nstring;  i++)
-            pa_nodeset_delete_role(u, roles->strings[i]);
+    if (ac->roles) {
+        for (r = ac->roles;  r->name;  r++)
+            pa_nodeset_delete_role(u, r->name);
 
-        mrp_lua_free_strarray(ac->roles);
+        map_destroy(ac->roles);
         ac->roles = NULL;
     }
 
-    if ((binaries = ac->binaries)) {
-        for (i = 0;   i < binaries->nstring;  i++)
-            pa_nodeset_delete_binary(u, binaries->strings[i]);
+    if (ac->binaries) {
+        for (b = ac->binaries;  b->name;  b++)
+            pa_nodeset_delete_binary(u, b->name);
 
-        mrp_lua_free_strarray(ac->binaries);
+        map_destroy(ac->binaries);
         ac->binaries = NULL;
     }
 
@@ -2399,6 +2393,137 @@ static void attributes_destroy(attribute_t *attrs)
     }
 }
 
+static map_t *map_check(lua_State *L, int tbl)
+{
+    int def;
+    size_t namlen;
+    const char *name;
+    const char *flag;
+    map_t *m, *map = NULL;
+    size_t n = 0;
+    size_t i, len;
+    int priority;
+    pa_nodeset_resdef *rd;
+
+    tbl = (tbl < 0) ? lua_gettop(L) + tbl + 1 : tbl;
+
+    luaL_checktype(L, tbl, LUA_TTABLE);
+
+    MRP_LUA_FOREACH_FIELD(L, tbl, name, namlen) {
+        if (!name[0])
+            luaL_error(L, "invalid role or binary definition");
+
+        map = pa_xrealloc(map, sizeof(map_t) * (n + 2));
+        memset(map + n, 0, sizeof(map_t) * 2);
+
+        m = map + n++;
+        def = lua_gettop(L);
+
+        m->name = pa_xstrdup(name);
+
+        switch (lua_type(L, -1)) {
+
+        case LUA_TNUMBER:
+            m->needres = FALSE;
+            break;
+
+        case LUA_TTABLE:
+            m->needres = TRUE;
+
+            if ((len = luaL_getn(L, def)) < 1)
+                luaL_error(L, "invalid resource definition '%s'", name);
+
+            for (i = 1;  i <= len;  i++) {
+                lua_pushnumber(L, (int)i);
+                lua_gettable(L, def);
+
+                if (i == 1) {
+                    priority = luaL_checkint(L, -1);
+
+                    if (priority < 0 || priority > 7) {
+                        luaL_error(L, "invalid priority %d for '%s'",
+                                   priority, name);
+                    }
+
+                    m->resource.priority = priority;
+                }
+                else {
+                    flag = luaL_checkstring(L, -1);
+                    rd = &m->resource;
+
+                    if (pa_streq(flag, "autorelease"))
+                        rd->flags.rset |= RESPROTO_RSETFLAG_AUTORELEASE;
+                    else if (pa_streq(flag, "mandatory"))
+                        rd->flags.audio |= RESPROTO_RESFLAG_MANDATORY;
+                    else if (pa_streq(flag, "shared"))
+                        rd->flags.audio |= RESPROTO_RESFLAG_SHARED;
+                    else if (!pa_streq(flag, "optional") &&
+                             !pa_streq(flag, "exclusive") )
+                    {
+                        luaL_error(L, "invalid flag '%s' for '%s'", flag,name);
+                    }
+                }
+
+                lua_pop(L, 1);
+            }
+
+            break;
+
+        default:
+            luaL_error(L, "invalid resource specification. "
+                       "Should be either 'no_resource' or a table");
+            break;
+        }
+    } /* FOREACH_FIELD */
+
+    return map;
+}
+
+static int map_push(lua_State *L, map_t *map)
+{
+    map_t *m;
+
+    if (!map)
+        lua_pushnil(L);
+    else {
+        lua_newtable(L);
+
+        for (m = map;  m->name;  m++) {
+            if (!m->needres)
+                lua_pushnumber(L, 0);
+            else {
+                lua_newtable(L);
+                lua_pushinteger(L, m->resource.priority);
+                if (m->resource.flags.rset & RESPROTO_RSETFLAG_AUTORELEASE)
+                    lua_pushstring(L, "autorelease");
+                if (m->resource.flags.audio & RESPROTO_RESFLAG_MANDATORY)
+                    lua_pushstring(L, "mandatory");
+                else
+                    lua_pushstring(L, "optional");
+                if (m->resource.flags.audio & RESPROTO_RESFLAG_SHARED)
+                    lua_pushstring(L, "shared");
+                else
+                    lua_pushstring(L, "exclusive");
+            }
+            lua_setfield(L, -2, m->name);
+        }
+    }
+
+    return 1;
+}
+
+static void map_destroy(map_t *map)
+{
+    map_t *m;
+
+    if (map) {
+        for (m = map;  m->name;  m++) {
+            pa_xfree((void *)m->name);
+        }
+        pa_xfree(map);
+    }
+}
+
 
 static field_t field_check(lua_State *L, int idx, const char **ret_fldnam)
 {
@@ -2453,10 +2578,6 @@ static field_t field_name_to_type(const char *name, size_t len)
         case 'l':
             if (!strcmp(name, "limit"))
                 return LIMIT;
-            break;
-        case 'n':
-            if (!strcmp(name, "needs"))
-                return NEEDS;
             break;
         case 'r':
             if (!strcmp(name, "route"))
@@ -2575,6 +2696,8 @@ static field_t field_name_to_type(const char *name, size_t len)
         break;        
 
     case 11:
+        if (!strcmp(name, "autorelease"))
+            return AUTORELEASE;
         if (!strcmp(name, "description"))
             return DESCRIPTION;
         break;        
@@ -2781,6 +2904,8 @@ static bool define_constants(lua_State *L)
         lua_pop(L, 1);
     }
 
+    lua_pushnumber(L, 0);
+    lua_setglobal(L, "no_resource");
 
     return success;
 }

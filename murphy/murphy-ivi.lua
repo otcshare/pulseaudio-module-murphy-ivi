@@ -26,7 +26,7 @@ application_class {
     route = {
         output = routing_group.default_output
     },
-    roles = { "event" },
+    roles = { event = no_resource }
 }
 
 application_class {
@@ -37,7 +37,7 @@ application_class {
         input = routing_group.phone_input,
         output = routing_group.phone_output
     },
-    roles = { "phone", "carkit" },
+    roles = { phone = no_resource, carkit = no_resource }
 }
 
 application_class {
@@ -46,7 +46,7 @@ application_class {
     route = {
         output = routing_group.default_output
     },
-    roles = { "ringtone", "alarm" },
+    roles = { ringtone = no_resource, alarm = no_resource }
 }
 
 application_class {
@@ -56,8 +56,7 @@ application_class {
     route = {
         output = routing_group.default_output
     },
-    roles = { "navigator" },
-    needs = { "resource" }
+    roles = { navigator = {0, "autorelease", "mandatory", "shared"} }
 }
 
 application_class {
@@ -67,8 +66,7 @@ application_class {
     route = {
         output = routing_group.default_output
     },
-    roles = { "game" },
-    needs = { "resource" }
+    roles = { game = {0, "mandatory", "exclusive"} }
 }
 
 application_class {
@@ -78,8 +76,7 @@ application_class {
     route = {
         output = routing_group.default_output
     },
-    roles = { "radio" },
-    needs = { "resource" }
+    roles = { radio = {1, "mandatory", "exclusive"} },
 }
 
 application_class {
@@ -89,8 +86,10 @@ application_class {
     route = {
         output = routing_group.default_output
     },
-    roles = { "music", "video", "test" },
-    needs = { "resource" }
+    roles = { music = {1, "mandatory", "exclusive"},
+              video = {1, "mandatory", "exclusive"},
+	      test  = {0, "mandatory", "exclusive"}
+    }
 }
 
 application_class {
@@ -100,8 +99,10 @@ application_class {
     route = {
         output = routing_group.default_output
     },
-    roles = { "animation" },
-    binaries = { "firefox", "chrome" }
+    roles = { animation = {0, "mandatory", "shared"} },
+    binaries = { firefox = {0, "mandatory","exclusive"},
+                 chrome  = {0, "mandatory", "exclusive"}
+    }
 }
 
 audio_resource {

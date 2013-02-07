@@ -255,24 +255,37 @@ void pa_classify_guess_device_node_type_and_name(mir_node   *node,
 
 
 mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
-                                                 pa_proplist *pl)
+                                                 pa_proplist *pl,
+                                                 pa_nodeset_resdef **resdef)
 {
-    mir_node_type  type;
-    const char    *role;
-    const char    *bin;
+    pa_nodeset_map *map;
+    const char     *role;
+    const char     *bin;
 
     pa_assert(u);
     pa_assert(pl);
 
-    if ((bin  = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_BINARY)) &&
-        (type = pa_nodeset_get_type_by_binary(u, bin)))
-        return type;
 
-    if ((role = pa_proplist_gets(pl, PA_PROP_MEDIA_ROLE)) &&
-        (type = pa_nodeset_get_type_by_role(u, role)))
-        return type;
+    do {
+        if ((bin = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_BINARY)) &&
+            (map = pa_nodeset_get_map_by_binary(u, bin)))
+            break;
 
-    return role ? mir_node_type_unknown : mir_player;
+        if ((role = pa_proplist_gets(pl, PA_PROP_MEDIA_ROLE)) &&
+            (map = pa_nodeset_get_map_by_role(u, role)))
+            break;
+
+        if (resdef)
+            *resdef = NULL;
+
+        return role ? mir_node_type_unknown : mir_player;
+
+    } while (0);
+
+    if (resdef)
+        *resdef = map->resdef;
+
+    return map->type;
 }
 
 mir_node_type pa_classify_guess_application_class(mir_node *node)

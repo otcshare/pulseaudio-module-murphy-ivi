@@ -30,6 +30,7 @@ typedef void mrp_domctl_value_t;
 
 #include "userdata.h"
 
+
 typedef void (*pa_murphyif_watch_cb)(struct userdata *u, const char *,
                                          int, mrp_domctl_value_t **);
 
@@ -46,7 +47,8 @@ void pa_murphyif_add_audio_resource(struct userdata *, mir_direction,
                                     const char *);
 void pa_murphyif_add_audio_attribute(struct userdata *, const char *,
                                      const char *, mqi_data_type_t, ... );
-void pa_murphyif_create_resource_set(struct userdata *, mir_node *);
+void pa_murphyif_create_resource_set(struct userdata *, mir_node *,
+                                     pa_nodeset_resdef *);
 void pa_murphyif_destroy_resource_set(struct userdata *, mir_node *);
 
 int pa_murphyif_add_node(struct userdata *, mir_node *);

@@ -36,13 +36,15 @@
 #define APCLASS_DIM  (mir_application_class_end - mir_application_class_begin)
 
 struct pa_nodeset {
-    pa_idxset  *nodes;
-    pa_hashmap *roles;
-    pa_hashmap *binaries;
-    const char *class_name[APCLASS_DIM];
-    pa_bool_t   need_resource[APCLASS_DIM];
+    pa_idxset      *nodes;
+    pa_hashmap     *roles;
+    pa_hashmap     *binaries;
+    const char     *class_name[APCLASS_DIM];
 };
 
+
+static void free_map_cb(void *, void *);
+static int print_map(pa_hashmap *, const char *, char *, int);
 
 pa_nodeset *pa_nodeset_init(struct userdata *u)
 {
@@ -67,8 +69,8 @@ void pa_nodeset_done(struct userdata *u)
 
     if (u && (ns = u->nodeset)) {
         pa_idxset_free(ns->nodes, NULL, NULL);
-        pa_hashmap_free(ns->roles, NULL, NULL);
-        pa_hashmap_free(ns->binaries, NULL, NULL);
+        pa_hashmap_free(ns->roles, free_map_cb, u);
+        pa_hashmap_free(ns->binaries, free_map_cb, u);
 
         for (i = 0;  i < APCLASS_DIM;  i++)
             pa_xfree((void *)ns->class_name[i]);
@@ -122,104 +124,141 @@ const char *pa_nodeset_get_class(struct userdata *u, mir_node_type t)
     return NULL;
 }
 
-int pa_nodeset_add_role(struct userdata *u, const char *role, mir_node_type t)
+int pa_nodeset_add_role(struct userdata *u,
+                        const char *role,
+                        mir_node_type type,
+                        pa_nodeset_resdef *resdef)
 {
     pa_nodeset *ns;
-    void *value = NULL + t;
+    pa_nodeset_map *map;
 
     pa_assert(u);
     pa_assert(role);
-    pa_assert(t >= mir_application_class_begin &&
-              t <  mir_application_class_end);
+    pa_assert(type >= mir_application_class_begin &&
+              type <  mir_application_class_end);
     pa_assert_se((ns = u->nodeset));
 
-    return pa_hashmap_put(ns->roles, role, value);
+    map = pa_xnew0(pa_nodeset_map, 1);
+    map->name = pa_xstrdup(role);
+    map->type = type;
+
+    if (resdef) {
+        map->resdef = pa_xnew(pa_nodeset_resdef, 1);
+        memcpy(map->resdef, resdef, sizeof(pa_nodeset_resdef));
+    }
+
+    return pa_hashmap_put(ns->roles, map->name, map);
 }
 
 void pa_nodeset_delete_role(struct userdata *u, const char *role)
 {
+    pa_nodeset_map *map;
     pa_nodeset *ns;
 
     pa_assert(u);
     pa_assert(role);
     pa_assert_se((ns = u->nodeset));
 
-    pa_hashmap_remove(ns->roles, role);
+    if ((map = pa_hashmap_remove(ns->roles, role))) {
+        pa_xfree((void *)map->name);
+        pa_xfree((void *)map->resdef);
+    }
 }
 
-mir_node_type pa_nodeset_get_type_by_role(struct userdata *u, const char *role)
+pa_nodeset_map *pa_nodeset_get_map_by_role(struct userdata *u,
+                                           const char *role)
 {
+    pa_nodeset_map *map;
     pa_nodeset *ns;
-    mir_node_type t;
 
     pa_assert(u);
     pa_assert_se((ns = u->nodeset));
 
-    if (role) {
-        t = pa_hashmap_get(ns->roles, role) - NULL;
+    if (role)
+        map = pa_hashmap_get(ns->roles, role);
+    else
+        map = NULL;
+        
 
-        if (t >= mir_application_class_begin && t < mir_application_class_end)
-            return t;
-    }
-
-    return mir_node_type_unknown;
+    return map;
 }
 
-int pa_nodeset_add_binary(struct userdata *u, const char *bin, mir_node_type t)
+int pa_nodeset_add_binary(struct userdata *u,
+                          const char *bin,
+                          mir_node_type type,
+                          pa_nodeset_resdef *resdef)
 {
     pa_nodeset *ns;
-    void *value = NULL + t;
+    pa_nodeset_map *map;
 
     pa_assert(u);
     pa_assert(bin);
-    pa_assert(t >= mir_application_class_begin &&
-              t <  mir_application_class_end);
+    pa_assert(type >= mir_application_class_begin &&
+              type <  mir_application_class_end);
     pa_assert_se((ns = u->nodeset));
 
-    return pa_hashmap_put(ns->binaries, bin, value);
+    map = pa_xnew0(pa_nodeset_map, 1);
+    map->name = pa_xstrdup(bin);
+    map->type = type;
+
+    if (resdef) {
+        map->resdef = pa_xnew(pa_nodeset_resdef, 1);
+        memcpy(map->resdef, resdef, sizeof(pa_nodeset_resdef));
+    }
+
+    return pa_hashmap_put(ns->binaries, map->name, map);
 }
 
 void pa_nodeset_delete_binary(struct userdata *u, const char *bin)
 {
+    pa_nodeset_map *map;
     pa_nodeset *ns;
 
     pa_assert(u);
     pa_assert(bin);
     pa_assert_se((ns = u->nodeset));
 
-    pa_hashmap_remove(ns->binaries, bin);
-}
-
-mir_node_type pa_nodeset_get_type_by_binary(struct userdata *u,const char *bin)
-{
-    pa_nodeset *ns;
-    mir_node_type t;
-
-    pa_assert(u);
-    pa_assert_se((ns = u->nodeset));
-
-    if (bin) {
-        t = pa_hashmap_get(ns->binaries, bin) - NULL;
-
-        if (t >= mir_application_class_begin && t < mir_application_class_end)
-            return t;
+    if ((map = pa_hashmap_remove(ns->binaries, bin))) {
+        pa_xfree((void *)map->name);
+        pa_xfree((void *)map->resdef);
     }
-
-    return mir_node_type_unknown;
 }
 
-void pa_nodeset_need_resource(struct userdata *u, mir_node_type t)
+pa_nodeset_map *pa_nodeset_get_map_by_binary(struct userdata *u,
+                                             const char *bin)
 {
+    pa_nodeset_map *map;
     pa_nodeset *ns;
-    int ac;
 
     pa_assert(u);
     pa_assert_se((ns = u->nodeset));
 
-    if (t >= mir_application_class_begin && t < mir_application_class_end) {
-        ac = t - mir_application_class_begin;
-        ns->need_resource[ac] = TRUE;
-    }    
+    if (bin)
+        map = pa_hashmap_get(ns->binaries, bin);
+    else
+        map = NULL;
+        
+
+    return map;
+}
+
+int pa_nodeset_print_maps(struct userdata *u, char *buf, int len)
+{
+    pa_nodeset *ns;
+    char *p, *e;
+
+    pa_assert(u);
+    pa_assert(buf);
+    pa_assert(len > 0);
+
+    pa_assert_se((ns = u->nodeset));
+
+    e = (p = buf) + len;
+
+    p += print_map(ns->roles, "roles", p, e-p);
+    p += print_map(ns->binaries, "binaries", p, e-p);
+
+    return p - buf;
 }
 
 mir_node *pa_nodeset_iterate_nodes(struct userdata *u, uint32_t *pidx)
@@ -290,12 +329,6 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
 
     mir_router_register_node(u, node);
     
-    if (node->implement == mir_stream) {
-        if (!node->rsetid && mir_node_need_resource(u, node->type))
-            pa_murphyif_create_resource_set(u, node);
-        else
-            pa_murphyif_add_node(u, node);
-    }
 
     return node;
 }
@@ -309,15 +342,10 @@ void mir_node_destroy(struct userdata *u, mir_node *node)
 
     if (node) {
         if (node->implement == mir_stream) {
-            if (node->type >= mir_application_class_begin &&
-                node->type <  mir_application_class_end   &&
-                ns->need_resource[node->type])
-            {
+            if (node->localrset)
                 pa_murphyif_destroy_resource_set(u, node);
-            }
-            else {
+            else
                 pa_murphyif_delete_node(u, node);
-            }
         }
 
         mir_router_unregister_node(u, node);
@@ -351,20 +379,6 @@ mir_node *mir_node_find_by_index(struct userdata *u, uint32_t nodidx)
     return node;
 }
 
-pa_bool_t mir_node_need_resource(struct userdata *u, mir_node_type type)
-{
-    pa_nodeset *ns;
-
-    pa_assert(u);
-    pa_assert_se((ns = u->nodeset));
-    pa_assert(ns->need_resource);
-
-    if (type <  mir_application_class_begin ||
-        type >= mir_application_class_end     )
-        return FALSE;
-
-    return ns->need_resource[type];
-}
 
 int mir_node_print(mir_node *node, char *buf, int len)
 {
@@ -491,6 +505,51 @@ const char *mir_privacy_str(mir_privacy privacy)
     }
 }
 
+
+static void free_map_cb(void *void_map, void *void_userdata)
+{
+    struct userdata *u   = (struct userdata *)void_userdata;
+    pa_nodeset_map  *map = (pa_nodeset_map *)void_map;
+
+    pa_xfree((void *)map->name);
+    pa_xfree((void *)map->resdef);
+
+    pa_xfree(map);
+}
+
+static int print_map(pa_hashmap *map, const char *name, char *buf, int len)
+{
+#define PRINT(fmt,args...) \
+    do { if (p < e) p += snprintf(p, e-p, fmt "\n", args); } while (0)
+
+    pa_nodeset_map *m;
+    pa_nodeset_resdef *r;
+    const char *type;
+    void *state;
+    char *p, *e;
+
+    e = (p = buf) + len;
+
+    if (buf && len > 0) {
+        PRINT("%s mappings:", name);
+
+        PA_HASHMAP_FOREACH(m, map, state) {
+            type = mir_node_type_str(m->type);
+
+            if (!(r = m->resdef))
+                PRINT("    %-15s => %-10s", m->name, type);
+            else {
+                PRINT("    %-15s => %-10s resource: priority %u, flags rset "
+                      "0x%x, audio 0x%x", m->name, type, r->priority,
+                      r->flags.rset, r->flags.audio);
+            }
+        }
+    }
+    
+    return p - buf;
+
+#undef PRINT
+}
                                   
 /*
  * Local Variables:

@@ -33,9 +33,9 @@ static void sink_input_block(pa_sink_input *, pa_bool_t);
 
 pa_bool_t pa_stream_state_start_corked(struct userdata *u,
                                        pa_sink_input_new_data *data,
-                                       mir_node_type type)
+                                       pa_nodeset_resdef *resdef)
 {
-    if (mir_node_need_resource(u, type)) {
+    if (resdef) {
         data->flags |= PA_SINK_INPUT_START_CORKED;
         return TRUE;
     }

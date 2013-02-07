@@ -46,6 +46,7 @@
 #include "utils.h"
 #include "extapi.h"
 #include "stream-state.h"
+#include "murphyif.h"
 
 #define MAX_CARD_TARGET   4
 #define MAX_NAME_LENGTH   256
@@ -679,18 +680,19 @@ void pa_discover_remove_source(struct userdata *u, pa_source *source)
 
 void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
 {
-    pa_core       *core;
-    pa_discover   *discover;
-    pa_proplist   *pl;
-    char          *name;
-    const char    *media;
-    mir_node_type  type;
-    mir_node       data;
-    mir_node      *node;
-    mir_node      *target;
-    char           key[256];
-    pa_sink       *sink;
-    const char    *role;
+    pa_core           *core;
+    pa_discover       *discover;
+    pa_proplist       *pl;
+    char              *name;
+    const char        *media;
+    mir_node_type      type;
+    mir_node           data;
+    mir_node          *node;
+    mir_node          *target;
+    char               key[256];
+    pa_sink           *sink;
+    const char        *role;
+    pa_nodeset_resdef *resdef;
 
     pa_assert(u);
     pa_assert(sinp);
@@ -713,7 +715,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
 
     pa_log_debug("registering input stream '%s'", name);
 
-    if (!(type = pa_classify_guess_stream_node_type(u, pl))) {
+    if (!(type = pa_classify_guess_stream_node_type(u, pl, &resdef))) {
         pa_log_debug("cant find stream class for '%s'. "
                      "Leaving it alone", name);
         return;
@@ -770,19 +772,20 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
 void pa_discover_preroute_sink_input(struct userdata *u,
                                      pa_sink_input_new_data *data)
 {
-    pa_core       *core;
-    pa_module     *m;
-    pa_proplist   *pl;
-    pa_discover   *discover;
-    pa_multiplex  *multiplex;
-    mir_node       fake;
-    pa_sink       *sink;
-    pa_sink_input *sinp;
-    const char    *mnam;
-    const char    *role;
-    mir_node_type  type;
-    mir_node      *node;
-    pa_muxnode    *mux;
+    pa_core           *core;
+    pa_module         *m;
+    pa_proplist       *pl;
+    pa_discover       *discover;
+    pa_multiplex      *multiplex;
+    mir_node           fake;
+    pa_sink           *sink;
+    pa_sink_input     *sinp;
+    const char        *mnam;
+    const char        *role;
+    mir_node_type      type;
+    mir_node          *node;
+    pa_muxnode        *mux;
+    pa_nodeset_resdef *resdef;
 
     pa_assert(u);
     pa_assert(data);
@@ -823,11 +826,14 @@ void pa_discover_preroute_sink_input(struct userdata *u,
 
             data->sink = NULL;
 
-            type = pa_classify_guess_stream_node_type(u, pl);
+            type = pa_classify_guess_stream_node_type(u, pl, NULL);
         }
         else {
-            type = pa_classify_guess_stream_node_type(u, pl);
-            if (pa_stream_state_start_corked(u, data, type)) {
+            type = pa_classify_guess_stream_node_type(u, pl, &resdef);
+
+            pa_utils_set_resource_properties(pl, resdef);
+
+            if (pa_stream_state_start_corked(u, data, resdef)) {
                 pa_log("start corked");
             }
         }
@@ -867,21 +873,23 @@ void pa_discover_preroute_sink_input(struct userdata *u,
 
 void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
 {
-    pa_core        *core;
-    pa_sink        *s;
-    pa_sink_input  *csinp;
-    pa_proplist    *pl;
-    pa_discover    *discover;
-    pa_multiplex   *multiplex;
-    mir_node        data;
-    mir_node       *node;
-    mir_node       *snod;
-    char           *name;
-    const char     *media;
-    mir_node_type   type;
-    char            key[256];
-    pa_bool_t       created;
-    pa_muxnode     *mux;
+    pa_core           *core;
+    pa_sink           *s;
+    pa_sink_input     *csinp;
+    pa_proplist       *pl;
+    pa_discover       *discover;
+    pa_multiplex      *multiplex;
+    mir_node           data;
+    mir_node          *node;
+    mir_node          *snod;
+    char              *name;
+    const char        *media;
+    mir_node_type      type;
+    char               key[256];
+    pa_bool_t          created;
+    pa_muxnode        *mux;
+    pa_nodeset_resdef *resdef;
+    pa_nodeset_resdef  rdbuf;
 
     pa_assert(u);
     pa_assert(sinp);
@@ -889,6 +897,8 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     pa_assert_se((discover = u->discover));
     pa_assert_se((multiplex = u->multiplex));
     pa_assert_se((pl = sinp->proplist));
+
+    resdef = NULL;
 
     if (!(media = pa_proplist_gets(sinp->proplist, PA_PROP_MEDIA_NAME)))
         media = "<unknown>";
@@ -929,8 +939,10 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
 
         pa_log_debug("dealing with new input stream '%s'", name);
 
-        if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
-            if (!(type = pa_classify_guess_stream_node_type(u, pl))) {
+        if ((type = get_stream_routing_class(pl)))
+            resdef = pa_utils_get_resource_properties(pl, &rdbuf);
+        else {
+            if (!(type = pa_classify_guess_stream_node_type(u, pl, &resdef))) {
                 pa_log_debug("cant find stream class for '%s'. "
                              "Leaving it alone", name);
                 return;
@@ -971,6 +983,11 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
                    __FILE__, node->amname);
             return;
         }
+
+        if (node->rsetid)
+            pa_murphyif_add_node(u, node);
+        else if (resdef)
+            pa_murphyif_create_resource_set(u, node, resdef);
 
         pa_discover_add_node_to_ptr_hash(u, sinp, node);
 
@@ -1045,18 +1062,19 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
 void pa_discover_register_source_output(struct userdata  *u,
                                         pa_source_output *sout)
 {
-    pa_core       *core;
-    pa_discover   *discover;
-    pa_proplist   *pl;
-    char          *name;
-    const char    *media;
-    mir_node_type  type;
-    mir_node       data;
-    mir_node      *node;
-    mir_node      *target;
-    char           key[256];
-    pa_source     *source;
-    const char    *role;
+    pa_core           *core;
+    pa_discover       *discover;
+    pa_proplist       *pl;
+    char              *name;
+    const char        *media;
+    mir_node_type      type;
+    mir_node           data;
+    mir_node          *node;
+    mir_node          *target;
+    char               key[256];
+    pa_source         *source;
+    const char        *role;
+    pa_nodeset_resdef *resdef;
 
     pa_assert(u);
     pa_assert(sout);
@@ -1075,7 +1093,7 @@ void pa_discover_register_source_output(struct userdata  *u,
 
     pa_log_debug("registering output stream '%s'", name);
 
-    if (!(type = pa_classify_guess_stream_node_type(u, pl))) {
+    if (!(type = pa_classify_guess_stream_node_type(u, pl, &resdef))) {
         pa_log_debug("cant find stream class for '%s'. "
                      "Leaving it alone", name);
         return;
@@ -1132,16 +1150,17 @@ void pa_discover_register_source_output(struct userdata  *u,
 void pa_discover_preroute_source_output(struct userdata *u,
                                         pa_source_output_new_data *data)
 {
-    pa_core       *core;
-    pa_module     *m;
-    pa_proplist   *pl;
-    pa_discover   *discover;
-    mir_node       fake;
-    pa_source     *source;
-    const char    *mnam;
-    const char    *role;
-    mir_node_type  type;
-    mir_node      *node;
+    pa_core           *core;
+    pa_module         *m;
+    pa_proplist       *pl;
+    pa_discover       *discover;
+    mir_node           fake;
+    pa_source         *source;
+    const char        *mnam;
+    const char        *role;
+    mir_node_type      type;
+    mir_node          *node;
+    pa_nodeset_resdef *resdef;
 
     pa_assert(u);
     pa_assert(data);
@@ -1165,8 +1184,15 @@ void pa_discover_preroute_source_output(struct userdata *u,
         }
 
         data->source = NULL;
+
+        type = pa_classify_guess_stream_node_type(u, pl, NULL);
     }
-    type = pa_classify_guess_stream_node_type(u, pl);
+    else {
+        type = pa_classify_guess_stream_node_type(u, pl, &resdef);
+
+        pa_utils_set_resource_properties(pl, resdef);
+    }
+
     pa_utils_set_stream_routing_properties(pl, type, data->source);
 
     if (!data->source) {
@@ -1199,24 +1225,28 @@ void pa_discover_preroute_source_output(struct userdata *u,
 
 void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
 {
-    pa_core        *core;
-    pa_source      *s;
-    pa_proplist    *pl;
-    pa_discover    *discover;
-    mir_node        data;
-    mir_node       *node;
-    mir_node       *snod;
-    char           *name;
-    const char     *media;
-    mir_node_type   type;
-    char            key[256];
-    pa_bool_t       created;
+    pa_core           *core;
+    pa_source         *s;
+    pa_proplist       *pl;
+    pa_discover       *discover;
+    mir_node           data;
+    mir_node          *node;
+    mir_node          *snod;
+    char              *name;
+    const char        *media;
+    mir_node_type      type;
+    char               key[256];
+    pa_bool_t          created;
+    pa_nodeset_resdef *resdef;
+    pa_nodeset_resdef  rdbuf;
 
     pa_assert(u);
     pa_assert(sout);
     pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
     pa_assert_se((pl = sout->proplist));
+
+    resdef = NULL;
 
     if (!(media = pa_proplist_gets(sout->proplist, PA_PROP_MEDIA_NAME)))
         media = "<unknown>";
@@ -1242,8 +1272,10 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
 
         pa_log_debug("dealing with new output stream '%s'", name);
 
-        if ((type = get_stream_routing_class(pl)) == mir_node_type_unknown) {
-            if (!(type = pa_classify_guess_stream_node_type(u, pl))) {
+        if ((type = get_stream_routing_class(pl)))
+            resdef = pa_utils_get_resource_properties(pl, &rdbuf);
+        else {
+            if (!(type = pa_classify_guess_stream_node_type(u, pl, &resdef))) {
                 pa_log_debug("cant find stream class for '%s'. "
                              "Leaving it alone", name);
                 return;
@@ -1283,6 +1315,11 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
                    __FILE__, node->amname);
             return;
         }
+
+        if (node->rsetid)
+            pa_murphyif_add_node(u, node);
+        else if (resdef)
+            pa_murphyif_create_resource_set(u, node, resdef);
 
         pa_discover_add_node_to_ptr_hash(u, sout, node);
     }
@@ -2151,23 +2188,14 @@ static pa_source *make_input_prerouting(struct userdata *u,
 
 static mir_node_type get_stream_routing_class(pa_proplist *pl)
 {
-    const char    *clid;
-    mir_node_type  type;
-    char          *e;
+    mir_node_type t;
 
     pa_assert(pl);
 
-    if ((clid = pa_proplist_gets(pl, PA_PROP_ROUTING_CLASS_ID))) {
-        type = strtol(clid, &e, 10);
+    t = pa_utils_get_stream_class(pl);
 
-        if (!*e) {
-            if (type >= mir_application_class_begin &&
-                type <  mir_application_class_end)
-            {
-                return type;
-            }
-        }
-    }
+    if (t >= mir_application_class_begin && t <  mir_application_class_end)
+        return t;
 
     return mir_node_type_unknown;
 }
