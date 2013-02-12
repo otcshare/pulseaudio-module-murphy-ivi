@@ -1161,7 +1161,7 @@ static void resource_set_notification(struct userdata *u,
                 if (grant)
                     req = PA_STREAM_RUN;
                 else
-                    req = /* node->localrset ? PA_STREAM_KILL : */ PA_STREAM_BLOCK;
+                    req = PA_STREAM_BLOCK;
             }
         }
 

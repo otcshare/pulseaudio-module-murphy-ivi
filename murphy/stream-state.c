@@ -95,6 +95,8 @@ static void sink_input_block(pa_sink_input *sinp, pa_bool_t block)
 
     pa_assert(sinp);
 
+    pa_sink_input_cork(sinp, block);
+
     if (sinp->send_event) {
         if (block)
             event = PA_STREAM_EVENT_REQUEST_CORK;
@@ -107,8 +109,6 @@ static void sink_input_block(pa_sink_input *sinp, pa_bool_t block)
 
         pa_proplist_free(pl);
     }
-
-    pa_sink_input_cork(sinp, block);
 }
 
 /*

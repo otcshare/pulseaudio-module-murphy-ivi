@@ -567,7 +567,7 @@ static int import_create(lua_State *L)
     if (scripting->configured)
         luaL_error(L, "refuse to import '%s' after configuration phase",table);
 
-    imp = (scripting_import *)mrp_lua_create_object(L, IMPORT_CLASS, table);
+    imp = (scripting_import *)mrp_lua_create_object(L, IMPORT_CLASS, table,0);
 
     imp->userdata = u;
     imp->table = pa_xstrdup(table);
@@ -1002,7 +1002,7 @@ scripting_node *pa_scripting_node_create(struct userdata *u, mir_node *node)
 
     make_id(id, sizeof(id), "%s_%d", node->amname, node->index);
 
-    if ((sn = (scripting_node *)mrp_lua_create_object(L, NODE_CLASS, id))) {
+    if ((sn = (scripting_node *)mrp_lua_create_object(L, NODE_CLASS, id,0))) {
         sn->userdata = u;
         sn->id = pa_xstrdup(id);
         sn->node = node;
@@ -1026,7 +1026,7 @@ void pa_scripting_node_destroy(struct userdata *u, mir_node *node)
     pa_assert_se((L = scripting->L));
 
     if ((sn = node->scripting)) {
-        mrp_lua_destroy_object(L, sn->id, sn);
+        mrp_lua_destroy_object(L, sn->id,0, sn);
         sn->node = NULL;
         node->scripting = NULL;
     }
@@ -1188,7 +1188,7 @@ static int resource_create(lua_State *L)
     }
 
     res = (scripting_resource *)mrp_lua_create_object(L, RTGROUP_CLASS,
-                                                      "definition");
+                                                      "definition",0);
 
     res->userdata = u;
     res->name = name;
@@ -1296,7 +1296,7 @@ static int rtgroup_create(lua_State *L)
 
     make_id(id,sizeof(id), "%s_%sput", name, (type == mir_input) ? "in":"out");
 
-    rtgs = (scripting_rtgroup *)mrp_lua_create_object(L, RTGROUP_CLASS, id);
+    rtgs = (scripting_rtgroup *)mrp_lua_create_object(L, RTGROUP_CLASS, id,0);
 
     rtg  = mir_router_create_rtgroup(u, type, pa_xstrdup(name),
                                      rtgroup_accept, rtgroup_compare);
@@ -1617,7 +1617,8 @@ static int apclass_create(lua_State *L)
                                                         mir_output,
                                                         route->output);
 
-    ac = (scripting_apclass *)mrp_lua_create_object(L,APPLICATION_CLASS,name);
+    ac = (scripting_apclass *)mrp_lua_create_object(L, APPLICATION_CLASS,
+                                                    name, 0);
 
     if (!ir || !or || !ac)
         luaL_error(L, "failed to create application class '%s'", name);
@@ -1922,7 +1923,7 @@ static int vollim_create(lua_State *L)
     make_id(id, sizeof(id), "%s", name);
 
     (VOLLIM_CLASS)->userdata_size = sizeof(scripting_vollim) + arglgh;
-    vlim = (scripting_vollim *)mrp_lua_create_object(L, VOLLIM_CLASS, id);
+    vlim = (scripting_vollim *)mrp_lua_create_object(L, VOLLIM_CLASS, id,0);
     (VOLLIM_CLASS)->userdata_size = sizeof(scripting_vollim);
 
     vlim->userdata = u;
