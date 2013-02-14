@@ -51,9 +51,8 @@ void pa_murphyif_create_resource_set(struct userdata *, mir_node *,
                                      pa_nodeset_resdef *);
 void pa_murphyif_destroy_resource_set(struct userdata *, mir_node *);
 
-int pa_murphyif_add_node(struct userdata *, mir_node *);
+int  pa_murphyif_add_node(struct userdata *, mir_node *);
 void pa_murphyif_delete_node(struct userdata *, mir_node *);
-mir_node *pa_murphyif_find_node(struct userdata *, const char *);
 
 
 #endif /* foomurphyiffoo */

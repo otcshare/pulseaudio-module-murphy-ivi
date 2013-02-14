@@ -50,6 +50,8 @@
 #define PA_ROUTING_DEFAULT             "default"
 #define PA_ROUTING_EXPLICIT            "explicit"
 
+#define PA_RESOURCE_SET_ID_PID         "pid"
+
 typedef enum   pa_value_type            pa_value_type;
 typedef struct pa_value                 pa_value;
 typedef struct pa_null_sink             pa_null_sink;

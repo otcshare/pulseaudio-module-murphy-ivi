@@ -135,7 +135,10 @@ typedef struct {
         uint32_t request;
         uint32_t reply;
     }                seqno;
-    pa_hashmap      *nodes;
+    struct {
+        pa_hashmap *rsetid;
+        pa_hashmap *pid;
+    }                nodes;
     PA_LLIST_HEAD(resource_attribute, attrs);
     PA_LLIST_HEAD(resource_request, reqs);
 #endif
@@ -148,9 +151,19 @@ struct pa_murphyif {
 #endif
     domctl_interface domctl;
     resource_interface resource;
-    pa_hashmap *nodes;
 };
 
+#ifdef WITH_RESOURCES
+typedef struct {
+    char     *pid;
+    mir_node *node;
+} pid_hash;
+#endif
+
+
+#ifdef WITH_RESOURCES
+static mir_node *find_node_by_rsetid(struct userdata *, const char *);
+#endif
 
 #ifdef WITH_DOMCTL
 static void domctl_connect_notify(mrp_domctl_t *,int,int,const char *,void *);
@@ -202,7 +215,15 @@ static void connect_attempt(pa_mainloop_api *, pa_time_event *,
                              const struct timeval *, void *);
 static void schedule_connect(struct userdata *, resource_interface *);
 static void cancel_schedule(struct userdata *, resource_interface *);
+
+static void pid_hashmap_free(void *, void *);
+static int pid_hashmap_put(struct userdata *, const char *, mir_node *);
+static mir_node *pid_hashmap_get(struct userdata *, const char *);
+static mir_node *pid_hashmap_remove(struct userdata *, const char *);
 #endif
+
+static pa_proplist *get_node_proplist(struct userdata *, mir_node *);
+static const char *get_node_pid(struct userdata *, mir_node *);
 
 
 pa_murphyif *pa_murphyif_init(struct userdata *u,
@@ -258,14 +279,14 @@ pa_murphyif *pa_murphyif_init(struct userdata *u,
     }    
 
     rif->seqno.request = 1;
-    rif->nodes = pa_hashmap_new(pa_idxset_trivial_hash_func,
-                                pa_idxset_trivial_compare_func);
+    rif->nodes.rsetid = pa_hashmap_new(pa_idxset_string_hash_func,
+                                       pa_idxset_string_compare_func);
+    rif->nodes.pid = pa_hashmap_new(pa_idxset_string_hash_func,
+                                    pa_idxset_string_compare_func);
     PA_LLIST_HEAD_INIT(resource_attribute, rif->attrs);
     PA_LLIST_HEAD_INIT(resource_request, rif->reqs);
 #endif
 
-    murphyif->nodes = pa_hashmap_new(pa_idxset_string_hash_func,
-                                     pa_idxset_string_compare_func);
     return murphyif;
 }
 
@@ -320,7 +341,8 @@ void pa_murphyif_done(struct userdata *u)
         resource_transport_destroy(murphyif);
 
         pa_xfree((void *)rif->atype);
-        pa_hashmap_free(rif->nodes, NULL, NULL);
+        pa_hashmap_free(rif->nodes.rsetid, NULL, NULL);
+        pa_hashmap_free(rif->nodes.pid, pid_hashmap_free, NULL);
 
         PA_LLIST_FOREACH_SAFE(attr, a, rif->attrs)
             resource_attribute_destroy(rif, attr);
@@ -332,8 +354,6 @@ void pa_murphyif_done(struct userdata *u)
         pa_xfree((void *)rif->inpres.name);
         pa_xfree((void *)rif->outres.name);
 #endif
-
-        pa_hashmap_free(murphyif->nodes, NULL, NULL);
 
         pa_xfree(murphyif);
     }
@@ -605,6 +625,8 @@ int pa_murphyif_add_node(struct userdata *u, mir_node *node)
 {
 #ifdef WITH_RESOURCES
     pa_murphyif *murphyif;
+    resource_interface *rif;
+    const char *pid;
 
     pa_assert(u);
     pa_assert(node);
@@ -612,12 +634,22 @@ int pa_murphyif_add_node(struct userdata *u, mir_node *node)
 
     pa_assert_se((murphyif = u->murphyif));
 
+    rif = &murphyif->resource;
+
     if (!node->rsetid) {
         pa_log("can't register resource set for node '%s'.: missing rsetid",
                node->amname);
     }
+    else if (pa_streq(node->rsetid, PA_RESOURCE_SET_ID_PID)) {
+        if ((pid = get_node_pid(u, node)) && pid_hashmap_put(u, pid,node) == 0)
+                return 0;
+        else {
+            pa_log("can't register resource set for node '%s': "
+                   "conflicting or unset pid", node->amname);
+        }
+    }
     else {
-        if (pa_hashmap_put(murphyif->nodes, node->rsetid, node) == 0)
+        if (pa_hashmap_put(rif->nodes.rsetid, node->rsetid, node) == 0)
             return 0;
         else {
             pa_log("can't register resource set for node '%s': conflicting "
@@ -635,6 +667,8 @@ void pa_murphyif_delete_node(struct userdata *u, mir_node *node)
 {
 #ifdef WITH_RESOURCES
     pa_murphyif *murphyif;
+    resource_interface *rif;
+    const char *pid;
     mir_node *deleted;
 
     pa_assert(u);
@@ -643,32 +677,43 @@ void pa_murphyif_delete_node(struct userdata *u, mir_node *node)
 
     pa_assert_se((murphyif = u->murphyif));
 
+    rif = &murphyif->resource;
+
     if (node->rsetid) {
-        deleted = pa_hashmap_remove(murphyif->nodes, node->rsetid);
-        pa_assert(deleted == node);
+        if (pa_streq(node->rsetid, PA_RESOURCE_SET_ID_PID)) {
+            if ((pid = get_node_pid(u, node))) {
+                deleted = pid_hashmap_remove(u, pid);
+                pa_assert(!deleted || deleted == node);
+            }
+        }
+        else {
+            deleted = pa_hashmap_remove(rif->nodes.rsetid, node->rsetid);
+            pa_assert(!deleted || deleted == node);
+        }
     }
 #endif
 }
 
-mir_node *pa_murphyif_find_node(struct userdata *u, const char *rsetid)
-{
 #ifdef WITH_RESOURCES
+static mir_node *find_node_by_rsetid(struct userdata *u, const char *rsetid)
+{
     pa_murphyif *murphyif;
+    resource_interface *rif;
     mir_node *node;
 
     pa_assert(u);
     pa_assert_se((murphyif = u->murphyif));
 
+    rif = &murphyif->resource;
+
     if (!rsetid)
         node = NULL;
     else
-        node = pa_hashmap_get(murphyif->nodes, rsetid);
+        node = pa_hashmap_get(rif->nodes.rsetid, rsetid);
 
     return node;
-#else
-    return NULL;
-#endif
 }
+#endif
 
 
 #ifdef WITH_DOMCTL
@@ -1076,6 +1121,8 @@ static void resource_set_notification(struct userdata *u,
                                       int nrow,
                                       mrp_domctl_value_t **values)
 {
+    pa_murphyif *murphyif;
+    resource_interface *rif;
     int r;
     mrp_domctl_value_t *row;
     mrp_domctl_value_t *crsetid;
@@ -1091,10 +1138,14 @@ static void resource_set_notification(struct userdata *u,
     const char *pid;
     const char *policy;
     mir_node *node;
+    pa_proplist *pl;
     int req;
 
     pa_assert(u);
     pa_assert(table);
+
+    pa_assert_se((murphyif = u->murphyif));
+    rif = &murphyif->resource;
 
     for (r = 0;  r < nrow;  r++) {
         row = values[r];
@@ -1118,20 +1169,48 @@ static void resource_set_notification(struct userdata *u,
             continue;
         }
 
-        snprintf(rsetid, sizeof(rsetid), "%d", crsetid->s32);
-
-        if (!(node = pa_murphyif_find_node(u, rsetid))) {
-            pa_log_debug("can't find node for resource set %s", rsetid);
-            continue;
-        }
-
-        pa_assert(node->implement == mir_stream);
-
         autorel = cautorel->s32;
         state   = cstate->s32;
         grant   = cgrant->s32;
         pid     = cpid->str;
         policy  = cpolicy->str;
+
+        snprintf(rsetid, sizeof(rsetid), "%d", crsetid->s32);
+
+        if ((node = find_node_by_rsetid(u, rsetid)))
+            pa_assert(node->implement == mir_stream);
+        else {
+            if (!pid || !(node = pid_hashmap_remove(u, pid))) {
+                pa_log_debug("can't find node for resource set %s (pid %s)",
+                             rsetid, pid);
+                continue;
+            }
+
+            pa_assert(node->implement == mir_stream);
+            pa_assert(node->direction == mir_input ||
+                      node->direction == mir_output);
+
+            pa_log_debug("setting rsetid %s for node %s", rsetid,node->amname);
+
+            pa_xfree(node->rsetid);
+            node->rsetid = pa_xstrdup(rsetid);
+
+            if (!(pl = get_node_proplist(u, node))) {
+                pa_log("can't obtain property list for node %s", node->amname);
+                continue;
+            }
+
+            if ((pa_proplist_sets(pl, PA_PROP_RESOURCE_SET_ID, rsetid) < 0)) {
+                pa_log("failed to set '" PA_PROP_RESOURCE_SET_ID "' property "
+                       "of '%s' node", node->amname);
+                continue;
+            }
+
+            if (pa_hashmap_put(rif->nodes.rsetid, node->rsetid, node) < 0) {
+                pa_log("conflicting rsetid %s for %s", rsetid, node->amname);
+                continue;
+            }
+        }
 
         if (autorel != 0 && autorel != 1) {
             pa_log_debug("invalid autorel %d in table '%s'", autorel, table);
@@ -1629,7 +1708,120 @@ static void cancel_schedule(struct userdata *u, resource_interface *rif)
     }
 }
 
+static void pid_hashmap_free(void *p, void *userdata)
+{
+    pid_hash *ph = (pid_hash *)p;
+
+    (void)userdata;
+
+    if (ph) {
+        pa_xfree((void *)ph->pid);
+        pa_xfree(ph);
+    }
+}
+
+static int pid_hashmap_put(struct userdata *u, const char *pid, mir_node *node)
+{
+    pa_murphyif *murphyif;
+    resource_interface *rif;
+    pid_hash *ph;
+
+    pa_assert(u);
+    pa_assert(pid);
+    pa_assert(node);
+    pa_assert_se((murphyif = u->murphyif));
+    
+    rif = &murphyif->resource;
+
+    ph = pa_xnew0(pid_hash, 1);
+    ph->pid = pa_xstrdup(pid);
+    ph->node = node;
+
+    if (pa_hashmap_put(rif->nodes.pid, ph->pid, ph) == 0)
+        return 0;
+    else
+        pid_hashmap_free(ph, NULL);
+
+    return -1;
+}
+
+static mir_node *pid_hashmap_get(struct userdata *u, const char *pid)
+{
+    pa_murphyif *murphyif;
+    resource_interface *rif;
+    pid_hash *ph;
+
+    pa_assert(u);
+    pa_assert(pid);
+    pa_assert(murphyif = u->murphyif);
+    
+    rif = &murphyif->resource;
+
+    if ((ph = pa_hashmap_get(rif->nodes.pid, pid)))
+        return ph->node;
+
+    return NULL;
+}
+
+static mir_node *pid_hashmap_remove(struct userdata *u, const char *pid)
+{
+    pa_murphyif *murphyif;
+    resource_interface *rif;
+    mir_node *node;
+    pid_hash *ph;
+
+    pa_assert(u);
+    pa_assert_se((murphyif = u->murphyif));
+
+    rif = &murphyif->resource;
+
+    if (!(ph = pa_hashmap_remove(rif->nodes.pid, pid)))
+        node = NULL;
+    else {
+        node = ph->node;
+        pid_hashmap_free(ph, NULL);
+    }
+
+    return node;
+}
+
 #endif
+
+static pa_proplist *get_node_proplist(struct userdata *u, mir_node *node)
+{
+    pa_core *core;
+    pa_sink_input *i;
+    pa_source_output *o;
+
+    pa_assert(u);
+    pa_assert(node);
+    pa_assert_se((core = u->core));
+    
+    if (node->implement == mir_stream && node->paidx != PA_IDXSET_INVALID) {
+        if (node->direction == mir_input) {
+            if ((i = pa_idxset_get_by_index(core->sink_inputs, node->paidx)))
+                return i->proplist;
+        }
+        else if (node->direction == mir_output) {
+            if ((o = pa_idxset_get_by_index(core->source_outputs,node->paidx)))
+                return o->proplist;
+        }
+    }
+
+    return NULL;
+}
+
+static const char *get_node_pid(struct userdata *u, mir_node *node)
+{
+    pa_proplist *pl;
+
+    pa_assert(u);
+ 
+    if (node && (pl = get_node_proplist(u, node)))
+        return pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_ID);
+
+    return NULL;
+}
 
 /*
  * Local Variables:
