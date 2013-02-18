@@ -86,8 +86,8 @@ application_class {
     route = {
         output = routing_group.default_output
     },
-    roles = { music = {1, "mandatory", "exclusive"},
-              video = {1, "mandatory", "exclusive"},
+    roles = { music = {0, "mandatory", "exclusive"},
+              video = {0, "mandatory", "exclusive"},
 	      test  = {0, "mandatory", "exclusive"}
     }
 }

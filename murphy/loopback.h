@@ -27,6 +27,12 @@
 
 typedef struct pa_loopnode pa_loopnode;
 
+typedef enum {
+    PA_LOOPBACK_TYPE_UNKNOWN = 0,
+    PA_LOOPBACK_SOURCE,
+    PA_LOOPBACK_SINK,
+} pa_loopback_type;
+
 typedef struct pa_loopback {
     PA_LLIST_HEAD(pa_loopnode, loopnodes);
 } pa_loopback;
@@ -44,8 +50,9 @@ pa_loopback *pa_loopback_init(void);
 
 void pa_loopback_done(pa_loopback *, pa_core *);
 
-pa_loopnode *pa_loopback_create(pa_loopback *, pa_core *, uint32_t, uint32_t,
-                                uint32_t, const char *);
+pa_loopnode *pa_loopback_create(pa_loopback *, pa_core *, pa_loopback_type,
+                                uint32_t, uint32_t, uint32_t, const char *,
+                                uint32_t, uint32_t, uint32_t);
 void pa_loopback_destroy(pa_loopback *, pa_core *, pa_loopnode *);
 
 uint32_t pa_loopback_get_sink_index(pa_core *, pa_loopnode *);

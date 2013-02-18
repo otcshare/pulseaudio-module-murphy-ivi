@@ -28,6 +28,7 @@
 
 #include "stream-state.h"
 #include "node.h"
+#include "loopback.h"
 
 static void sink_input_block(pa_sink_input *, pa_bool_t);
 
@@ -45,45 +46,84 @@ pa_bool_t pa_stream_state_start_corked(struct userdata *u,
 
 void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
 {
+    pa_loopnode *loop;
+    uint32_t idx;
     pa_sink_input *sinp;
     pa_source_output *sout;
     pa_core *core;
 
     pa_assert(u);
     pa_assert(node);
-    pa_assert(node->implement == mir_stream);
-    pa_assert(node->direction == mir_input || node->direction == mir_output);
 
     pa_assert_se((core = u->core));
 
-    if (node->direction == mir_input) {
-        sinp = pa_idxset_get_by_index(core->sink_inputs, node->paidx);
-        pa_assert(sinp);
+    loop = node->loop;
 
-        switch (req) {
-        case PA_STREAM_BLOCK:
-            pa_log("blocking '%s'", node->amname);
-            sink_input_block(sinp, TRUE);
-            break;
+    pa_assert((!loop && node->implement == mir_stream) ||
+              ( loop && node->implement == mir_device)   );
+    pa_assert(node->direction == mir_input || node->direction == mir_output);
 
-        case PA_STREAM_KILL:
-            pa_log("killing '%s'", node->amname);
-            sinp->kill(sinp);
-            break;
+    if (loop) {
+        if (node->direction == mir_input) {
+            sinp = pa_idxset_get_by_index(core->sink_inputs,
+                                          loop->sink_input_index);
+            pa_assert(sinp);
 
-        case PA_STREAM_RUN:
-            pa_log("unblock '%s'", node->amname);
-            sink_input_block(sinp, FALSE);
-            break;
-
-        default:
-            pa_assert_not_reached();
-            break;
+            switch (req) {
+            case PA_STREAM_KILL:
+            case PA_STREAM_BLOCK:
+                pa_log("mute '%s'", node->amname);
+                pa_sink_input_set_mute(sinp, TRUE, FALSE);
+                break;
+                
+            case PA_STREAM_RUN:
+                pa_log("unmute '%s'", node->amname);
+                pa_sink_input_set_mute(sinp, FALSE, FALSE);
+                break;
+                
+            default:
+                pa_assert_not_reached();
+                break;
+            }
+        }
+        else {
+            pa_log("no enforcement for loopback on '%s'", node->amname);
+            sout = pa_idxset_get_by_index(core->source_outputs,
+                                          loop->source_output_index);
+            pa_assert(sout);
         }
     }
     else {
-        sinp = pa_idxset_get_by_index(core->source_outputs, node->paidx);
-        pa_assert(sinp);
+        if (node->direction == mir_input) {
+            sinp = pa_idxset_get_by_index(core->sink_inputs, node->paidx);
+            pa_assert(sinp);
+
+            switch (req) {
+            case PA_STREAM_KILL:
+                pa_log("killing '%s'", node->amname);
+                sinp->kill(sinp);
+                break;
+                
+            case PA_STREAM_BLOCK:
+                pa_log("blocking '%s'", node->amname);
+                sink_input_block(sinp, TRUE);
+                break;
+                
+            case PA_STREAM_RUN:
+                pa_log("unblock '%s'", node->amname);
+                sink_input_block(sinp, FALSE);
+                break;
+                
+            default:
+                pa_assert_not_reached();
+                break;
+            }
+        }
+        else {
+            pa_log("no enforcement for stream '%s'", node->amname);
+            sout = pa_idxset_get_by_index(core->source_outputs, node->paidx);
+            pa_assert(sout);
+        }
     }
 }
 

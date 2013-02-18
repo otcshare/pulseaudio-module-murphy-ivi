@@ -63,25 +63,31 @@ void pa_loopback_done(pa_loopback *loopback, pa_core *core)
 
 
 
-pa_loopnode *pa_loopback_create(pa_loopback   *loopback,
-                                pa_core       *core,
-                                uint32_t       node_index,
-                                uint32_t       source_index,
-                                uint32_t       sink_index,
-                                const char    *media_role)
+pa_loopnode *pa_loopback_create(pa_loopback      *loopback,
+                                pa_core          *core,
+                                pa_loopback_type  type,
+                                uint32_t          node_index,
+                                uint32_t          source_index,
+                                uint32_t          sink_index,
+                                const char       *media_role,
+                                uint32_t          resource_priority,
+                                uint32_t          resource_set_flags,
+                                uint32_t          resource_audio_flags)
 {
     static char *modnam = "module-loopback";
 
-    pa_loopnode      *loop;
-    pa_source        *source;
-    pa_sink          *sink;
-    pa_module        *module;
-    pa_sink_input    *sink_input;
-    pa_source_output *source_output;
-    char              args[512];
-    uint32_t          idx;
+    pa_loopnode       *loop;
+    pa_source         *source;
+    pa_sink           *sink;
+    pa_module         *module;
+    pa_sink_input     *sink_input;
+    pa_source_output  *source_output;
+    char               args[512];
+    uint32_t           idx;
 
     pa_assert(core);
+    pa_assert(media_role);
+    pa_assert(type == PA_LOOPBACK_SOURCE || type == PA_LOOPBACK_SINK);
 
     if (!(source = pa_idxset_get_by_index(core->sources, source_index))) {
         pa_log_debug("can't find source (index %u) for loopback",source_index);
@@ -93,20 +99,38 @@ pa_loopnode *pa_loopback_create(pa_loopback   *loopback,
                      sink_index);
         return NULL;
     }
+            
 
-    if (!media_role)
-        media_role = "music";
-
-    snprintf(args, sizeof(args), "source=\"%s\" sink=\"%s\" "
-             "latency_msec=%d "
-             "sink_input_properties=\"%s=%s %s=%u\" "
-             "source_output_properties=\"%s=%s %s=%u\"",
-             source->name, sink->name,
-             get_latency(media_role),
-             PA_PROP_MEDIA_ROLE, media_role,
-             PA_PROP_NODE_INDEX, node_index,
-             PA_PROP_MEDIA_ROLE, media_role,
-             PA_PROP_NODE_INDEX, node_index);
+    if (type == PA_LOOPBACK_SOURCE) {
+        snprintf(args, sizeof(args), "source=\"%s\" sink=\"%s\" "
+                 "latency_msec=%d "
+                 "sink_input_properties=\"%s=%s %s=%u %s=%u %s=%u %s=%u\" "
+                 "source_output_properties=\"%s=%s %s=%u\"",
+                 source->name, sink->name,
+                 get_latency(media_role),
+                 PA_PROP_MEDIA_ROLE, media_role,
+                 PA_PROP_NODE_INDEX, node_index,
+                 PA_PROP_RESOURCE_PRIORITY, resource_priority,
+                 PA_PROP_RESOURCE_SET_FLAGS, resource_set_flags, 
+                 PA_PROP_RESOURCE_AUDIO_FLAGS, resource_audio_flags,
+                 PA_PROP_MEDIA_ROLE, media_role,
+                 PA_PROP_NODE_INDEX, node_index);
+    }
+    else {
+        snprintf(args, sizeof(args), "source=\"%s\" sink=\"%s\" "
+                 "latency_msec=%d "
+                 "sink_input_properties=\"%s=%s %s=%u\" "
+                 "source_output_properties=\"%s=%s %s=%u %s=%u %s=%u %s=%u\"",
+                 source->name, sink->name,
+                 get_latency(media_role),
+                 PA_PROP_MEDIA_ROLE, media_role,
+                 PA_PROP_NODE_INDEX, node_index,
+                 PA_PROP_MEDIA_ROLE, media_role,
+                 PA_PROP_NODE_INDEX, node_index,
+                 PA_PROP_RESOURCE_PRIORITY, resource_priority,
+                 PA_PROP_RESOURCE_SET_FLAGS, resource_set_flags, 
+                 PA_PROP_RESOURCE_AUDIO_FLAGS, resource_audio_flags);
+    }
 
     pa_log_debug("loading %s %s", modnam, args);
 

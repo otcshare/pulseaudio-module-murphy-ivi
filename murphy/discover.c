@@ -421,18 +421,24 @@ void pa_discover_port_available_changed(struct userdata *u,
 
 void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
 {
-    pa_core        *core;
-    pa_discover    *discover;
-    pa_module      *module;
-    mir_node       *node;
-    pa_card        *card;
-    char           *key;
-    char            kbf[256];
-    char            nbf[2048];
-    const char     *loopback_role;
-    pa_source      *ns;
-    mir_node        data;
-    mir_node_type   type;
+    static pa_nodeset_resdef def_resdef = {0, {0, 0}};
+
+    pa_core           *core;
+    pa_discover       *discover;
+    pa_module         *module;
+    mir_node          *node;
+    pa_card           *card;
+    char              *key;
+    char               kbf[256];
+    char               nbf[2048];
+    const char        *loopback_role;
+    pa_nodeset_map    *map;
+    pa_nodeset_resdef *resdef;
+    pa_bool_t          make_rset;
+    pa_nodeset_resdef  rdbuf;
+    pa_source         *ns;
+    mir_node           data;
+    mir_node_type      type;
 
     pa_assert(u);
     pa_assert(sink);
@@ -462,12 +468,24 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
                 pa_log("Can't load loopback module: no initial null source");
                 return;
             }
-            node->loop = pa_loopback_create(u->loopback, core, node->index,
+
+            map = pa_nodeset_get_map_by_role(u, loopback_role);
+            make_rset = (map && map->resdef);
+            resdef = make_rset ? map->resdef : &def_resdef;
+
+            node->loop = pa_loopback_create(u->loopback, core,
+                                            PA_LOOPBACK_SINK, node->index,
                                             ns->index, sink->index,
-                                            loopback_role);
+                                            loopback_role,
+                                            resdef->priority,
+                                            resdef->flags.rset,
+                                            resdef->flags.audio);
 
             mir_node_print(node, nbf, sizeof(nbf));
             pa_log_debug("updated node:\n%s", nbf);
+
+            if (make_rset)
+                pa_murphyif_create_resource_set(u, node, resdef);
         }
 
         if (route) {
@@ -533,6 +551,7 @@ void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
         pa_log_debug("can't find node for sink (name '%s')", name);
     else {
         pa_log_debug("node found for '%s'. Reseting sink data", name);
+        pa_murphyif_destroy_resource_set(u, node);
         schedule_source_cleanup(u, node);
         node->paidx = PA_IDXSET_INVALID;
         pa_hashmap_remove(discover->nodes.byptr, sink);
@@ -556,17 +575,22 @@ void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
 
 void pa_discover_add_source(struct userdata *u, pa_source *source)
 {
-    pa_core        *core;
-    pa_discover    *discover;
-    mir_node       *node;
-    pa_card        *card;
-    char           *key;
-    char            kbf[256];
-    char            nbf[2048];
-    const char     *loopback_role;
-    uint32_t        sink_index;
-    pa_sink        *ns;
-    mir_node        data;
+    static pa_nodeset_resdef def_resdef = {0, {0, 0}};
+
+    pa_core           *core;
+    pa_discover       *discover;
+    mir_node          *node;
+    pa_card           *card;
+    char              *key;
+    char               kbf[256];
+    char               nbf[2048];
+    const char        *loopback_role;
+    pa_nodeset_map    *map;
+    pa_nodeset_resdef *resdef;
+    pa_bool_t          make_rset;
+    uint32_t           sink_index;
+    pa_sink           *ns;
+    mir_node           data;
 
     pa_assert(u);
     pa_assert(source);
@@ -593,9 +617,18 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
                 pa_log("Can't load loopback module: no initial null sink");
                 return;
             }
-            node->loop = pa_loopback_create(u->loopback, core, node->index,
+
+            map = pa_nodeset_get_map_by_role(u, loopback_role);
+            make_rset = (map && map->resdef);
+            resdef = make_rset ? map->resdef : &def_resdef;
+
+            node->loop = pa_loopback_create(u->loopback, core,
+                                            PA_LOOPBACK_SOURCE, node->index,
                                             source->index, ns->index,
-                                            loopback_role);
+                                            loopback_role,
+                                            resdef->priority,
+                                            resdef->flags.rset,
+                                            resdef->flags.audio);
             if (node->loop) {
                 sink_index = pa_loopback_get_sink_index(core, node->loop);
                 node->mux = pa_multiplex_find_by_sink(u->multiplex,sink_index);
@@ -603,6 +636,9 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
 
             mir_node_print(node, nbf, sizeof(nbf));
             pa_log_debug("updated node:\n%s", nbf);
+
+            if (make_rset)
+                pa_murphyif_create_resource_set(u, node, resdef);
         }
     }
     else {
@@ -656,6 +692,7 @@ void pa_discover_remove_source(struct userdata *u, pa_source *source)
         pa_log_debug("can't find node for source (name '%s')", name);
     else {
         pa_log_debug("node found. Reseting source data");
+        pa_murphyif_destroy_resource_set(u, node);
         schedule_source_cleanup(u, node);
         node->paidx = PA_IDXSET_INVALID;
         pa_hashmap_remove(discover->nodes.byptr, source);

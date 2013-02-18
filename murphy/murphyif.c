@@ -54,6 +54,7 @@
 #include "murphyif.h"
 #include "node.h"
 #include "stream-state.h"
+#include "utils.h"
 
 #ifdef WITH_RESOURCES
 #define INVALID_ID      (~(uint32_t)0)
@@ -572,18 +573,17 @@ void pa_murphyif_create_resource_set(struct userdata *u,
     pa_core *core;
     pa_murphyif *murphyif;
     resource_interface *rif;
-    const char *class;
     int state;
 
     pa_assert(u);
     pa_assert(node);
-    pa_assert(node->implement == mir_stream);
+    pa_assert((!node->loop && node->implement == mir_stream) ||
+              ( node->loop && node->implement == mir_device)   );
     pa_assert(node->direction == mir_input || node->direction == mir_output);
     pa_assert(node->zone);
     pa_assert(!node->rsetid);
 
     pa_assert_se((core = u->core));
-    pa_assert_se((class = pa_nodeset_get_class(u, node->type)));
 
     pa_assert_se((murphyif = u->murphyif));
     rif = &murphyif->resource;
@@ -651,7 +651,6 @@ int pa_murphyif_add_node(struct userdata *u, mir_node *node)
 
     pa_assert(u);
     pa_assert(node);
-    pa_assert(node->implement == mir_stream);
 
     pa_assert_se((murphyif = u->murphyif));
 
@@ -714,7 +713,6 @@ void pa_murphyif_delete_node(struct userdata *u, mir_node *node)
 
     pa_assert(u);
     pa_assert(node);
-    pa_assert(node->implement == mir_stream);
 
     pa_assert_se((murphyif = u->murphyif));
 
@@ -988,11 +986,15 @@ static pa_bool_t resource_set_create_node(struct userdata *u,
     uint16_t reqid;
     uint32_t seqno;
     uint32_t rset_flags;
+    const char *role;
+    pa_nodeset_map *map;
     const char *class;
+    pa_loopnode *loop;
     pa_sink_input *sinp;
     pa_source_output *sout;
     audio_resource_t *res;
     const char *resnam;
+    mir_node_type type = 0;
     uint32_t audio_flags = 0;
     uint32_t priority;
     pa_proplist *proplist = NULL;
@@ -1001,23 +1003,45 @@ static pa_bool_t resource_set_create_node(struct userdata *u,
     pa_assert(u);
     pa_assert(node);
     pa_assert(node->index != PA_IDXSET_INVALID);
-    pa_assert(node->implement == mir_stream);
+    pa_assert((!node->loop && node->implement == mir_stream) ||
+              ( node->loop && node->implement == mir_device)   );
     pa_assert(node->direction == mir_input || node->direction == mir_output);
     pa_assert(node->zone);
     pa_assert(!node->rsetid);
 
     pa_assert_se((core = u->core));
-    pa_assert_se((class = pa_nodeset_get_class(u, node->type)));
 
-    if (node->direction == mir_output) {
-        if ((sout = pa_idxset_get_by_index(core->source_outputs, node->paidx)))
-            proplist = sout->proplist;
+    if ((loop = node->loop)) {
+        if (node->direction == mir_input) {
+            sout = pa_idxset_get_by_index(core->source_outputs,
+                                          loop->source_output_index);
+            if (sout)
+                proplist = sout->proplist;
+        }
+        else {
+            sinp = pa_idxset_get_by_index(core->sink_inputs,
+                                          loop->sink_input_index);
+            if (sinp)
+                proplist = sinp->proplist;
+        }
+        if (proplist && (role = pa_proplist_gets(proplist, PA_PROP_MEDIA_ROLE))) {
+            if ((map = pa_nodeset_get_map_by_role(u, role)))
+                type = map->type;
+        }
     }
     else {
-        if ((sinp = pa_idxset_get_by_index(core->sink_inputs, node->paidx)))
-            proplist = sinp->proplist;
+        if (node->direction == mir_output) {
+            if ((sout = pa_idxset_get_by_index(core->source_outputs, node->paidx)))
+                proplist = sout->proplist;
+        }
+        else {
+            if ((sinp = pa_idxset_get_by_index(core->sink_inputs, node->paidx)))
+                proplist = sinp->proplist;
+        }
+        type = node->type;
     }
 
+    pa_assert_se((class = pa_nodeset_get_class(u, type)));
     pa_assert_se((murphyif = u->murphyif));
     rif = &murphyif->resource;
 
@@ -1076,9 +1100,13 @@ static pa_bool_t resource_set_create_all(struct userdata *u)
     idx = PA_IDXSET_INVALID;
 
     while ((node = pa_nodeset_iterate_nodes(u, &idx))) {
-        if (node->implement == mir_stream && !node->rsetid) {
-            node->localrset = resource_set_create_node(u, node, NULL, FALSE);
-            success &= node->localrset;
+        if ((node->implement == mir_stream && !node->loop) ||
+            (node->implement == mir_device &&  node->loop)   )
+        {
+            if (!node->rsetid) {
+                node->localrset = resource_set_create_node(u, node, NULL, FALSE);
+                success &= node->localrset;
+            }
         }
     }
 
@@ -1229,9 +1257,7 @@ static void resource_set_notification(struct userdata *u,
             continue;
         }
 
-        if ((node = find_node_by_rsetid(u, rset.id)))
-            pa_assert(node->implement == mir_stream);
-        else {
+        if (!(node = find_node_by_rsetid(u, rset.id))) {
             if (!pid) {
                 pa_log_debug("can't find node for resource set %s "
                              "(pid in resource set unknown)", rset.id);
@@ -1789,8 +1815,10 @@ static void node_enforce_resource_policy(struct userdata *u,
 {
     int req;
 
+    pa_assert(node);
     pa_assert(rset);
     pa_assert(rset->policy);
+    
 
     if (pa_streq(rset->policy, "relaxed"))
         req = PA_STREAM_RUN;
