@@ -25,10 +25,16 @@
 #include <pulsecore/pulsecore-config.h>
 #include <pulsecore/sink-input.h>
 #include <pulsecore/source-output.h>
+#include <pulsecore/core-util.h>
 
 #include "stream-state.h"
 #include "node.h"
 #include "loopback.h"
+
+static const char *scache_driver = "play-memblockq.c";
+static pa_sink_input_flags_t flag_mask = PA_SINK_INPUT_NO_CREATE_ON_SUSPEND |
+                                         PA_SINK_INPUT_KILL_ON_SUSPEND;
+
 
 static void sink_input_block(pa_sink_input *, pa_bool_t);
 
@@ -37,7 +43,13 @@ pa_bool_t pa_stream_state_start_corked(struct userdata *u,
                                        pa_nodeset_resdef *resdef)
 {
     if (resdef) {
+        if (pa_streq(data->driver, scache_driver)) {
+            pa_assert((data->flags & flag_mask) == flag_mask);
+        }
+
+        data->flags &= ~flag_mask;
         data->flags |= PA_SINK_INPUT_START_CORKED;
+
         return TRUE;
     }
 
@@ -135,7 +147,14 @@ static void sink_input_block(pa_sink_input *sinp, pa_bool_t block)
 
     pa_assert(sinp);
 
-    pa_sink_input_cork(sinp, block);
+    if (sinp->driver && pa_streq(sinp->driver, scache_driver)) {
+        if (block)
+            sinp->flags &= ~flag_mask;
+        else
+            sinp->flags |= flag_mask;
+    }
+
+    pa_sink_input_cork_internal(sinp, block);
 
     if (sinp->send_event) {
         if (block)
