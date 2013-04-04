@@ -730,7 +730,7 @@ static void import_data_changed(struct userdata *u,
 
     pa_assert(u);
     pa_assert(table);
-    pa_assert(mval);
+    pa_assert(mval || nrow == 0);
     pa_assert_se((scripting = u->scripting));
     pa_assert_se((L = scripting->L));
 
