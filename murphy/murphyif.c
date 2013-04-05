@@ -616,6 +616,9 @@ void pa_murphyif_destroy_resource_set(struct userdata *u, mir_node *node)
     pa_assert_se((murphyif = u->murphyif));
 
     if (node->localrset && node->rsetid) {
+
+        pa_murphyif_delete_node(u, node);
+
         rsetid = strtoul(node->rsetid, &e, 10);
 
         if (e == node->rsetid || *e) {
@@ -635,8 +638,6 @@ void pa_murphyif_destroy_resource_set(struct userdata *u, mir_node *node)
             node->localrset = FALSE;
             node->rsetid = NULL;
         }
-
-        pa_murphyif_delete_node(u, node);
     }
 }
 
@@ -721,8 +722,13 @@ void pa_murphyif_delete_node(struct userdata *u, mir_node *node)
     if (node->rsetid) {
         if (pa_streq(node->rsetid, PA_RESOURCE_SET_ID_PID)) {
             if ((pid = get_node_pid(u, node))) {
-                deleted = pid_hashmap_remove_node(u, pid);
-                pa_assert(!deleted || deleted == node);
+                if (node == pid_hashmap_get_node(u, pid))
+                    pid_hashmap_remove_node(u, pid);
+                else {
+                    pa_log("pid %s seems to have multiple resource sets. "
+                           "Refuse to delete node %u (%s) from hashmap",
+                           pid, node->index, node->amname);
+                }
             }
         }
         else {
