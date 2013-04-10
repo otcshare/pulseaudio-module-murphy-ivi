@@ -330,7 +330,6 @@ void pa_murphyif_done(struct userdata *u)
         dif = &murphyif->domctl;
 
         mrp_domctl_destroy(dif->ctl);
-        mrp_mainloop_destroy(murphyif->ml);
 
         if (dif->ntable > 0 && dif->tables) {
             for (i = 0;  i < dif->ntable;  i++) {
@@ -360,7 +359,6 @@ void pa_murphyif_done(struct userdata *u)
 
         resource_transport_destroy(murphyif);
 
-        pa_xfree((void *)rif->atype);
         pa_hashmap_free(rif->nodes.rsetid, NULL, NULL);
         pa_hashmap_free(rif->nodes.pid, pid_hashmap_free, NULL);
 
@@ -374,6 +372,7 @@ void pa_murphyif_done(struct userdata *u)
         pa_xfree((void *)rif->inpres.name);
         pa_xfree((void *)rif->outres.name);
 #endif
+        mrp_mainloop_destroy(murphyif->ml);
 
         pa_xfree(murphyif);
     }
