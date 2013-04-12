@@ -177,7 +177,7 @@ pa_muxnode *pa_multiplex_find_by_module(pa_multiplex *multiplex,
         module_index = module->index;
 
         PA_LLIST_FOREACH(mux, multiplex->muxnodes) {
-            if (module_index == mux->module_index)
+            if (mux->module_index != PA_IDXSET_INVALID && module_index == mux->module_index)
                 return mux;
         }
     }

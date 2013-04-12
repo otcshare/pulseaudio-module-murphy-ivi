@@ -704,15 +704,18 @@ static void rtgroup_update_module_property(struct userdata *u,
     pa_module *module;
     char       key[64];
     char       value[512];
+    int        ret;
 
     pa_assert(u);
     pa_assert(rtg);
+    pa_assert(rtg->name);
     pa_assert_se((module = u->module));
 
     snprintf(key, sizeof(key), PA_PROP_ROUTING_TABLE ".%s.%s",
              mir_direction_str(type), rtg->name);
-    rtgroup_print(rtg, value, sizeof(value));
+    ret = rtgroup_print(rtg, value, sizeof(value));
 
+    pa_assert(ret != 0);
     pa_proplist_sets(module->proplist, key, value+1); /* skip ' '@beginning */
 }
 
