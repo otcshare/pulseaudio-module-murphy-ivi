@@ -328,7 +328,6 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     }
 
     mir_router_register_node(u, node);
-    
 
     return node;
 }
