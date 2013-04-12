@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <string.h>
+#include <alloca.h>
 #include <errno.h>
 
 #include <pulse/utf8.h>
@@ -168,12 +169,15 @@ typedef struct {
     mir_node   *node;
     rset_data  *rset;
 } pid_hash;
+
+typedef struct {
+    size_t      nnode;
+    mir_node  **nodes;
+    rset_data  *rset;
+} rset_hash;
+
 #endif
 
-
-#ifdef WITH_RESOURCES
-static mir_node *find_node_by_rsetid(struct userdata *, const char *);
-#endif
 
 #ifdef WITH_DOMCTL
 static void domctl_connect_notify(mrp_domctl_t *,int,int,const char *,void *);
@@ -231,6 +235,7 @@ static void node_enforce_resource_policy(struct userdata *, mir_node *,
                                          rset_data *);
 static rset_data *rset_data_dup(rset_data *);
 static void rset_data_copy(rset_data *, rset_data *);
+static void rset_data_update(rset_data *, rset_data *);
 static void rset_data_free(rset_data *);
 
 static void        pid_hashmap_free(void *, void *);
@@ -240,6 +245,12 @@ static mir_node   *pid_hashmap_get_node(struct userdata *, const char *);
 static rset_data  *pid_hashmap_get_rset(struct userdata *, const char *);
 static mir_node   *pid_hashmap_remove_node(struct userdata *, const char *);
 static rset_data  *pid_hashmap_remove_rset(struct userdata *, const char *);
+
+static void       rset_hashmap_free(void *, void *);
+static rset_hash *rset_hashmap_put(struct userdata *, const char *, mir_node *);
+static rset_hash *rset_hashmap_get(struct userdata *u, const char *rsetid);
+static int        rset_hashmap_remove(struct userdata *,const char *,mir_node*);
+
 #endif
 
 static pa_proplist *get_node_proplist(struct userdata *, mir_node *);
@@ -361,7 +372,7 @@ void pa_murphyif_done(struct userdata *u)
         resource_transport_destroy(murphyif);
 
         pa_xfree((void *)rif->atype);
-        pa_hashmap_free(rif->nodes.rsetid, NULL, NULL);
+        pa_hashmap_free(rif->nodes.rsetid, rset_hashmap_free, NULL);
         pa_hashmap_free(rif->nodes.pid, pid_hashmap_free, NULL);
 
         PA_LLIST_FOREACH_SAFE(attr, a, rif->attrs)
@@ -648,6 +659,7 @@ int pa_murphyif_add_node(struct userdata *u, mir_node *node)
     resource_interface *rif;
     const char *pid;
     rset_data *rset;
+    rset_hash *rh;
     char buf[64];
 
     pa_assert(u);
@@ -690,12 +702,18 @@ int pa_murphyif_add_node(struct userdata *u, mir_node *node)
         }
     }
     else {
-        if (pa_hashmap_put(rif->nodes.rsetid, node->rsetid, node) == 0)
+        if ((rh = rset_hashmap_put(u, node->rsetid, node))) {
+            rset = rh->rset;
+
+            pa_log_debug("enforce policies on node '%s' rsetid:%s autorel:%s "
+                         "state:%s grant:%s policy:%s", node->amname,
+                         rset->id, rset->autorel ? "yes":"no",
+                         rset->state == RSET_ACQUIRE ? "acquire":"release",
+                         rset->grant ? "yes":"no", rset->policy);
+
+            node_enforce_resource_policy(u, node, rset);
             return 0;
-        else {
-            pa_log("can't register resource set for node '%s': conflicting "
-                   "resource id '%s'", node->amname, node->rsetid);
-        } 
+        }
     }
 
     return -1;
@@ -732,33 +750,13 @@ void pa_murphyif_delete_node(struct userdata *u, mir_node *node)
             }
         }
         else {
-            deleted = pa_hashmap_remove(rif->nodes.rsetid, node->rsetid);
-            pa_assert(!deleted || deleted == node);
+            if (rset_hashmap_remove(u, node->rsetid, node) < 0) {
+                pa_log("failed to remove node '%s' from rset hash", node->amname);
+            }
         }
     }
 #endif
 }
-
-#ifdef WITH_RESOURCES
-static mir_node *find_node_by_rsetid(struct userdata *u, const char *rsetid)
-{
-    pa_murphyif *murphyif;
-    resource_interface *rif;
-    mir_node *node;
-
-    pa_assert(u);
-    pa_assert_se((murphyif = u->murphyif));
-
-    rif = &murphyif->resource;
-
-    if (!rsetid)
-        node = NULL;
-    else
-        node = pa_hashmap_get(rif->nodes.rsetid, rsetid);
-
-    return node;
-}
-#endif
 
 
 #ifdef WITH_DOMCTL
@@ -1208,8 +1206,10 @@ static void resource_set_notification(struct userdata *u,
     mrp_domctl_value_t *cpolicy;
     char rsetid[32];
     const char *pid;
-    mir_node *node;
+    mir_node *node, **nodes;
+    rset_hash *rh;
     rset_data rset, *rs;
+    size_t i, size;
 
     pa_assert(u);
     pa_assert(table);
@@ -1263,7 +1263,7 @@ static void resource_set_notification(struct userdata *u,
             continue;
         }
 
-        if (!(node = find_node_by_rsetid(u, rset.id))) {
+        if (!(rh = rset_hashmap_get(u, rset.id))) {
             if (!pid) {
                 pa_log_debug("can't find node for resource set %s "
                              "(pid in resource set unknown)", rset.id);
@@ -1304,13 +1304,23 @@ static void resource_set_notification(struct userdata *u,
             }
         }
 
-        pa_log_debug("resource notification for node '%s' autorel:%s state:%s "
-                     "grant:%s pid:%s policy:%s", node->amname,
-                     rset.autorel ? "yes":"no",
-                     rset.state == RSET_ACQUIRE ? "acquire":"release",
-                     rset.grant ? "yes":"no", pid, rset.policy);
+        rset_data_update(rh->rset, &rset);
 
-        node_enforce_resource_policy(u, node, &rset);
+        /* we need to make a copy of this as node_enforce_resource_policy()
+           will delete/modify it */
+        size = sizeof(mir_node *) * (rh->nnode + 1);
+        nodes = alloca(size);
+        memcpy(nodes, rh->nodes, size);
+
+        for (i = 0;  (node = nodes[i]);  i++) {
+            pa_log_debug("resource notification for node '%s' autorel:%s "
+                         "state:%s grant:%s pid:%s policy:%s", node->amname,
+                         rset.autorel ? "yes":"no",
+                         rset.state == RSET_ACQUIRE ? "acquire":"release",
+                         rset.grant ? "yes":"no", pid, rset.policy);
+
+            node_enforce_resource_policy(u, node, &rset);
+        }
     }
 }
 
@@ -1807,7 +1817,7 @@ static int node_put_rset(struct userdata *u, mir_node *node, rset_data *rset)
         return -1;
     }
 
-    if (pa_hashmap_put(rif->nodes.rsetid, node->rsetid, node) < 0) {
+    if (!rset_hashmap_put(u, node->rsetid, node)) {
         pa_log("conflicting rsetid %s for %s", node->rsetid, node->amname);
         return -1;
     }
@@ -1828,7 +1838,7 @@ static void node_enforce_resource_policy(struct userdata *u,
 
     if (pa_streq(rset->policy, "relaxed"))
         req = PA_STREAM_RUN;
-    else {
+    else if (pa_streq(rset->policy, "strict")) {
         if (rset->state == RSET_RELEASE)
             req = PA_STREAM_KILL;
         else {
@@ -1837,6 +1847,9 @@ static void node_enforce_resource_policy(struct userdata *u,
             else
                 req = PA_STREAM_BLOCK;
         }
+    }
+    else {
+        req = PA_STREAM_BLOCK;
     }
 
     pa_stream_state_change(u, node, req);
@@ -1874,6 +1887,27 @@ static void rset_data_copy(rset_data *dst, rset_data *src)
     pa_xfree((void *)dst->policy);
 
     dst->id      = pa_xstrdup(src->id);
+    dst->autorel = src->autorel;
+    dst->state   = src->state;
+    dst->grant   = src->grant;
+    dst->policy  = pa_xstrdup(src->policy);
+}
+
+
+static void rset_data_update(rset_data *dst, rset_data *src)
+{
+    rset_data *dup;
+
+    pa_assert(dst);
+    pa_assert(dst->id);
+    pa_assert(src);
+    pa_assert(src->id);
+    pa_assert(src->policy);
+
+    pa_assert_se(pa_streq(src->id, dst->id));
+
+    pa_xfree((void *)dst->policy);
+
     dst->autorel = src->autorel;
     dst->state   = src->state;
     dst->grant   = src->grant;
@@ -2015,6 +2049,124 @@ static rset_data *pid_hashmap_remove_rset(struct userdata *u, const char *pid)
 }
 
 
+static void rset_hashmap_free(void *r, void *userdata)
+{
+    rset_hash *rh = (rset_hash *)r;
+
+    (void)userdata;
+
+    if (rh) {
+        pa_xfree(rh->nodes);
+        rset_data_free(rh->rset);
+        pa_xfree(rh);
+    }
+}
+
+static rset_hash *rset_hashmap_put(struct userdata *u,
+                                   const char *rsetid,
+                                   mir_node *node)
+{
+    pa_murphyif *murphyif;
+    resource_interface *rif;
+    rset_hash *rh;
+    rset_data *rset;
+    size_t i;
+    mir_node *n;
+
+    pa_assert(u);
+    pa_assert(rsetid);
+    pa_assert(node);
+    pa_assert_se((murphyif = u->murphyif));
+    
+    rif = &murphyif->resource;
+
+    if ((rh = pa_hashmap_get(rif->nodes.rsetid, rsetid))) {
+        for (i = 0;  i < rh->nnode;  i++) {
+            if (rh->nodes[i] == n)
+                return NULL;
+        }
+
+        i = rh->nnode++;
+        rh->nodes = pa_xrealloc(rh->nodes, sizeof(mir_node *) * (rh->nnode+1));
+    }
+    else {
+        rset = pa_xnew0(rset_data, 1);
+
+        rset->id = pa_xstrdup(rsetid);
+        rset->policy = pa_xstrdup("unknown");
+
+        rh = pa_xnew0(rset_hash, 1);
+
+        rh->nnode = 1;
+        rh->nodes = pa_xnew0(mir_node *, 2);
+        rh->rset  = rset;
+
+        pa_hashmap_put(rif->nodes.rsetid, rh->rset->id, rh);
+
+        i = 0;
+    }
+
+    rh->nodes[i+0] = node;
+    rh->nodes[i+1] = NULL;
+
+    return rh;
+}
+
+static rset_hash *rset_hashmap_get(struct userdata *u, const char *rsetid)
+{
+    pa_murphyif *murphyif;
+    resource_interface *rif;
+    rset_hash *rh;
+
+    pa_assert(u);
+    pa_assert(rsetid);
+    pa_assert(murphyif = u->murphyif);
+    
+    rif = &murphyif->resource;
+
+    if ((rh = pa_hashmap_get(rif->nodes.rsetid, rsetid)))
+        return rh;
+
+    return NULL;
+}
+
+static int rset_hashmap_remove(struct userdata *u,
+                               const char *rsetid,
+                               mir_node *node)
+{
+    pa_murphyif *murphyif;
+    resource_interface *rif;
+    rset_hash *rh;
+    size_t i,j;
+
+    pa_assert(u);
+    pa_assert_se((murphyif = u->murphyif));
+
+    rif = &murphyif->resource;
+
+    if ((rh = pa_hashmap_get(rif->nodes.rsetid, rsetid))) {
+
+        for (i = 0;  i < rh->nnode;  i++) {
+            if (node == rh->nodes[i]) {
+                if (rh->nnode <= 1) {
+                    pa_hashmap_remove(rif->nodes.rsetid, rsetid);
+                    rset_hashmap_free(rh, NULL);
+                    return 0;
+                }
+                else {
+                    for (j = i;  j < rh->nnode;  j++)
+                        rh->nodes[j] = rh->nodes[j+1];
+
+                    rh->nnode--;
+
+                    return 0;
+                }
+            }
+        }
+    }
+
+    return -1;
+}
 
 #endif
 
