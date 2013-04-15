@@ -317,7 +317,6 @@ pa_bool_t pa_classify_multiplex_stream(mir_node *node)
     static pa_bool_t multiplex[mir_application_class_end] = {
         [ mir_player  ] = TRUE,
         [ mir_game    ] = TRUE,
-        [ mir_browser ] = TRUE,
     };
 
     mir_node_type class;
