@@ -86,9 +86,9 @@ application_class {
     route = {
         output = routing_group.default_output
     },
-    roles = { music = {0, "mandatory", "exclusive"},
-              video = {0, "mandatory", "exclusive"},
-	      test  = {0, "mandatory", "exclusive"}
+    roles = { music   = {0, "mandatory", "exclusive"},
+              video   = {0, "mandatory", "exclusive"},
+	      test    = {0, "mandatory", "exclusive"}
     }
 }
 
@@ -99,11 +99,10 @@ application_class {
     route = {
         output = routing_group.default_output
     },
-    roles = { animation = {0, "mandatory", "shared"} },
-    binaries = { firefox = {0, "mandatory","exclusive"},
-                 chrome  = {0, "mandatory", "exclusive"}
-    }
+    roles = { browser = {0, "mandatory", "shared"} }
 }
+
+
 
 audio_resource {
     name = { recording = "audio_recording", playback = "audio_playback" },
