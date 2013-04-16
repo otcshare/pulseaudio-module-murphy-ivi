@@ -1,0 +1,102 @@
+* Tue Apr 16 14:21:03 EEST 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.11
+- release: releasing 0.9.11...
+- fix some crashes
+- don't load combine module for browser
+
+* Fri Apr 05 13:19:42 EEST 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.10
+- release: releasing 0.9.10...
+- clean pid hash map when nodes are gone
+
+* Tue Apr 04 16:17:52 EET 2013 Ismo Puustinen <ismo.puustinen@intel.com> - 0.9.9
+- release: releasing 0.9.9...
+- Fixed an assert.
+
+* Tue Mar 12 13:23:27 EET 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.8
+- release: releasing 0.9.8...
+- use pulseaudio internal corking state
+
+* Tue Feb 19 21:48:10 EET 2013 Janos Kovacs <janos.kovacs@intel.com> - 0.9.7
+- release: releasing 0.9.7...
+- zone support for nodes
+- enforcement on streams (ie. kill/cork/run)
+- support for implicit audio resources
+  (ie. generate resource sets on behalf on non policy-aware applications)
+- extended configurability
+    - for stream classification
+    - for implicit resource sets
+
+* Mon Jan 28 12:19:25 EET 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.5
+- release: releasing 0.9.5...
+- added support for manually loaded sinks
+- updated fader for new multichannel fader api
+- fixed warnings
+
+* Wed Jan 09 16:07:59 EET 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9
+- release: releasing 0.9...
+- added reverse shift volume to lua config
+- dont crash on signature check of LUA volume limit function
+
+* Fri Jan 04 11:36:35 EET 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 0.8
+- release: releasing 0.8...
+- fixed lua memory corruption
+- fixed issues vith volume limit
+
+* Thu Dec 13 22:58:34 EET 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 0.7
+- release: releasing 0.7...
+- fixed issues when switching bluetooth card off
+- do not disable a2dp and hsp nodes when the profile is turned off
+- eliminate multiple node generation for bluetooth cards
+
+* Wed Dec 12 01:42:50 EET 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 0.6
+- release: releasing 0.6...
+- fixed bluetooth port availability problem
+
+* Tue Dec 11 21:18:14 EET 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 0.5
+- release: releasing 0.5...
+- fixed discovering cards with missing properties like bus_type
+
+* Tue Dec 11 03:23:33 EET 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 0.4
+- release: releasing 0.4...
+- configuration with lua
+- extension api for routing to multiple targets and explicit routing
+
+* Mon Nov 26 16:19:46 EET 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 0.3
+- release: releasing 0.3...
+- changes for bluetooth port in policy 
+
+* Thu Aug 16 22:20:14 EEST 2012 Janos Kovacs <janos.kovacs@intel.com> - 0.2.8
+- volume control: fade in/out for volume limits
+
+* Tue Aug 14 19:13:03 EEST 2012 Janos Kovacs <janos.kovacs@intel.com> - 0.2.7
+- routing: add support for default input routing
+- routing: add automatic loopback routing for hfgw (ie. car-kit functionality)
+
+* Wed Aug 08 18:35:28 EEST 2012 Janos Kovacs <janos.kovacs@intel.com> - 0.2.6
+- routing: add support for a2dp_source
+- routing: add automatic loopback routing from a2dp_source
+- classification: add heuristic to identify bluetooth devices that do not
+  advertise their form factor (like the DELL BH200) 
+
+* Tue Jul 24 15:28:29 EEST 2012 Janos Kovacs <janos.kovacs@intel.com> - 0.2.5
+- patched augment property module capable of setting media.role property of
+  output streams
+
+* Tue Jul 17 20:29:34 EET 2012 Janos Kovacs <janos.kovacs@intel.com> - 0.2.4
+- routing: eliminate assertion at sample playback
+- volume: mute undefined classes only
+- scripts: synced obs-export.sh with the one from PA.
+
+* Fri Jul 06 12:43:00 EET 2012 Krisztian Litkey <krisztian.litkey@intel.com> - 0.2.3
+- Spec file: PA version detection fix, install under correct module dir.
+
+* Sat Jun 30 02:42:00 UTC 2012 - tracy.graydon@intel.com
+-AND add dbus-1 dependency 
+
+* Fri Jun 29 22:14:04 UTC 2012 - tracy.graydon@intel.com
+- Fixed build dep for libdbus-devel. Removed that and added dbus-libs to fix broken package build post forked package cleanup. 
+
+* Mon Jun 25 2012 Janos Kovacs <janos.kovacs@intel.com> - 0.2.2
+- Second release.
+
+* Fri Jun 15 2012 Janos Kovacs <janos.kovacs@intel.com> - 0.2.1
+- Initial release
