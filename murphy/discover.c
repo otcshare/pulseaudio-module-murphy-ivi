@@ -886,7 +886,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
             pa_utils_set_resource_properties(pl, resdef);
 
             if (pa_stream_state_start_corked(u, data, resdef)) {
-                pa_log("start corked");
+                pa_log_debug("start corked");
             }
         }
         pa_utils_set_stream_routing_properties(pl, type, data->sink);
@@ -1081,7 +1081,7 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
 
     name = pa_utils_get_sink_input_name(sinp);
 
-    pa_log("sink-input '%s' going to be destroyed", name);
+    pa_log_debug("sink-input '%s' going to be destroyed", name);
 
     had_properties = pa_utils_unset_stream_routing_properties(sinp->proplist);
 
@@ -1404,7 +1404,7 @@ void pa_discover_remove_source_output(struct userdata  *u,
 
     name = pa_utils_get_source_output_name(sout);
 
-    pa_log("source-output '%s' going to be destroyed", name);
+    pa_log_debug("source-output '%s' going to be destroyed", name);
 
     if (!(node = pa_discover_remove_node_from_ptr_hash(u, sout)))
         pa_log_debug("can't find node for source-output (name '%s')", name);

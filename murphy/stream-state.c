@@ -84,12 +84,12 @@ void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
             switch (req) {
             case PA_STREAM_KILL:
             case PA_STREAM_BLOCK:
-                pa_log("mute '%s'", node->amname);
+                pa_log_debug("mute '%s'", node->amname);
                 pa_sink_input_set_mute(sinp, TRUE, FALSE);
                 break;
                 
             case PA_STREAM_RUN:
-                pa_log("unmute '%s'", node->amname);
+                pa_log_debug("unmute '%s'", node->amname);
                 pa_sink_input_set_mute(sinp, FALSE, FALSE);
                 break;
                 
@@ -99,7 +99,7 @@ void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
             }
         }
         else {
-            pa_log("no enforcement for loopback on '%s'", node->amname);
+            pa_log_debug("no enforcement for loopback on '%s'", node->amname);
             sout = pa_idxset_get_by_index(core->source_outputs,
                                           loop->source_output_index);
             pa_assert(sout);
@@ -112,17 +112,17 @@ void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
 
             switch (req) {
             case PA_STREAM_KILL:
-                pa_log("killing '%s'", node->amname);
+                pa_log_debug("killing '%s'", node->amname);
                 sinp->kill(sinp);
                 break;
                 
             case PA_STREAM_BLOCK:
-                pa_log("blocking '%s'", node->amname);
+                pa_log_debug("blocking '%s'", node->amname);
                 sink_input_block(sinp, TRUE);
                 break;
                 
             case PA_STREAM_RUN:
-                pa_log("unblock '%s'", node->amname);
+                pa_log_debug("unblock '%s'", node->amname);
                 sink_input_block(sinp, FALSE);
                 break;
                 
@@ -132,7 +132,7 @@ void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
             }
         }
         else {
-            pa_log("no enforcement for stream '%s'", node->amname);
+            pa_log_debug("no enforcement for stream '%s'", node->amname);
             sout = pa_idxset_get_by_index(core->source_outputs, node->paidx);
             pa_assert(sout);
         }

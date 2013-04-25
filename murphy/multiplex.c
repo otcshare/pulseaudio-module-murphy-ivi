@@ -230,7 +230,7 @@ pa_bool_t pa_multiplex_add_default_route(pa_core    *core,
     pa_assert(sink);
 
     if (!(module = pa_idxset_get_by_index(core->modules, mux->module_index)))
-        pa_log("module %u is gone", mux->module_index);
+        pa_log_debug("module %u is gone", mux->module_index);
     else {
         pa_assert_se((u = module->userdata));
 
@@ -270,7 +270,7 @@ pa_bool_t pa_multiplex_remove_default_route(pa_core *core,
     pa_assert(mux);
 
     if (!(module = pa_idxset_get_by_index(core->modules, mux->module_index)))
-        pa_log("module %u is gone", mux->module_index);
+        pa_log_debug("module %u is gone", mux->module_index);
     else if ((idx = mux->defstream_index) == PA_IDXSET_INVALID)
         pa_log_debug("mux %u do not have default stream", mux->module_index);
     else if (!(sinp = pa_idxset_get_by_index(core->sink_inputs, idx)))
@@ -307,7 +307,7 @@ pa_bool_t pa_multiplex_change_default_route(pa_core    *core,
     pa_assert(sink);
 
     if (!(module = pa_idxset_get_by_index(core->modules, mux->module_index)))
-        pa_log("module %u is gone", mux->module_index);
+        pa_log_debug("module %u is gone", mux->module_index);
     else if ((idx = mux->defstream_index) == PA_IDXSET_INVALID)
         pa_log_debug("mux %u do not have default stream", mux->module_index);
     else if (!(sinp = pa_idxset_get_by_index(core->sink_inputs, idx)))
@@ -341,7 +341,7 @@ pa_bool_t pa_multiplex_add_explicit_route(pa_core    *core,
     pa_assert(sink);
 
     if (!(module = pa_idxset_get_by_index(core->modules, mux->module_index)))
-        pa_log("module %u is gone", mux->module_index);
+        pa_log_debug("module %u is gone", mux->module_index);
     else {
         pa_assert_se((u = module->userdata));
 
@@ -380,7 +380,7 @@ pa_bool_t pa_multiplex_remove_explicit_route(pa_core    *core,
     pa_assert(sink);
 
     if (!(module = pa_idxset_get_by_index(core->modules, mux->module_index)))
-        pa_log("module %u is gone", mux->module_index);
+        pa_log_debug("module %u is gone", mux->module_index);
     else {
         pa_assert_se((u = module->userdata));
 
@@ -414,7 +414,7 @@ pa_bool_t pa_multiplex_duplicate_route(pa_core       *core,
                  mux->module_index);
 
     if (!(module = pa_idxset_get_by_index(core->modules,mux->module_index)))
-        pa_log("module %u is gone", mux->module_index);
+        pa_log_debug("module %u is gone", mux->module_index);
     else {
         pa_assert_se((u = module->userdata));
 
@@ -450,7 +450,7 @@ int pa_multiplex_no_of_routes(pa_core *core, pa_muxnode *mux)
     pa_assert(mux);
 
     if (!(module = pa_idxset_get_by_index(core->modules,mux->module_index))) {
-        pa_log("module %u is gone", mux->module_index);
+        pa_log_debug("module %u is gone", mux->module_index);
         return -1;
     }
 
