@@ -698,6 +698,8 @@ static int rtgroup_print(mir_rtgroup *rtg, char *buf, int len)
 
     e = (p = buf) + len;
 
+    *buf = 0;
+
     MIR_DLIST_FOR_EACH_BACKWARD(mir_rtentry, link, rte, &rtg->entries) {
         node = rte->node;
         if (p >= e)
@@ -726,7 +728,9 @@ static void rtgroup_update_module_property(struct userdata *u,
              mir_direction_str(type), rtg->name);
     ret = rtgroup_print(rtg, value, sizeof(value));
 
-    pa_assert(ret != 0);
+    if (!ret)
+        value[1] = 0;
+    
     pa_proplist_sets(module->proplist, key, value+1); /* skip ' '@beginning */
 }
 
