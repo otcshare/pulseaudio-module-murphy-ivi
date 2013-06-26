@@ -61,5 +61,5 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root,-)
 %{_libdir}/pulse-*/modules/module-*.so
-%{_sysconfdir}/dbus-1/system.d/pulseaudio-murphy-ivi.conf
+#%{_sysconfdir}/dbus-1/system.d/pulseaudio-murphy-ivi.conf
 %{_sysconfdir}/pulse/murphy-ivi.lua

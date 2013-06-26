@@ -97,6 +97,8 @@ AC_ARG_WITH([dbus],
             [ build_with_dbus="no" ]
 )
 
+build_with_dbus="no"
+
 AM_CONDITIONAL(BUILD_WITH_DBUS,  [ test "x$build_with_dbus" = "xyes" ])
 
 # murphy interface
