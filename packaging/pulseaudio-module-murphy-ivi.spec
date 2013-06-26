@@ -10,12 +10,16 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 BuildRequires: pkgconfig(pulseaudio-module-devel)
 BuildRequires: pkgconfig(libpulse)
 BuildRequires: pkgconfig(murphy-common)
-BuildRequires: pkgconfig(murphy-pulse)
+Buildrequires: pkgconfig(json)
 BuildRequires: pkgconfig(murphy-lua-utils)
 BuildRequires: pkgconfig(lua)
 BuildRequires: pkgconfig(dbus-1)
 BuildRequires: pkgconfig(glib-2.0)
 BuildRequires: libtool-ltdl-devel
+Buildrequires: pkgconfig(json)
+BuildRequires: config(pulseaudio)
+BuildRequires: pkgconfig(murphy-pulse)
+BuildRequires: murphy-pulse
 Requires: pulseaudio
 Conflicts: pulseaudio-module-combine-sink
 Conflicts: pulseaudio-module-augment-properties
