@@ -129,7 +129,7 @@ static void sink_input_rule_free(struct sink_input_rule_section *s, struct userd
 static void sink_input_rule_file_free(struct sink_input_rule_file *rf, struct userdata *u) {
     pa_assert(rf);
 
-    pa_hashmap_free(rf->rules, (pa_free2_cb_t) sink_input_rule_free, NULL);
+    pa_hashmap_free(rf->rules, (pa_free_cb_t) sink_input_rule_free);
     pa_xfree(rf->client_name);
     pa_xfree(rf->target_key);
     pa_xfree(rf->target_value);
@@ -243,7 +243,7 @@ static void parse_file(struct rule *r, const char *fn, pa_config_item *table, pa
     table[0].data = &r->application_name;
     table[1].data = &r->icon_name;
 
-    if (pa_config_parse(fn, NULL, table, r) < 0)
+    if (pa_config_parse(fn, NULL, table, NULL, r) < 0)
         pa_log_warn("Failed to parse file %s.", fn);
 
     if (!first) {
@@ -613,7 +613,7 @@ static pa_hook_result_t process_sink_input(
         }
     }
 
-    pa_hashmap_free(valid, NULL, NULL);
+    pa_hashmap_free(valid, NULL);
 
     iter = possible;
     while (*iter) {
@@ -742,7 +742,7 @@ static pa_hashmap *update_sink_input_rules() {
             rf->rules = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
             rf->fn = pa_sprintf_malloc(SINK_INPUT_RULE_DIR PA_PATH_SEP "%s", file->d_name);
 
-            if (pa_config_parse(rf->fn, NULL, table, rf) >= 0) {
+            if (pa_config_parse(rf->fn, NULL, table, NULL, rf) >= 0) {
 
                 pa_log_info("Successfully parsed sink input conf file %s", file->d_name);
 
@@ -762,7 +762,7 @@ static pa_hashmap *update_sink_input_rules() {
     closedir(sinkinputrulefiles_dir);
 
     if (pa_hashmap_isempty(rules)) {
-        pa_hashmap_free(rules, NULL, NULL);
+        pa_hashmap_free(rules, NULL);
         return NULL;
     }
 
@@ -873,11 +873,11 @@ void pa__done(pa_module *m) {
         while ((r = pa_hashmap_steal_first(u->cache)))
             rule_free(r);
 
-        pa_hashmap_free(u->cache, NULL, NULL);
+        pa_hashmap_free(u->cache, NULL);
     }
 
     if (u->sink_input_rules)
-        pa_hashmap_free(u->sink_input_rules, (pa_free2_cb_t) sink_input_rule_file_free, NULL);
+        pa_hashmap_free(u->sink_input_rules, (pa_free_cb_t) sink_input_rule_file_free);
 
     if (u->directory_watch_client)
         pa_client_free(u->directory_watch_client);

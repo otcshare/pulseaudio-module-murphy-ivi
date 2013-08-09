@@ -96,6 +96,8 @@ void pa_router_done(struct userdata *u)
     pa_router      *router;
     mir_connection *conn, *c;
     mir_node       *e,*n;
+    void           *state;
+    mir_rtgroup    *rtg;
 
     if (u && (router = u->router)) {
         MIR_DLIST_FOR_EACH_SAFE(mir_node, rtprilist, e,n, &router->nodlist) {
@@ -107,8 +109,16 @@ void pa_router_done(struct userdata *u)
             pa_xfree(conn);
         }
 
-        pa_hashmap_free(router->rtgroups.input , pa_hashmap_rtgroup_free,u);
-        pa_hashmap_free(router->rtgroups.output, pa_hashmap_rtgroup_free,u);
+        PA_HASHMAP_FOREACH(rtg, router->rtgroups.input, state) {
+            rtgroup_destroy(u, rtg);
+        }
+
+        PA_HASHMAP_FOREACH(rtg, router->rtgroups.output, state) {
+            rtgroup_destroy(u, rtg);
+        }
+
+        pa_hashmap_free(router->rtgroups.input, NULL);
+        pa_hashmap_free(router->rtgroups.output, NULL);
 
         pa_xfree(router->classmap.input);
         pa_xfree(router->classmap.output);

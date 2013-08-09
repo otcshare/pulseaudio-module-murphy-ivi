@@ -330,6 +330,9 @@ void pa_murphyif_done(struct userdata *u)
 #ifdef WITH_RESOURCES
     resource_attribute *attr, *a;
     resource_request *req, *r;
+    void *state;
+    rset_hash *rh;
+    pid_hash *ph;
 #endif
 
     if (u && (murphyif = u->murphyif)) {
@@ -370,8 +373,24 @@ void pa_murphyif_done(struct userdata *u)
 
         resource_transport_destroy(murphyif);
 
-        pa_hashmap_free(rif->nodes.rsetid, rset_hashmap_free, NULL);
-        pa_hashmap_free(rif->nodes.pid, pid_hashmap_free, NULL);
+        PA_HASHMAP_FOREACH(rh, rif->nodes.rsetid, state) {
+            if (rh) {
+                pa_xfree(rh->nodes);
+                rset_data_free(rh->rset);
+                pa_xfree(rh);
+            }
+        }
+
+        PA_HASHMAP_FOREACH(ph, rif->nodes.pid, state) {
+            if (ph) {
+                pa_xfree((void *)ph->pid);
+                rset_data_free(ph->rset);
+                pa_xfree(ph);
+            }
+        }
+
+        pa_hashmap_free(rif->nodes.rsetid, NULL);
+        pa_hashmap_free(rif->nodes.pid, NULL);
 
         PA_LLIST_FOREACH_SAFE(attr, a, rif->attrs)
             resource_attribute_destroy(rif, attr);

@@ -113,8 +113,8 @@ void pa_audiomgr_done(struct userdata *u)
         if (u->routerif && am->domain.id != AM_ID_INVALID)
             pa_routerif_unregister_domain(u, am->domain.id);
 
-        pa_hashmap_free(am->nodes, NULL,NULL);
-        pa_hashmap_free(am->conns, NULL,NULL);
+        pa_hashmap_free(am->nodes, NULL);
+        pa_hashmap_free(am->conns, NULL);
         pa_xfree((void *)am->domain.name);
         pa_xfree(am);
         u->audiomgr = NULL;

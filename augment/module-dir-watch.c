@@ -377,7 +377,7 @@ void pa__done(pa_module *m) {
 
 
     if (u->paths_to_clients)
-        pa_hashmap_free(u->paths_to_clients, (pa_free2_cb_t) client_data_free, NULL);
+        pa_hashmap_free(u->paths_to_clients, (pa_free_cb_t) client_data_free);
 #endif
 
     pa_xfree(u);

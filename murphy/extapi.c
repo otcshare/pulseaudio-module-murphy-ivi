@@ -131,9 +131,9 @@ void pa_extapi_done(struct userdata *u) {
 
     if (u && (ap = u->extapi)) {
         if (ap->conns)
-            pa_hashmap_free(ap->conns, NULL,NULL);
+            pa_hashmap_free(ap->conns, NULL);
         if (ap->subscribed)
-            pa_idxset_free(ap->subscribed, NULL, NULL);
+            pa_idxset_free(ap->subscribed, NULL);
         pa_xfree(ap);
     }
 }

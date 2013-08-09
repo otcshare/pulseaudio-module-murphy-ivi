@@ -60,9 +60,15 @@ pa_constrain *pa_constrain_init(struct userdata *u)
 void pa_constrain_done(struct userdata *u)
 {
     pa_constrain   *constrain;
+    mir_constr_def *cd;
+    void *state;
 
     if (u && (constrain = u->constrain)) {
-        pa_hashmap_free(constrain->defs, pa_hashmap_constrdef_free, u);
+        PA_HASHMAP_FOREACH(cd, constrain->defs, state) {
+            cstrdef_destroy(u, cd);
+        }
+
+        pa_hashmap_free(constrain->defs, NULL);
 
         pa_xfree(constrain);
 

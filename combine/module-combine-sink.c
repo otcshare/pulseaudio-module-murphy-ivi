@@ -1346,7 +1346,7 @@ void pa__done(pa_module*m) {
         while ((o = pa_idxset_first(u->outputs, NULL)))
             output_free(o);
 
-        pa_idxset_free(u->outputs, NULL, NULL);
+        pa_idxset_free(u->outputs, NULL);
     }
 
     if (u->sink)

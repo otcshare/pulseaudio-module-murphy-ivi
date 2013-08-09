@@ -153,10 +153,15 @@ struct pa_discover *pa_discover_init(struct userdata *u)
 void pa_discover_done(struct userdata *u)
 {
     pa_discover *discover;
+    void *state;
+    mir_node *node;
 
     if (u && (discover = u->discover)) {
-        pa_hashmap_free(discover->nodes.byname, pa_hashmap_node_free,u);
-        pa_hashmap_free(discover->nodes.byptr, NULL,NULL);
+        PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
+            mir_node_destroy(u, node);
+        }
+        pa_hashmap_free(discover->nodes.byname, NULL);
+        pa_hashmap_free(discover->nodes.byptr, NULL);
         pa_xfree(discover);
         u->discover = NULL;
     }
@@ -386,7 +391,7 @@ void pa_discover_port_available_changed(struct userdata *u,
         default:                      /* do nothing */      return;
         }
 
-        if (port->is_output) {
+        if (port->direction == PA_DIRECTION_OUTPUT) {
             PA_IDXSET_FOREACH(sink, core->sinks, idx) {
                 if (sink->ports) {
                     if (port == pa_hashmap_get(sink->ports, port->name)) {
@@ -400,7 +405,7 @@ void pa_discover_port_available_changed(struct userdata *u,
             }
         }
 
-        if (port->is_input) {
+        if (port->direction == PA_DIRECTION_INPUT) {
             PA_IDXSET_FOREACH(source, core->sources, idx) {
                 if (source->ports) {
                     if (port == pa_hashmap_get(source->ports, port->name)) {
@@ -1819,8 +1824,8 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
              * does works with all the profiles
              */
             if (port->profiles && pa_hashmap_get(port->profiles, prof->name) &&
-                ((port->is_input && data->direction == mir_input)||
-                 (port->is_output && data->direction == mir_output)))
+                ((port->direction == PA_DIRECTION_INPUT && data->direction == mir_input)||
+                 (port->direction == PA_DIRECTION_OUTPUT && data->direction == mir_output)))
             {
                 have_ports = TRUE;
 

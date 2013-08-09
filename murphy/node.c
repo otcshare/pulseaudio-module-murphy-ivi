@@ -43,7 +43,7 @@ struct pa_nodeset {
 };
 
 
-static void free_map_cb(void *, void *);
+static void free_map_cb(void *);
 static int print_map(pa_hashmap *, const char *, char *, int);
 
 pa_nodeset *pa_nodeset_init(struct userdata *u)
@@ -68,9 +68,9 @@ void pa_nodeset_done(struct userdata *u)
     int i;
 
     if (u && (ns = u->nodeset)) {
-        pa_idxset_free(ns->nodes, NULL, NULL);
-        pa_hashmap_free(ns->roles, free_map_cb, u);
-        pa_hashmap_free(ns->binaries, free_map_cb, u);
+        pa_idxset_free(ns->nodes, NULL);
+        pa_hashmap_free(ns->roles, free_map_cb);
+        pa_hashmap_free(ns->binaries, free_map_cb);
 
         for (i = 0;  i < APCLASS_DIM;  i++)
             pa_xfree((void *)ns->class_name[i]);
@@ -505,9 +505,8 @@ const char *mir_privacy_str(mir_privacy privacy)
 }
 
 
-static void free_map_cb(void *void_map, void *void_userdata)
+static void free_map_cb(void *void_map)
 {
-    struct userdata *u   = (struct userdata *)void_userdata;
     pa_nodeset_map  *map = (pa_nodeset_map *)void_map;
 
     pa_xfree((void *)map->name);
