@@ -33,8 +33,8 @@
 #include <pulsecore/pulsecore-config.h>
 
 #include <pulsecore/core-util.h>
-#include <pulsecore/card.h>
 #include <pulsecore/sink.h>
+#include <pulsecore/card.h>
 #include <pulsecore/source.h>
 #include <pulsecore/sink-input.h>
 #include <pulsecore/source-output.h>

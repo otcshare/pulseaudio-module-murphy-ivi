@@ -20,6 +20,7 @@
 #include <pulsecore/pulsecore-config.h>
 
 #include <pulse/def.h>
+#include <pulsecore/sink.h>
 #include <pulsecore/card.h>
 
 #include "tracker.h"

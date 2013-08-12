@@ -24,6 +24,7 @@
 
 #include <pulsecore/pulsecore-config.h>
 
+#include <pulsecore/sink.h>
 #include <pulsecore/card.h>
 #include <pulsecore/device-port.h>
 #include <pulsecore/core-util.h>
