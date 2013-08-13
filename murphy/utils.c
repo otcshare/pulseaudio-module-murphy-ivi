@@ -403,20 +403,26 @@ static pa_bool_t get_unsigned_property(pa_proplist *pl,
 
 void pa_utils_set_port_properties(pa_device_port *port, mir_node *node)
 {
+    const char *profile;
+    char propnam[512];
     char nodeidx[256];
 
     pa_assert(port);
     pa_assert(port->proplist);
     pa_assert(node);
+    pa_assert_se((profile = node->pacard.profile));
 
+    snprintf(propnam, sizeof(propnam), "%s.%s", PA_PROP_NODE_INDEX, profile);
     snprintf(nodeidx, sizeof(nodeidx), "%u", node->index);
 
-    pa_proplist_sets(port->proplist, PA_PROP_NODE_INDEX, nodeidx);
+    pa_proplist_sets(port->proplist, propnam, nodeidx);
 }
 
 mir_node *pa_utils_get_node_from_port(struct userdata *u,
-                                      pa_device_port *port)
+                                      pa_device_port *port,
+                                      void **state)
 {
+    const char *name;
     const char *value;
     char *e;
     uint32_t index = PA_IDXSET_INVALID;
@@ -426,14 +432,24 @@ mir_node *pa_utils_get_node_from_port(struct userdata *u,
     pa_assert(port);
     pa_assert(port->proplist);
 
-    if ((value = pa_proplist_gets(port->proplist, PA_PROP_NODE_INDEX))) {
-        index = strtoul(value, &e, 10);
+    while ((name = pa_proplist_iterate(port->proplist, state))) {
+        if (!strncmp(name, PA_PROP_NODE_INDEX, sizeof(PA_PROP_NODE_INDEX)-1)) {
+            if ((value = pa_proplist_gets(port->proplist, name))) {
+                index = strtoul(value, &e, 10);
+                node = NULL;
 
-        if (value[0] && !e[0])
-            node = mir_node_find_by_index(u, index);
+                if (value[0] && !e[0])
+                    node = mir_node_find_by_index(u, index);
+                
+                if (node)
+                    return node;
+
+                pa_log("Can't find node %u for port %s", index, port->name);
+            }
+        }
     }
 
-    return node;
+    return NULL;
 }
 
 mir_node *pa_utils_get_node_from_stream(struct userdata *u,

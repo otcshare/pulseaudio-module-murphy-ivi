@@ -109,6 +109,23 @@ void pa_classify_node_by_card(mir_node        *node,
                 node->type = mir_microphone;
             }
         }
+        else if (!strcasecmp(form, "phone")) {
+            if (bus && !strcasecmp(bus,"bluetooth") && prof) {
+                if (!strcmp(prof->name, "a2dp"))
+                    node->type = mir_bluetooth_a2dp;
+                else if (!strcmp(prof->name, "hsp"))
+                    node->type = mir_bluetooth_sco;
+                else if (!strcmp(prof->name, "hfgw"))
+                    node->type = mir_bluetooth_carkit;
+                else if (!strcmp(prof->name, "a2dp_source"))
+                    node->type = mir_bluetooth_source;
+                else if (!strcmp(prof->name, "a2dp_sink"))
+                    node->type = mir_bluetooth_sink;
+
+                if (node->type != mir_node_type_unknown)
+                    node->location = mir_external;
+            }
+        }
     }
     else {
         if (port && !strcasecmp(bus, "pci")) {

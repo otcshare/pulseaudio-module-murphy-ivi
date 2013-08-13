@@ -119,7 +119,7 @@ static pa_source *make_input_prerouting(struct userdata *, mir_node *,
 
 static mir_node_type get_stream_routing_class(pa_proplist *);
 
-static void set_bluetooth_profile(struct userdata *, mir_node *);
+static void set_bluetooth_profile(struct userdata *, pa_card *, pa_direction_t);
 
 
 static void schedule_deferred_routing(struct userdata *);
@@ -355,14 +355,17 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 void pa_discover_port_available_changed(struct userdata *u,
                                         pa_device_port  *port)
 {
-    pa_core    *core;
-    pa_sink    *sink;
-    pa_source  *source;
-    mir_node   *node;
-    uint32_t    idx;
-    pa_bool_t   available;
-    const char *state;
-    pa_bool_t   route;
+    pa_core       *core;
+    pa_sink       *sink;
+    pa_source     *source;
+    mir_node      *node;
+    uint32_t       idx;
+    pa_bool_t      available;
+    const char    *state;
+    pa_bool_t      btport;
+    pa_bool_t      route;
+    pa_direction_t direction;
+    void          *iter;
 
     pa_assert(u);
     pa_assert(port);
@@ -377,13 +380,20 @@ void pa_discover_port_available_changed(struct userdata *u,
     pa_log_debug("port '%s' availabilty changed to %s. Updating",
                  port->name, state);
 
+    btport = FALSE;
     route = FALSE;
+    direction = 0;
+    iter = NULL;
 
-    if ((node = pa_utils_get_node_from_port(u, port))) {
+    while ((node = pa_utils_get_node_from_port(u, port, &iter))) {
+        btport = TRUE;
         available = get_bluetooth_port_availability(node, port);
         route |= update_node_availability(u, node, available);
-        set_bluetooth_profile(u, node);
+        direction |= (node->direction == mir_input) ? PA_DIRECTION_INPUT : PA_DIRECTION_OUTPUT;
     }
+
+    if (btport)
+        set_bluetooth_profile(u, port->card, direction);
     else {
         switch (port->available) {
         case PA_PORT_AVAILABLE_NO:    available = FALSE;    break;
@@ -1671,7 +1681,7 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
                     data.amname = amname;
                     amname[0] = '\0';
                     snprintf(paname, sizeof(paname), "bluez_sink.%s", cid);
-                    snprintf(key, sizeof(key), "%s@%s", paname, port->name);
+                    snprintf(key, sizeof(key), "%s@%s.%s", paname, port->name, prof->name);
                     pa_classify_node_by_card(&data, card, prof, NULL);
                     node = create_node(u, &data, NULL);
                     mir_constrain_add_node(u, cd, node);
@@ -1684,7 +1694,7 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
                     data.amname = amname;
                     amname[0] = '\0';
                     snprintf(paname, sizeof(paname), "bluez_source.%s", cid);
-                    snprintf(key, sizeof(key), "%s@%s", paname, port->name);
+                    snprintf(key, sizeof(key), "%s@%s.%s", paname, port->name, prof->name);
                     pa_classify_node_by_card(&data, card, prof, NULL);
                     node = create_node(u, &data, NULL);
                     mir_constrain_add_node(u, cd, node);
@@ -1717,7 +1727,7 @@ static pa_bool_t get_bluetooth_port_availability(mir_node *node,
         if (!strcmp(prof, "hfgw")        ||
             !strcmp(prof, "a2dp_source") ||
             !strcmp(prof, "a2dp_sink"))
-            available = (port->available == PA_PORT_AVAILABLE_YES);
+            available = (port->available != PA_PORT_AVAILABLE_NO);
         else
             available = TRUE;
     }
@@ -2137,7 +2147,7 @@ static char *node_key(struct userdata *u, mir_direction direction,
             key = NULL;
         else {
             key = buf;
-            snprintf(buf, len, "%s@%s", name, port->name);
+            snprintf(buf, len, "%s@%s.%s", name, port->name, profile_name);
         }
     }
     else {
@@ -2243,22 +2253,21 @@ static mir_node_type get_stream_routing_class(pa_proplist *pl)
 }
 
 
-static void set_bluetooth_profile(struct userdata *u, mir_node *node)
+static void set_bluetooth_profile(struct userdata *u,
+                                  pa_card *card,
+                                  pa_direction_t direction)
 {
     pa_core *core;
-    pa_card *card;
     pa_device_port *port;
     pa_card_profile *prof, *make_active;
     void *state0, *state1;
-    pa_bool_t available;
+    pa_bool_t port_available;
     pa_bool_t switch_off;
     int nport;
 
     pa_assert(u);
-    pa_assert(node);
+    pa_assert(card);
     pa_assert_se((core = u->core));
-    pa_assert_se((card = pa_idxset_get_by_index(core->cards,
-                                                node->pacard.index)));
 
     make_active = NULL;
     switch_off = FALSE;
@@ -2275,23 +2284,26 @@ static void set_bluetooth_profile(struct userdata *u, mir_node *node)
             }
         }
         else {
-            available = FALSE;
+            port_available = FALSE;
 
             PA_HASHMAP_FOREACH(port, card->ports, state1) {
-                if (prof == pa_hashmap_first(port->profiles)) {
-                    available = (port->available == PA_PORT_AVAILABLE_YES);
+                if ((direction & port->direction) &&
+                    pa_hashmap_get(port->profiles, prof->name))
+                {
+                    port_available = (port->available != PA_PORT_AVAILABLE_NO);
                     break;
                 }
             }
 
-            if (!available) {
-                pa_log_debug("   ruling out %s (not available)", prof->name);
-            }
+            if (!port_available)
+                pa_log_debug("   ruling out %s (port not available)", prof->name);
+            else if (prof->available != PA_AVAILABLE_YES)
+                pa_log_debug("   ruling out %s (profile not available)", prof->name);
             else {
                 nport++;
 
-                if ((node->direction == mir_input  && prof->n_sources > 0) ||
-                    (node->direction == mir_output && prof->n_sinks   > 0)   ) {
+                if (((direction & PA_DIRECTION_INPUT)  && prof->n_sources > 0) ||
+                    ((direction & PA_DIRECTION_OUTPUT) && prof->n_sinks   > 0)   ) {
                     if (make_active && prof->priority < make_active->priority)
                         pa_log_debug("   ruling out %s (low priority)", prof->name);
                     else {
