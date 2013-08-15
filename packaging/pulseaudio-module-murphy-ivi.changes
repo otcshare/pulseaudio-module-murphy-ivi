@@ -1,3 +1,6 @@
+* Thu Aug 15 14:06:24 EEST 2013 Jaska Uimonen * <jaska.uimonen@intel.com> - 0.9.13
+- new release for pulseaudio 4.0
+
 * Wed Jul 25 14:06:24 EEST 2013 Ismo Puustinen * <ismo.puustinen@intel.com> - 0.9.12
 - router: allow incoming hfp audio to be routed to headsets.
 
