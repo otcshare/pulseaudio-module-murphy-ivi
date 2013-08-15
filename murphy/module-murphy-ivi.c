@@ -264,7 +264,6 @@ void pa__done(pa_module *m) {
     pa_assert(m);
     
     if ((u = m->userdata)) {
-        pa_scripting_done(u);
         pa_murphyif_done(u);
         pa_tracker_done(u);
         pa_discover_done(u);
@@ -276,6 +275,7 @@ void pa__done(pa_module *m) {
         pa_mir_volume_done(u);
         pa_mir_config_done(u);
         pa_nodeset_done(u);
+        pa_scripting_done(u);
         pa_utils_destroy_null_sink(u);
 
         pa_loopback_done(u->loopback, u->core);
