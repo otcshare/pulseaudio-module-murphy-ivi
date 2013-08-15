@@ -27,6 +27,7 @@
 #include <pulsecore/core-util.h>
 
 #include <murphy/common/macros.h>
+#include <murphy/common/mm.h>
 #include <murphy/core/lua-utils/object.h>
 #include <murphy/core/lua-utils/funcbridge.h>
 #include <murphy/core/lua-utils/strarray.h>
@@ -1411,8 +1412,14 @@ static pa_bool_t rtgroup_accept(struct userdata *u,
         args[0].pointer = rtgs;
         args[1].pointer = node->scripting;
 
-        if (!mrp_funcbridge_call_from_c(L, rtgs->accept, "oo",args, &rt,&rv))
-            pa_log("failed to call accept function");
+        if (!mrp_funcbridge_call_from_c(L, rtgs->accept, "oo",args, &rt,&rv)) {
+            if (rt != MRP_FUNCBRIDGE_STRING)
+                pa_log("call to accept function failed");
+            else {
+                pa_log("call to accept function failed: %s", rv.string);
+                mrp_free((void *)rv.string);
+            }
+        }
         else {
             if (rt != MRP_FUNCBRIDGE_BOOLEAN)
                 pa_log("accept function returned invalid type");
