@@ -5,9 +5,20 @@ zone { name = "passanger3" }
 zone { name = "passanger4" }
 
 routing_group {
-    name = "default",
+    name = "default_driver",
     node_type = node.output,
-    accept = builtin.method.accept_default,
+    accept = function(self, n)
+        return (n.type ~= node.bluetooth_carkit and n.type ~= node.hdmi)
+    end,
+    compare = builtin.method.compare_default
+}
+
+routing_group {
+    name = "default_passanger1",
+    node_type = node.output,
+    accept = function(self, n)
+        return (n.type == node.hdmi or n.name == 'Silent')
+    end,
     compare = builtin.method.compare_default
 }
 
@@ -29,7 +40,7 @@ application_class {
     node_type = node.event,
     priority = 6,
     route = {
-        output = routing_group.default_output
+        output = { driver = routing_group.default_driver_output }
     },
     roles = { event = no_resource }
 }
@@ -39,8 +50,8 @@ application_class {
     node_type = node.phone,
     priority = 5,
     route = {
-        input = routing_group.phone_input,
-        output = routing_group.phone_output
+        input  = { driver = routing_group.phone_input },
+        output = {driver = routing_group.phone_output }
     },
     roles = { phone = no_resource, carkit = no_resource }
 }
@@ -49,7 +60,7 @@ application_class {
     node_type = node.alert,
     priority = 4,
     route = {
-        output = routing_group.default_output
+        output = { driver = routing_group.default_driver_output },
     },
     roles = { ringtone = no_resource, alarm = no_resource }
 }
@@ -59,7 +70,8 @@ application_class {
     node_type = node.navigator,
     priority = 3,
     route = {
-        output = routing_group.default_output
+        output = { driver = routing_group.default_driver_output,
+	           passanger1 = routing_group.default_passanger1_output }
     },
     roles = { navigator = {0, "autorelease", "mandatory", "shared"} }
 }
@@ -69,7 +81,8 @@ application_class {
     node_type = node.game,
     priority = 2,
     route = {
-        output = routing_group.default_output
+        output = { driver = routing_group.default_driver_output,
+	           passanger1 = routing_group.default_passanger1_output }
     },
     roles = { game = {0, "mandatory", "exclusive"} }
 }
@@ -79,7 +92,7 @@ application_class {
     node_type = node.radio,
     priority = 1,
     route = {
-        output = routing_group.default_output
+        output = { driver = routing_group.default_driver_output }
     },
     roles = { radio = {1, "mandatory", "exclusive"} },
 }
@@ -89,7 +102,8 @@ application_class {
     node_type = node.player,
     priority = 1,
     route = {
-        output = routing_group.default_output
+        output = { driver = routing_group.default_driver_output,
+	           passanger1 = routing_group.default_passanger1_output }
     },
     roles = { music   = {0, "mandatory", "exclusive"},
               video   = {0, "mandatory", "exclusive"},
@@ -102,7 +116,8 @@ application_class {
     node_type = node.browser,
     priority = 1,
     route = {
-        output = routing_group.default_output
+        output = { driver = routing_group.default_driver_output,
+	           passanger1 = routing_group.default_passanger1_output }
     },
     roles = { browser = {0, "mandatory", "shared"} }
 }

@@ -28,6 +28,7 @@
 #include <pulsecore/module.h>
 
 #include "router.h"
+#include "zone.h"
 #include "node.h"
 #include "switch.h"
 #include "constrain.h"
@@ -70,7 +71,7 @@ static void pa_hashmap_rtgroup_free(void *rtg, void *u)
 
 pa_router *pa_router_init(struct userdata *u)
 {
-    size_t     num_classes = mir_application_class_end;
+    size_t num_classes = mir_application_class_end;
     pa_router *router = pa_xnew0(pa_router, 1);
     
     router->rtgroups.input  = pa_hashmap_new(pa_idxset_string_hash_func,
@@ -79,9 +80,6 @@ pa_router *pa_router_init(struct userdata *u)
                                              pa_idxset_string_compare_func);
 
     router->maplen = num_classes;
-
-    router->classmap.input  = pa_xnew0(mir_rtgroup *, num_classes);
-    router->classmap.output = pa_xnew0(mir_rtgroup *, num_classes);
 
     router->priormap = pa_xnew0(int, num_classes);
 
@@ -98,6 +96,8 @@ void pa_router_done(struct userdata *u)
     mir_node       *e,*n;
     void           *state;
     mir_rtgroup    *rtg;
+    mir_rtgroup   **map;
+    int             i;
 
     if (u && (router = u->router)) {
         MIR_DLIST_FOR_EACH_SAFE(mir_node, rtprilist, e,n, &router->nodlist) {
@@ -120,8 +120,13 @@ void pa_router_done(struct userdata *u)
         pa_hashmap_free(router->rtgroups.input, NULL);
         pa_hashmap_free(router->rtgroups.output, NULL);
 
-        pa_xfree(router->classmap.input);
-        pa_xfree(router->classmap.output);
+        for (i = 0;  i < MRP_ZONE_MAX;  i++) {
+            if ((map = router->classmap.input[i]))
+                pa_xfree(map);
+
+            if ((map = router->classmap.output[i]))
+                pa_xfree(map);
+        }
 
         pa_xfree(router->priormap);
         pa_xfree(router);
@@ -224,17 +229,21 @@ void mir_router_destroy_rtgroup(struct userdata *u,
 
 pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *u,
                                              mir_node_type    class,
+                                             uint32_t         zone,
                                              mir_direction    type,
                                              const char      *rtgrpnam)
 {
     pa_router *router;
     pa_hashmap *rtable;
-    mir_rtgroup **classmap;
+    mir_rtgroup ***classmap;
+    mir_rtgroup **zonemap;
     mir_rtgroup *rtg;
     const char *clnam;
     const char *direction;
+    mir_zone *z;
 
     pa_assert(u);
+    pa_assert(zone < MRP_ZONE_MAX);
     pa_assert(type == mir_input || type == mir_output);
     pa_assert(rtgrpnam);
     pa_assert_se((router = u->router));
@@ -263,10 +272,21 @@ pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *u,
                      "router group not found", clnam, direction, rtgrpnam);
     }
 
-    classmap[class] = rtg;
+    if (!(zonemap = classmap[zone])) {
+        zonemap = pa_xnew0(mir_rtgroup *, router->maplen);
+        classmap[zone] = zonemap;
+    }
 
-    pa_log_debug("class '%s' assigned to %s routing group '%s'",
-                 clnam, direction, rtgrpnam);
+    zonemap[class] = rtg;
+
+    if ((z = pa_zoneset_get_zone_by_index(u, zone))) {
+        pa_log_debug("class '%s'@'%s' assigned to %s routing group '%s'",
+                     clnam, z->name, direction, rtgrpnam);
+    }
+    else {
+        pa_log_debug("class '%s'@zone%u assigned to %s routing group '%s'",
+                     clnam, zone, direction, rtgrpnam);
+    }
 
     return TRUE;
 }
@@ -832,7 +852,9 @@ static mir_node *find_default_route(struct userdata *u,
 {
     pa_router     *router = u->router;
     mir_node_type  class  = pa_classify_guess_application_class(start);
-    mir_rtgroup  **classmap;
+    mir_zone      *zone   = pa_zoneset_get_zone_by_name(u, start->zone);
+    mir_rtgroup ***cmap;
+    mir_rtgroup  **zmap;
     mir_node      *end;
     mir_rtgroup   *rtg;
     mir_rtentry   *rte;
@@ -842,14 +864,20 @@ static mir_node *find_default_route(struct userdata *u,
                      start->amname, class, router->maplen);
         return NULL;
     }
+
+    if (!zone) {
+        pa_log_debug("can't route '%s': zone '%s' is unknown",
+                     start->amname, start->zone);
+        return NULL;
+    }
     
     switch (start->direction) {
-    case mir_input:     classmap = router->classmap.output;     break;
-    case mir_output:    classmap = router->classmap.input;      break;
-    default:            classmap = NULL;                        break;
+    case mir_input:     cmap = router->classmap.output;     break;
+    case mir_output:    cmap = router->classmap.input;      break;
+    default:            cmap = NULL;                        break;
     }
 
-    if (!classmap || !(rtg = classmap[class])) {
+    if (!cmap || !(zmap = cmap[zone->index]) || !(rtg = zmap[class])) {
         pa_log_debug("node '%s' won't be routed beacuse its class '%s' "
                      "is not assigned to any router group",
                      start->amname, mir_node_type_str(class));
