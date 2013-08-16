@@ -125,8 +125,8 @@ struct scripting_rtgroup {
 };
 
 typedef struct {
-    const char         *input;
-    const char         *output;
+    const char        **input;
+    const char        **output;
 } route_t;
 
 typedef struct {
@@ -1743,6 +1743,7 @@ static int apclass_create(lua_State *L)
 
     mir_router_assign_class_priority(u, type, priority); 
 
+    /*
     ir = !route->input  ? TRUE : mir_router_assign_class_to_rtgroup(
                                                         u, type,
                                                         mir_input,
@@ -1751,11 +1752,12 @@ static int apclass_create(lua_State *L)
                                                         u, type,
                                                         mir_output,
                                                         route->output);
+    */
 
     ac = (scripting_apclass *)mrp_lua_create_object(L, APPLICATION_CLASS,
                                                     name, 0);
 
-    if (!ir || !or || !ac)
+    if (/* !ir || !or || */ !ac)
         luaL_error(L, "failed to create application class '%s'", name);
 
     ac->userdata = u;
@@ -1892,38 +1894,99 @@ static void apclass_destroy(void *data)
     MRP_LUA_LEAVE_NOARG;
 }
 
-static const char *route_name_check(lua_State *L, int idx)
+static const char **route_definition_check(lua_State *L, int idx)
 {
+    size_t zonelen;
+    const char *zonenam;
+    scripting_zone *zone;
     scripting_rtgroup *rtgs;
     mir_rtgroup *rtg;
-    const char *name;
+    const char **defs;
+    const char *rtgnam;
+    int ndef;
 
-    switch (lua_type(L, idx)) {
-    case LUA_TSTRING:
-        name = lua_tostring(L, idx);
-        break;
-    case LUA_TTABLE:
-        rtgs = (scripting_rtgroup*)mrp_lua_check_object(L, RTGROUP_CLASS, idx);
-        if (!rtgs || !(rtg = rtgs->rtg))
-            name = NULL;
-        else
-            name = rtg->name;
-        break;
-    default:
-        name = NULL;
-        break;
+    idx = (idx < 0) ? lua_gettop(L) + idx + 1 : idx;
+
+    luaL_checktype(L, idx, LUA_TTABLE);
+
+    defs = pa_xnew0(const char *, MRP_ZONE_MAX);
+    ndef = 0;
+
+    MRP_LUA_FOREACH_FIELD(L, idx, zonenam, zonelen) {
+        if (!zonenam[0])
+            luaL_error(L, "invalid route definition");
+
+        mrp_lua_find_object(L, ZONE_CLASS, zonenam);
+
+        if (!(zone = mrp_lua_check_object(L, NULL, -1)))
+            luaL_error(L, "can't find zone '%s'", zonenam);
+
+        lua_pop(L, 1);
+
+        if (zone->index >= MRP_ZONE_MAX)
+            luaL_error(L, "Internal error: zone index overflow");
+
+        switch (lua_type(L, -1)) {
+        case LUA_TSTRING:
+            rtgnam = lua_tostring(L, -1);
+            break;
+        case LUA_TTABLE:
+            rtgs = (scripting_rtgroup*)mrp_lua_check_object(L,RTGROUP_CLASS,-1);
+            if (!rtgs || !(rtg = rtgs->rtg))
+                rtgnam = NULL;
+            else
+                rtgnam = rtg->name;
+            break;
+        default:
+            rtgnam = NULL;
+            break;
+        }
+
+        if (!rtgnam)
+            luaL_error(L, "missing or invalid routing group");
+
+        defs[zone->index] = pa_xstrdup(rtgnam);
+        ndef++;
     }
 
-    return name;
+    if (!ndef)
+        luaL_error(L, "empty definition");
+
+    return defs;
 }
+
+static int route_definition_push(lua_State *L, const char **defs)
+{
+    int i;
+
+    lua_createtable(L, MRP_ZONE_MAX, 0);
+
+    for (i = 0;  i < MRP_ZONE_MAX;  i++) {
+    }
+
+    return 1;
+}
+
+
+static void route_definition_free(const char **defs)
+{
+    int i;
+
+    if (defs) {
+        for (i = 0;  i < MRP_ZONE_MAX;  i++)
+            pa_xfree((void *)defs[i]);
+        pa_xfree((void *)defs);
+    }
+}
+
 
 static route_t *route_check(lua_State *L, int idx)
 {
     size_t fldnamlen;
     const char *fldnam;
     route_t *rt;
-    const char *input = NULL;
-    const char *output = NULL;
+    const char **input = NULL;
+    const char **output = NULL;
 
     idx = (idx < 0) ? lua_gettop(L) + idx + 1 : idx;
 
@@ -1931,9 +1994,9 @@ static route_t *route_check(lua_State *L, int idx)
 
     MRP_LUA_FOREACH_FIELD(L, idx, fldnam, fldnamlen) {
         switch (field_name_to_type(fldnam, fldnamlen)) {
-        case        INPUT:  input  = route_name_check(L, -1);      break;
-        case        OUTPUT: output = route_name_check(L, -1);      break;
-        default:    luaL_error(L, "invalid field '%s'", fldnam);   break;
+        case        INPUT:  input  = route_definition_check(L, -1);      break;
+        case        OUTPUT: output = route_definition_check(L, -1);      break;
+        default:    luaL_error(L, "invalid field '%s'", fldnam);         break;
         }
     } /* MRP_LUA_FOREACH_FIELD */
 
@@ -1941,8 +2004,8 @@ static route_t *route_check(lua_State *L, int idx)
         luaL_error(L, "neither input nor output routing group were specified");
 
     rt = pa_xmalloc(sizeof(route_t));
-    rt->input  = input  ? pa_xstrdup(input)  : NULL;
-    rt->output = output ? pa_xstrdup(output) : NULL;
+    rt->input  = input;
+    rt->output = output;
 
     return rt;
 }
@@ -1956,13 +2019,13 @@ static int route_push(lua_State *L, route_t *rt)
 
         if (rt->input) {
             lua_pushstring(L, "input");
-            lua_pushstring(L, rt->input);
+            route_definition_push(L, rt->input);
             lua_settable(L, -3);
         }
         
         if (rt->output) {
             lua_pushstring(L, "output");
-            lua_pushstring(L, rt->output);
+            route_definition_push(L, rt->output);
             lua_settable(L, -3);
         }
     }
