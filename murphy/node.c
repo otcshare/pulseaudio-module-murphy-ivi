@@ -174,7 +174,7 @@ pa_nodeset_map *pa_nodeset_get_map_by_role(struct userdata *u,
     pa_assert(u);
     pa_assert_se((ns = u->nodeset));
 
-    if (role)
+    if (role && ns->roles)
         map = pa_hashmap_get(ns->roles, role);
     else
         map = NULL;

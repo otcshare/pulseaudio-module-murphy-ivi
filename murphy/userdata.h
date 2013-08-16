@@ -32,6 +32,7 @@
 
 #define DIM(a) (sizeof(a)/sizeof((a)[0]))
 
+#define PA_PROP_ZONES                  "zones"
 #define PA_PROP_ZONE_NAME              "zone.name"
 #define PA_PROP_ROUTING_CLASS_NAME     "routing.class.name"
 #define PA_PROP_ROUTING_CLASS_ID       "routing.class.id"
@@ -65,6 +66,7 @@ typedef struct pa_fader                 pa_fader;
 typedef struct pa_scripting             pa_scripting;
 typedef struct pa_mir_volume            pa_mir_volume;
 typedef struct pa_mir_config            pa_mir_config;
+typedef struct pa_zoneset               pa_zoneset;
 typedef struct pa_nodeset               pa_nodeset;
 typedef struct pa_nodeset_resdef        pa_nodeset_resdef;
 typedef struct pa_nodeset_map           pa_nodeset_map;
@@ -84,6 +86,7 @@ typedef enum   mir_location             mir_location;
 typedef enum   mir_node_type            mir_node_type;
 typedef enum   mir_privacy              mir_privacy; 
 typedef struct mir_node                 mir_node;
+typedef struct mir_zone                 mir_zone;
 typedef struct mir_rtgroup              mir_rtgroup;
 typedef struct mir_rtentry              mir_rtentry;
 typedef struct mir_connection           mir_connection;
@@ -94,6 +97,7 @@ typedef struct mir_volume_suppress_arg  mir_volume_suppress_arg;
 
 typedef struct scripting_import         scripting_import;
 typedef struct scripting_node           scripting_node;
+typedef struct scripting_zone           scripting_zone;
 typedef struct scripting_resource       scripting_resource;
 typedef struct scripting_rtgroup        scripting_rtgroup;
 typedef struct scripting_apclass        scripting_apclass;
@@ -144,6 +148,7 @@ struct userdata {
     pa_core       *core;
     pa_module     *module;
     pa_null_sink  *nullsink;
+    pa_zoneset    *zoneset;
     pa_nodeset    *nodeset;
     pa_audiomgr   *audiomgr;
     pa_routerif   *routerif;
