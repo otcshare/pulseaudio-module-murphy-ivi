@@ -26,11 +26,16 @@
 #include <pulsecore/hashmap.h>
 #include <pulsecore/module.h>
 
+#include <murphy/resource/data-types.h>
+
 #include "zone.h"
 
 
 struct pa_zoneset {
-    pa_hashmap     *zones;
+    struct {
+        pa_hashmap     *hash;
+        mir_zone       *index[MRP_ZONE_MAX];
+    } zones;
 };
 
 
@@ -44,8 +49,8 @@ pa_zoneset *pa_zoneset_init(struct userdata *u)
     pa_assert(u);
 
     zs = pa_xnew0(pa_zoneset, 1);
-    zs->zones = pa_hashmap_new(pa_idxset_string_hash_func,
-                               pa_idxset_string_compare_func);
+    zs->zones.hash = pa_hashmap_new(pa_idxset_string_hash_func,
+                                    pa_idxset_string_compare_func);
 
     return zs;
 }
@@ -57,7 +62,7 @@ void pa_zoneset_done(struct userdata *u)
     int i;
 
     if (u && (zs = u->zoneset)) {
-        pa_hashmap_free(zs->zones, free_zone_cb);
+        pa_hashmap_free(zs->zones.hash, free_zone_cb);
 
         free(zs);
     }    
@@ -70,16 +75,22 @@ int pa_zoneset_add_zone(struct userdata *u, const char *name, uint32_t index)
 
     pa_assert(u);
     pa_assert(name);
+    pa_assert(index < MRP_ZONE_MAX);
     pa_assert_se((zs = u->zoneset));
 
     zone = pa_xnew0(mir_zone, 1);
     zone->name = pa_xstrdup(name);
     zone->index = index;
 
-    return pa_hashmap_put(zs->zones, zone->name, zone);
+    if (pa_hashmap_put(zs->zones.hash, zone->name, zone))
+        return -1;
+
+    zs->zones.index[index] = zone;
+
+    return 0;
 }
 
-mir_zone *pa_zoneset_get_zone(struct userdata *u, const char *name)
+mir_zone *pa_zoneset_get_zone_by_name(struct userdata *u, const char *name)
 {
     pa_zoneset *zs;
     mir_zone *zone;
@@ -87,14 +98,30 @@ mir_zone *pa_zoneset_get_zone(struct userdata *u, const char *name)
     pa_assert(u);
     pa_assert_se((zs = u->zoneset));
 
-    if (name && zs->zones)
-        zone = pa_hashmap_get(zs->zones, name);
+    if (name && zs->zones.hash)
+        zone = pa_hashmap_get(zs->zones.hash, name);
     else
         zone = NULL;
 
     return zone;
 }
 
+
+mir_zone *pa_zoneset_get_zone_by_index(struct userdata *u, uint32_t index)
+{
+    pa_zoneset *zs;
+    mir_zone *zone;
+
+    pa_assert(u);
+    pa_assert_se((zs = u->zoneset));
+
+    if (index < MRP_ZONE_MAX)
+        zone = zs->zones.index[index];
+    else
+        zone = NULL;
+
+    return zone;
+}
 
 void pa_zoneset_update_module_property(struct userdata *u)
 {
@@ -108,18 +135,18 @@ void pa_zoneset_update_module_property(struct userdata *u)
     pa_assert(u);
     pa_assert_se((module = u->module));
     pa_assert_se((zs = u->zoneset));
-    pa_assert(zs->zones);
+    pa_assert(zs->zones.hash);
 
     e = (p = buf) + sizeof(buf);
 
     buf[1] = 0;
     
-    PA_HASHMAP_FOREACH(zone, zs->zones, state) {
+    PA_HASHMAP_FOREACH(zone, zs->zones.hash, state) {
         if (p >= e) break;
         p += snprintf(p, e-p, " '%s'", zone->name);
     }
 
-    pa_proplist_sets(module->proplist, PA_PROP_ZONES, buf+1); /* skip ' '@begining */
+    pa_proplist_sets(module->proplist, PA_PROP_ZONES, buf+1);
 }
 
 static void free_zone_cb(void *void_zone)
