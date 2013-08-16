@@ -25,10 +25,15 @@
 #include <pulsecore/pulsecore-config.h>
 
 #include "murphy-config.h"
+#include "zone.h"
 #include "node.h"
 #include "router.h"
 #include "volume.h"
 #include "scripting.h"
+
+typedef struct {
+    const char *name;
+} zone_def;
 
 typedef struct {
     mir_direction          type;
@@ -39,6 +44,7 @@ typedef struct {
 
 typedef struct {
     mir_node_type  class;
+    uint32_t       zone;
     mir_direction  type;
     const char    *rtgroup;
 } classmap_def;
@@ -54,6 +60,15 @@ typedef struct {
 } prior_def;
 
 
+
+static zone_def zones[] = {
+    "driver",
+    "passanger1",
+    "passanger2",
+    "passanger3",
+    "passanger4",
+    NULL
+};
 
 static rtgroup_def  rtgroups[] = {
     {mir_input,
@@ -78,16 +93,15 @@ static rtgroup_def  rtgroups[] = {
 };
 
 static classmap_def classmap[] = {
-    {mir_phone    , mir_input , "phone"  },
-
-    {mir_radio    , mir_output, "default"},
-    {mir_player   , mir_output, "default"},
-    {mir_navigator, mir_output, "default"},
-    {mir_game     , mir_output, "default"},
-    {mir_browser  , mir_output, "default"},
-    {mir_phone    , mir_output, "phone"  },
-    {mir_event    , mir_output, "default"},
-    {mir_node_type_unknown, mir_direction_unknown, NULL}
+    {mir_phone    , 0, mir_input , "phone"  },
+    {mir_radio    , 0, mir_output, "default"},
+    {mir_player   , 0, mir_output, "default"},
+    {mir_navigator, 0, mir_output, "default"},
+    {mir_game     , 0, mir_output, "default"},
+    {mir_browser  , 0, mir_output, "default"},
+    {mir_phone    , 0, mir_output, "phone"  },
+    {mir_event    , 0, mir_output, "default"},
+    {mir_node_type_unknown, 0, mir_direction_unknown, NULL}
 };
 
 static typemap_def rolemap[] = {
@@ -193,6 +207,7 @@ pa_bool_t pa_mir_config_parse_file(struct userdata *u, const char *path)
 
 static pa_bool_t use_default_configuration(struct userdata *u)
 {
+    zone_def     *z;
     rtgroup_def  *r;
     classmap_def *c;
     typemap_def  *t;
@@ -200,11 +215,16 @@ static pa_bool_t use_default_configuration(struct userdata *u)
 
     pa_assert(u);
 
+    for (z = zones;  z->name;  z++)
+        pa_zoneset_add_zone(u, z->name, z - zones);
+
     for (r = rtgroups;  r->name;   r++)
         mir_router_create_rtgroup(u, r->type, r->name, r->accept, r->compare);
 
-    for (c = classmap;  c->rtgroup;  c++)
-        mir_router_assign_class_to_rtgroup(u, c->class, c->type, c->rtgroup);
+    for (c = classmap;  c->rtgroup;  c++) {
+        mir_router_assign_class_to_rtgroup(u, c->class, c->zone,
+                                           c->type, c->rtgroup);
+    }
 
     for (t = rolemap; t->id; t++)
         pa_nodeset_add_role(u, t->id, t->type, NULL);

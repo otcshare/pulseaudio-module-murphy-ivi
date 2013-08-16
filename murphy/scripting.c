@@ -1184,8 +1184,7 @@ static int zone_create(lua_State *L)
     if (pa_zoneset_add_zone(u, name, index+1))
         luaL_error(L, "attempt to define zone '%s' multiple times", name);
 
-    zone = (scripting_zone *)mrp_lua_create_object(L, ZONE_CLASS,
-                                                   "definition",0);
+    zone = (scripting_zone *)mrp_lua_create_object(L, ZONE_CLASS, name, 0);
 
     zone->userdata = u;
     zone->name = pa_xstrdup(name);
@@ -1705,6 +1704,7 @@ static int apclass_create(lua_State *L)
     pa_nodeset_resdef *resdef;
     map_t *r, *b;
     size_t i;
+    const char *n;
     pa_bool_t ir, or;
 
     MRP_LUA_ENTER;
@@ -1743,21 +1743,26 @@ static int apclass_create(lua_State *L)
 
     mir_router_assign_class_priority(u, type, priority); 
 
-    /*
-    ir = !route->input  ? TRUE : mir_router_assign_class_to_rtgroup(
-                                                        u, type,
-                                                        mir_input,
-                                                        route->input);
-    or = !route->output ? TRUE : mir_router_assign_class_to_rtgroup(
-                                                        u, type,
-                                                        mir_output,
-                                                        route->output);
-    */
+    ir = or = TRUE;
+
+    if (route->input) {
+        for (i = 0;  i < MRP_ZONE_MAX;  i++) {
+            if ((n = route->input[i]))
+                ir &= mir_router_assign_class_to_rtgroup(u,type,i,mir_input,n);
+        }
+    }
+
+    if (route->output) {
+        for (i = 0;  i < MRP_ZONE_MAX;  i++) {
+            if ((n = route->output[i]))
+                or &= mir_router_assign_class_to_rtgroup(u,type,i,mir_output,n);
+        }
+    }
 
     ac = (scripting_apclass *)mrp_lua_create_object(L, APPLICATION_CLASS,
                                                     name, 0);
 
-    if (/* !ir || !or || */ !ac)
+    if (!ir || !or || !ac)
         luaL_error(L, "failed to create application class '%s'", name);
 
     ac->userdata = u;

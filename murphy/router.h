@@ -22,6 +22,8 @@
 
 #include <sys/types.h>
 
+#include <murphy/resource/data-types.h>
+
 #include "userdata.h"
 #include "list.h"
 
@@ -36,8 +38,8 @@ typedef struct {
 } pa_rtgroup_hash;
 
 typedef struct {
-    mir_rtgroup **input;
-    mir_rtgroup **output;
+    mir_rtgroup **input[MRP_ZONE_MAX];
+    mir_rtgroup **output[MRP_ZONE_MAX];
 } pa_rtgroup_classmap;
 
 struct pa_router {
@@ -90,7 +92,8 @@ mir_rtgroup *mir_router_create_rtgroup(struct userdata *,
 void mir_router_destroy_rtgroup(struct userdata *, mir_direction,
                                 const char *);
 pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *, mir_node_type,
-                                             mir_direction,  const char *);
+                                             uint32_t, mir_direction,
+                                             const char *);
 
 void mir_router_register_node(struct userdata *, mir_node *);
 void mir_router_unregister_node(struct userdata *, mir_node *);
