@@ -1,3 +1,8 @@
+zone { name = "driver" }
+zone { name = "passanger1" }
+zone { name = "passanger2" }
+zone { name = "passanger3" }
+zone { name = "passanger4" }
 
 routing_group {
     name = "default",

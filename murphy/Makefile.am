@@ -16,6 +16,7 @@ modlibexec_LTLIBRARIES = module-murphy-ivi.la
 module_murphy_ivi_la_SOURCES = \
 			module-murphy-ivi.c \
 			tracker.c \
+			zone.c \
 			node.c \
 			discover.c \
 			constrain.c \

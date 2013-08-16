@@ -37,6 +37,7 @@
 #include <murphy/resource/protocol.h>
 
 #include "scripting.h"
+#include "zone.h"
 #include "node.h"
 #include "router.h"
 #include "volume.h"
@@ -45,6 +46,7 @@
 
 #define IMPORT_CLASS       MRP_LUA_CLASS(mdb, import)
 #define NODE_CLASS         MRP_LUA_CLASS(node, instance)
+#define ZONE_CLASS         MRP_LUA_CLASS_SIMPLE(zone)
 #define RESOURCE_CLASS     MRP_LUA_CLASS_SIMPLE(audio_resource)
 #define RTGROUP_CLASS      MRP_LUA_CLASS_SIMPLE(routing_group)
 #define APPLICATION_CLASS  MRP_LUA_CLASS_SIMPLE(application_class)
@@ -100,6 +102,13 @@ typedef struct {
     const char         *prop;
     mrp_attr_t          def;
 } attribute_t;
+
+
+struct scripting_zone {
+    struct userdata    *userdata;
+    const char         *name;
+    uint32_t            index;
+};
 
 struct scripting_resource {
     struct userdata    *userdata;
@@ -241,6 +250,11 @@ static int  node_setfield(lua_State *);
 static int  node_tostring(lua_State *);
 static void node_destroy(void *);
 
+static int  zone_create(lua_State *);
+static int  zone_getfield(lua_State *);
+static int  zone_setfield(lua_State *);
+static void zone_destroy(void *);
+
 static int  resource_create(lua_State *);
 static int  resource_getfield(lua_State *);
 static int  resource_setfield(lua_State *);
@@ -375,6 +389,20 @@ MRP_LUA_CLASS_DEF (
 );
 
 MRP_LUA_CLASS_DEF_SIMPLE (
+   zone,                         /* class name */
+   scripting_zone,               /* userdata type */
+   zone_destroy,                 /* userdata destructor */
+   MRP_LUA_METHOD_LIST (         /* methods */
+      MRP_LUA_METHOD_CONSTRUCTOR  (zone_create)
+   ),
+   MRP_LUA_METHOD_LIST (         /* overrides */
+      MRP_LUA_OVERRIDE_CALL       (zone_create)
+      MRP_LUA_OVERRIDE_GETFIELD   (zone_getfield)
+      MRP_LUA_OVERRIDE_SETFIELD   (zone_setfield)
+   )
+);
+
+MRP_LUA_CLASS_DEF_SIMPLE (
    audio_resource,               /* class name */
    scripting_resource,           /* userdata type */
    resource_destroy,             /* userdata destructor */
@@ -452,6 +480,7 @@ pa_scripting *pa_scripting_init(struct userdata *u)
         mrp_create_funcbridge_class(L);
         mrp_lua_create_object_class(L, IMPORT_CLASS);
         mrp_lua_create_object_class(L, NODE_CLASS);
+        mrp_lua_create_object_class(L, ZONE_CLASS);
         mrp_lua_create_object_class(L, RESOURCE_CLASS);
         mrp_lua_create_object_class(L, RTGROUP_CLASS);
         mrp_lua_create_object_class(L, APPLICATION_CLASS);
@@ -503,6 +532,7 @@ pa_bool_t pa_scripting_dofile(struct userdata *u, const char *file)
         success =TRUE;
         scripting->configured = TRUE;
         setup_murphy_interface(u);
+        pa_zoneset_update_module_property(u);
     }
 
     return success;
@@ -1117,6 +1147,104 @@ static void node_destroy(void *data)
 
     MRP_LUA_LEAVE_NOARG;
 }
+
+
+static int zone_create(lua_State *L)
+{
+    static uint32_t index;
+
+    struct userdata *u;
+    size_t fldnamlen;
+    const char *fldnam;
+    scripting_zone *zone;
+    const char *name = NULL;
+    attribute_t *attributes = NULL;
+
+    MRP_LUA_ENTER;
+
+    lua_getglobal(L, USERDATA);
+    if (!lua_islightuserdata(L, -1) || !(u = lua_touserdata(L, -1)))
+        luaL_error(L, "missing or invalid global '" USERDATA "'");
+    lua_pop(L, 1);
+
+
+    MRP_LUA_FOREACH_FIELD(L, 2, fldnam, fldnamlen) {
+
+        switch (field_name_to_type(fldnam, fldnamlen)) {
+        case NAME:         name = luaL_checkstring(L, -1);           break;
+        case ATTRIBUTES:   attributes = attributes_check(L, -1);     break;
+        default:           luaL_error(L, "bad field '%s'", fldnam);  break;
+        }
+
+    } /* MRP_LUA_FOREACH_FIELD */
+
+    if (!name)
+        luaL_error(L, "missing or invalid name field");
+
+    if (pa_zoneset_add_zone(u, name, index+1))
+        luaL_error(L, "attempt to define zone '%s' multiple times", name);
+
+    zone = (scripting_zone *)mrp_lua_create_object(L, ZONE_CLASS,
+                                                   "definition",0);
+
+    zone->userdata = u;
+    zone->name = pa_xstrdup(name);
+    zone->index = ++index;
+
+
+    MRP_LUA_LEAVE(1);
+}
+
+static int zone_getfield(lua_State *L)
+{
+    scripting_zone *zone;
+    field_t fld;
+
+    MRP_LUA_ENTER;
+
+    fld = field_check(L, 2, NULL);
+    lua_pop(L, 1);
+
+    if (!(zone = (scripting_zone *)mrp_lua_check_object(L, ZONE_CLASS, 1)))
+        lua_pushnil(L);
+    else {
+        switch (fld) {
+        case NAME:           lua_pushstring(L, zone->name);         break;
+#if 0
+        case ATTRIBUTES:     lua_pushinteger(L, rtgs->type);       break;
+#endif
+        default:             lua_pushnil(L);                       break;
+        }
+    }
+
+    MRP_LUA_LEAVE(1);
+}
+
+static int zone_setfield(lua_State *L)
+{
+    const char *f;
+
+    MRP_LUA_ENTER;
+
+    f = luaL_checkstring(L, 2);
+    luaL_error(L, "attempt to set '%s' field of read-only zone", f);
+    
+    MRP_LUA_LEAVE(0);
+}
+
+static void zone_destroy(void *data)
+{
+    scripting_zone *zone = (scripting_zone *)data;
+
+    MRP_LUA_ENTER;
+
+    pa_xfree((void *)zone->name);
+    
+    zone->name = NULL;
+
+    MRP_LUA_LEAVE_NOARG;
+}
+
 
 static int resource_create(lua_State *L)
 {

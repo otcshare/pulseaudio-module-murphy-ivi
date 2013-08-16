@@ -47,6 +47,7 @@
 #include "module-murphy-ivi-symdef.h"
 #include "userdata.h"
 #include "node.h"
+#include "zone.h"
 #include "tracker.h"
 #include "discover.h"
 #include "router.h"
@@ -200,6 +201,7 @@ int pa__init(pa_module *m) {
     u->core      = m->core;
     u->module    = m;
     u->nullsink  = pa_utils_create_null_sink(u, nsnam);
+    u->zoneset   = pa_zoneset_init(u);
     u->nodeset   = pa_nodeset_init(u);
     u->audiomgr  = pa_audiomgr_init(u);
 #ifdef WITH_DBUS
@@ -275,6 +277,7 @@ void pa__done(pa_module *m) {
         pa_mir_volume_done(u);
         pa_mir_config_done(u);
         pa_nodeset_done(u);
+        pa_zoneset_done(u);
         pa_scripting_done(u);
         pa_utils_destroy_null_sink(u);
 
