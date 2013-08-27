@@ -112,7 +112,7 @@ void pa_audiomgr_register_domain(struct userdata *);
 void pa_audiomgr_domain_registered(struct userdata *,  uint16_t, uint16_t,
                                    am_domainreg_data *);
 
-void pa_audiomgr_unregister_domain(struct userdata *, pa_bool_t);
+void pa_audiomgr_unregister_domain(struct userdata *, bool);
 
 
 void pa_audiomgr_register_node(struct userdata *, mir_node *);

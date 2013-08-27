@@ -1,14 +1,12 @@
 #ifndef foocombinesinkuserdatafoo
 #define foocombinesinkuserdatafoo
 
-
-
 struct output {
     struct userdata *userdata;
 
     pa_sink *sink;
     pa_sink_input *sink_input;
-    pa_bool_t ignore_state_change;
+    bool ignore_state_change;
 
     pa_asyncmsgq *inq,    /* Message queue from the sink thread to this sink input */
                  *outq;   /* Message queue from this sink input to the sink thread */
@@ -39,9 +37,9 @@ struct userdata {
     pa_time_event *time_event;
     pa_usec_t adjust_time;
 
-    pa_bool_t automatic;
-    pa_bool_t auto_desc;
-    pa_bool_t no_reattach;
+    bool automatic;
+    bool auto_desc;
+    bool no_reattach;
 
     pa_strlist *unlinked_slaves;
 
@@ -57,7 +55,7 @@ struct userdata {
         PA_LLIST_HEAD(struct output, active_outputs); /* managed in IO thread context */
         pa_atomic_t running;  /* we cache that value here, so that every thread can query it cheaply */
         pa_usec_t timestamp;
-        pa_bool_t in_null_mode;
+        bool in_null_mode;
         pa_smoother *smoother;
         uint64_t counter;
     } thread_info;

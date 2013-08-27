@@ -60,7 +60,7 @@ struct pa_discover {
      */
     unsigned        chmin;    /**< minimum of max channels */
     unsigned        chmax;    /**< maximum of max channels */
-    pa_bool_t       selected; /**< for alsa cards: whether to consider the
+    bool       selected; /**< for alsa cards: whether to consider the
                                    selected profile alone.
                                    for bluetooth cards: no effect */
     struct {
@@ -82,20 +82,20 @@ void pa_discover_profile_changed(struct userdata *, pa_card *);
 
 void pa_discover_port_available_changed(struct userdata *, pa_device_port *);
 
-void pa_discover_add_sink(struct userdata *, pa_sink *, pa_bool_t);
+void pa_discover_add_sink(struct userdata *, pa_sink *, bool);
 void pa_discover_remove_sink(struct userdata *, pa_sink *);
 
 void pa_discover_add_source(struct userdata *, pa_source *);
 void pa_discover_remove_source(struct userdata *, pa_source *);
 
 void pa_discover_register_sink_input(struct userdata *, pa_sink_input *);
-pa_bool_t pa_discover_preroute_sink_input(struct userdata *,
+bool pa_discover_preroute_sink_input(struct userdata *,
                                           pa_sink_input_new_data *);
 void pa_discover_add_sink_input(struct userdata *, pa_sink_input *);
 void pa_discover_remove_sink_input(struct userdata *, pa_sink_input *);
 
 void pa_discover_register_source_output(struct userdata *, pa_source_output *);
-pa_bool_t pa_discover_preroute_source_output(struct userdata *,
+bool pa_discover_preroute_source_output(struct userdata *,
                                              pa_source_output_new_data *);
 void pa_discover_add_source_output(struct userdata *, pa_source_output *);
 void pa_discover_remove_source_output(struct userdata *, pa_source_output *);

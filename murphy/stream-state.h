@@ -29,7 +29,7 @@
 #define PA_STREAM_KILL   -1
 
 
-pa_bool_t pa_stream_state_start_corked(struct userdata *,
+bool pa_stream_state_start_corked(struct userdata *,
                                        pa_sink_input_new_data *,
                                        pa_nodeset_resdef *);
 void pa_stream_state_change(struct userdata *u, mir_node *, int);

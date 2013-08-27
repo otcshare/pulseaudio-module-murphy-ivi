@@ -256,7 +256,7 @@ void pa_tracker_synchronize(struct userdata *u)
     }
 
     PA_IDXSET_FOREACH(sink, core->sinks, index) {
-        pa_discover_add_sink(u, sink, FALSE);
+        pa_discover_add_sink(u, sink, false);
     }
 
     PA_IDXSET_FOREACH(source, core->sources, index) {
@@ -360,7 +360,7 @@ static pa_hook_result_t sink_put(void *hook_data,
     pa_assert(u);
     pa_assert(sink);
 
-    pa_discover_add_sink(u, sink, TRUE);
+    pa_discover_add_sink(u, sink, true);
 
     return PA_HOOK_OK;
 }
@@ -450,7 +450,7 @@ static pa_hook_result_t sink_input_new(void *hook_data,
 {
     pa_sink_input_new_data *data = (pa_sink_input_new_data *)call_data;
     struct userdata *u = (struct userdata *)slot_data;
-    pa_bool_t success;
+    bool success;
 
     pa_assert(u);
     pa_assert(data);
@@ -498,7 +498,7 @@ static pa_hook_result_t source_output_new(void *hook_data,
 {
     pa_source_output_new_data *data = (pa_source_output_new_data *)call_data;
     struct userdata *u = (struct userdata *)slot_data;
-    pa_bool_t success;
+    bool success;
 
     pa_assert(u);
     pa_assert(data);

@@ -56,7 +56,7 @@ void pa_multiplex_done(pa_multiplex *multiplex, pa_core *core)
     pa_muxnode *mux, *n;
 
     PA_LLIST_FOREACH_SAFE(mux,n, multiplex->muxnodes) {
-        pa_module_unload_by_index(core, mux->module_index, FALSE);
+        pa_module_unload_by_index(core, mux->module_index, false);
     }
 }
 
@@ -106,7 +106,7 @@ pa_muxnode *pa_multiplex_create(pa_multiplex   *multiplex,
     pa_assert_se((u = module->userdata));
     pa_assert(u->sink);
 
-    u->no_reattach = TRUE;
+    u->no_reattach = true;
 
     mux = pa_xnew0(pa_muxnode, 1);
     mux->module_index = module->index;
@@ -140,7 +140,7 @@ void pa_multiplex_destroy(pa_multiplex *multiplex,
     pa_assert(core);
 
     if (mux) {
-        pa_module_unload_by_index(core, mux->module_index, FALSE);
+        pa_module_unload_by_index(core, mux->module_index, false);
         PA_LLIST_REMOVE(pa_muxnode, multiplex->muxnodes, mux);
         pa_xfree(mux);
     }
@@ -185,7 +185,7 @@ pa_muxnode *pa_multiplex_find_by_module(pa_multiplex *multiplex,
     return NULL;
 }
 
-pa_bool_t pa_multiplex_sink_input_remove(pa_multiplex  *multiplex,
+bool pa_multiplex_sink_input_remove(pa_multiplex  *multiplex,
                                          pa_sink_input *sinp)
 {
     pa_muxnode *mux;
@@ -210,13 +210,13 @@ pa_bool_t pa_multiplex_sink_input_remove(pa_multiplex  *multiplex,
                          mux->module_index);
         }
 
-        return TRUE;
+        return true;
     }
 
-    return FALSE;
+    return false;
 }
 
-pa_bool_t pa_multiplex_add_default_route(pa_core    *core,
+bool pa_multiplex_add_default_route(pa_core    *core,
                                          pa_muxnode *mux,
                                          pa_sink    *sink,
                                          int         type)
@@ -243,23 +243,23 @@ pa_bool_t pa_multiplex_add_default_route(pa_core    *core,
 
             if (!(sinp = u->add_slave(u, sink))) {
                 pa_log("failed to add new slave to mux %u", mux->module_index);
-                return FALSE;
+                return false;
             }
 
             copy_media_role_property(u->sink, sinp);
             pa_utils_set_stream_routing_properties(sinp->proplist, type, NULL);
             mux->defstream_index = sinp->index;
 
-            return TRUE;
+            return true;
         }
     }
 
-    return FALSE;
+    return false;
 }
 
-pa_bool_t pa_multiplex_remove_default_route(pa_core *core,
+bool pa_multiplex_remove_default_route(pa_core *core,
                                             pa_muxnode *mux,
-                                            pa_bool_t transfer_to_explicit)
+                                            bool transfer_to_explicit)
 {
     pa_module       *module;
     pa_sink_input   *sinp;
@@ -282,18 +282,18 @@ pa_bool_t pa_multiplex_remove_default_route(pa_core *core,
         if (transfer_to_explicit) {
             pa_log_debug("converting default route sink-input.%u -> sink.%u "
                          "to explicit", sinp->index, sinp->sink->index);
-            pa_utils_set_stream_routing_method_property(sinp->proplist, TRUE);
-            return TRUE;
+            pa_utils_set_stream_routing_method_property(sinp->proplist, true);
+            return true;
         }
         else {
             u->remove_slave(u, sinp, NULL);
         }
     }
 
-    return FALSE;
+    return false;
 }
 
-pa_bool_t pa_multiplex_change_default_route(pa_core    *core,
+bool pa_multiplex_change_default_route(pa_core    *core,
                                             pa_muxnode *mux,
                                             pa_sink    *sink)
 {
@@ -319,15 +319,15 @@ pa_bool_t pa_multiplex_change_default_route(pa_core    *core,
         else {
             pa_log_debug("default stream was successfully moved on mux %u",
                          mux->module_index);
-            return TRUE;
+            return true;
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 
-pa_bool_t pa_multiplex_add_explicit_route(pa_core    *core,
+bool pa_multiplex_add_explicit_route(pa_core    *core,
                                           pa_muxnode *mux,
                                           pa_sink    *sink,
                                           int         type)
@@ -354,21 +354,21 @@ pa_bool_t pa_multiplex_add_explicit_route(pa_core    *core,
 
             if (!(sinp = u->add_slave(u, sink))) {
                 pa_log("failed to add new slave to mux %u", mux->module_index);
-                return FALSE;
+                return false;
             }
 
             copy_media_role_property(u->sink, sinp);
             pa_utils_set_stream_routing_properties(sinp->proplist, type, sink);
 
-            return TRUE;
+            return true;
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 
-pa_bool_t pa_multiplex_remove_explicit_route(pa_core    *core,
+bool pa_multiplex_remove_explicit_route(pa_core    *core,
                                              pa_muxnode *mux,
                                              pa_sink    *sink)
 {
@@ -388,14 +388,14 @@ pa_bool_t pa_multiplex_remove_explicit_route(pa_core    *core,
 
         pa_log_debug("link to sink.%u removed", sink->index);
 
-        return TRUE;
+        return true;
     }
 
-    return FALSE;
+    return false;
 }
 
 
-pa_bool_t pa_multiplex_duplicate_route(pa_core       *core,
+bool pa_multiplex_duplicate_route(pa_core       *core,
                                        pa_muxnode    *mux,
                                        pa_sink_input *sinp,
                                        pa_sink       *sink)
@@ -426,7 +426,7 @@ pa_bool_t pa_multiplex_duplicate_route(pa_core       *core,
             if (i->sink == sink) {
                 pa_log_debug("route sink-input.%u -> sink.%u is a duplicate",
                              i->index, sink->index);
-                return TRUE;
+                return true;
             }
         }
 
@@ -438,7 +438,7 @@ pa_bool_t pa_multiplex_duplicate_route(pa_core       *core,
         }
     }
         
-    return FALSE;
+    return false;
 }
 
 int pa_multiplex_no_of_routes(pa_core *core, pa_muxnode *mux)

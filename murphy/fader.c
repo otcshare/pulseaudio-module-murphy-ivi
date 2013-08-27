@@ -93,7 +93,7 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
     uint32_t         time;
     uint32_t         i,j;
     int              class;
-    pa_bool_t        rampit;
+    bool        rampit;
 
     pa_assert(u);
     pa_assert_se(u->fader);
@@ -163,7 +163,7 @@ void pa_fader_ramp_volume(struct userdata *u,
                           pa_volume_t newvol)
 {
     transition_time *transit;
-    pa_bool_t        rampit;
+    bool             rampit;
     pa_volume_t      oldvol;
     pa_cvolume_ramp_int  *ramp;
     uint32_t         time;
@@ -245,7 +245,7 @@ static void set_stream_volume_limit(struct userdata *u,
         pa_cvolume_set(&sinp->volume_factor, sinp->volume.channels, vol);
 
         if (pa_sink_flat_volume_enabled(sink)) {
-            pa_sink_set_volume(sink, NULL, TRUE, FALSE);
+            pa_sink_set_volume(sink, NULL, true, false);
         }
         else {
             pa_sw_cvolume_multiply(&sinp->soft_volume, &sinp->real_ratio,
@@ -263,7 +263,7 @@ static void set_stream_volume_limit(struct userdata *u,
                             ramp_time,
                             vol);
 
-        pa_sink_input_set_volume_ramp(sinp, &rampvol, TRUE, FALSE);
+        pa_sink_input_set_volume_ramp(sinp, &rampvol, true, false);
     }
 }
 

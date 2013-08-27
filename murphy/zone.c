@@ -55,14 +55,19 @@ pa_zoneset *pa_zoneset_init(struct userdata *u)
     return zs;
 }
 
-
 void pa_zoneset_done(struct userdata *u)
 {
     pa_zoneset *zs;
-    int i;
+    void       *state;
+    mir_zone   *zone;
 
     if (u && (zs = u->zoneset)) {
-        pa_hashmap_free(zs->zones.hash, free_zone_cb);
+
+        PA_HASHMAP_FOREACH(zone, zs->zones.hash, state) {
+            pa_xfree((void *)zone->name);
+        }
+
+        pa_hashmap_free(zs->zones.hash);
 
         free(zs);
     }    
@@ -82,7 +87,7 @@ int pa_zoneset_add_zone(struct userdata *u, const char *name, uint32_t index)
     zone->name = pa_xstrdup(name);
     zone->index = index;
 
-    if (pa_hashmap_put(zs->zones.hash, zone->name, zone))
+    if (pa_hashmap_put(zs->zones.hash, (void *)zone->name, zone))
         return -1;
 
     zs->zones.index[index] = zone;

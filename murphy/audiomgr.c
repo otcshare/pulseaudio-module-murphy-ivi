@@ -113,8 +113,8 @@ void pa_audiomgr_done(struct userdata *u)
         if (u->routerif && am->domain.id != AM_ID_INVALID)
             pa_routerif_unregister_domain(u, am->domain.id);
 
-        pa_hashmap_free(am->nodes, NULL);
-        pa_hashmap_free(am->conns, NULL);
+        pa_hashmap_free(am->nodes);
+        pa_hashmap_free(am->conns);
         pa_xfree((void *)am->domain.name);
         pa_xfree(am);
         u->audiomgr = NULL;
@@ -136,8 +136,8 @@ void pa_audiomgr_register_domain(struct userdata *u)
     dr->name      = AUDIOMGR_DOMAIN;  /* AM domain name */
     dr->bus_name  = AUDIOMGR_NODE;    /* AM internal bus name. */
     dr->node_name = AUDIOMGR_NODE;    /* node name on AM's internal bus */
-    dr->early     = FALSE;
-    dr->complete  = FALSE;
+    dr->early     = false;
+    dr->complete  = false;
     dr->state     = 1;
 
     pa_routerif_register_domain(u, dr);
@@ -171,7 +171,7 @@ void pa_audiomgr_domain_registered(struct userdata   *u,
 }
 
 
-void pa_audiomgr_unregister_domain(struct userdata *u, pa_bool_t send_state)
+void pa_audiomgr_unregister_domain(struct userdata *u, bool send_state)
 {
     pa_audiomgr *am;
     mir_node    *node;
@@ -199,7 +199,7 @@ void pa_audiomgr_register_node(struct userdata *u, mir_node *node)
     pa_audiomgr      *am;
     am_nodereg_data  *rd;
     am_method         method;
-    pa_bool_t         success;
+    bool         success;
 
     pa_assert(u);
     pa_assert_se((am = u->audiomgr));
@@ -280,7 +280,7 @@ void pa_audiomgr_unregister_node(struct userdata *u, mir_node *node)
     am_nodeunreg_data *ud;
     am_method          method;
     mir_node          *removed;
-    pa_bool_t          success;
+    bool          success;
     void              *key;
 
     pa_assert(u);

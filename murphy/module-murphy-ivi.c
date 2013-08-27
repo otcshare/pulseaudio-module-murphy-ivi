@@ -82,7 +82,7 @@
 PA_MODULE_AUTHOR("Janos Kovacs");
 PA_MODULE_DESCRIPTION("Murphy and GenIVI compliant audio policy module");
 PA_MODULE_VERSION(PACKAGE_VERSION);
-PA_MODULE_LOAD_ONCE(TRUE);
+PA_MODULE_LOAD_ONCE(true);
 PA_MODULE_USAGE(
     "config_dir=<configuration directory>"
     "config_file=<policy configuration file> "

@@ -68,7 +68,7 @@ void pa_constrain_done(struct userdata *u)
             cstrdef_destroy(u, cd);
         }
 
-        pa_hashmap_free(constrain->defs, NULL);
+        pa_hashmap_free(constrain->defs);
 
         pa_xfree(constrain);
 
@@ -191,7 +191,7 @@ void mir_constrain_apply(struct userdata *u, mir_node *node, uint32_t stamp)
     mir_node        *n;
     mir_rtentry     *rte;
     mir_rtgroup     *rtg;
-    pa_bool_t        blocked;
+    bool        blocked;
 
     pa_assert(u);
     pa_assert(node);
@@ -247,14 +247,14 @@ int mir_constrain_print(mir_node *node, char *buf, int len)
     return p - buf;
 }
 
-pa_bool_t mir_constrain_port(struct userdata *u,
+bool mir_constrain_port(struct userdata *u,
                              mir_constr_def  *cd,
                              mir_node        *active,
                              mir_node        *node)
 {
     char *active_port;
     char *node_port;
-    pa_bool_t block;
+    bool block;
 
     pa_assert(u);
     pa_assert(cd);
@@ -269,14 +269,14 @@ pa_bool_t mir_constrain_port(struct userdata *u,
     return block;
 }
 
-pa_bool_t mir_constrain_profile(struct userdata *u,
+bool mir_constrain_profile(struct userdata *u,
                                 mir_constr_def  *cd,
                                 mir_node        *active,
                                 mir_node        *node)
 {
     char *active_profile;
     char *node_profile;
-    pa_bool_t block;
+    bool block;
 
     pa_assert(u);
     pa_assert(cd);

@@ -75,7 +75,7 @@ typedef void (*update_func_t)(struct userdata *);
 
 struct pa_scripting {
     lua_State *L;
-    pa_bool_t configured;
+    bool configured;
 };
 
 struct scripting_import {
@@ -131,7 +131,7 @@ typedef struct {
 
 typedef struct {
     const char         *name;
-    pa_bool_t           needres;
+    bool                needres;
     const char         *role;
     pa_nodeset_resdef   resource;
 } map_t;
@@ -146,7 +146,7 @@ struct scripting_apclass {
     map_t              *roles;
     map_t              *binaries;
     struct {
-        pa_bool_t resource;
+        bool resource;
     }                   needs;
 };
 
@@ -161,7 +161,7 @@ typedef struct {
 } intarray_t;
 
 typedef struct {
-    pa_bool_t   mallocd;
+    bool   mallocd;
     double     *value;
 } limit_data_t;
 
@@ -267,7 +267,7 @@ static int  rtgroup_setfield(lua_State *);
 static int  rtgroup_tostring(lua_State *);
 static void rtgroup_destroy(void *);
 
-static pa_bool_t rtgroup_accept(struct userdata *, mir_rtgroup *, mir_node *);
+static bool rtgroup_accept(struct userdata *, mir_rtgroup *, mir_node *);
 static int  rtgroup_compare(struct userdata *, mir_rtgroup *,
                             mir_node *, mir_node *);
 
@@ -496,7 +496,7 @@ pa_scripting *pa_scripting_init(struct userdata *u)
         lua_setglobal(L, USERDATA);
 
         scripting->L = L;
-        scripting->configured = FALSE;
+        scripting->configured = false;
     }
 
     return scripting;
@@ -512,11 +512,11 @@ void pa_scripting_done(struct userdata *u)
     }
 }
 
-pa_bool_t pa_scripting_dofile(struct userdata *u, const char *file)
+bool pa_scripting_dofile(struct userdata *u, const char *file)
 {
     pa_scripting *scripting;
     lua_State *L;
-    pa_bool_t success;
+    bool success;
 
     pa_assert(u);
     pa_assert(file);
@@ -525,13 +525,13 @@ pa_bool_t pa_scripting_dofile(struct userdata *u, const char *file)
     pa_assert_se((L = scripting->L));
 
     if (luaL_loadfile(L, file) || lua_pcall(L, 0, 0, 0)) {
-        success = FALSE;
+        success = false;
         pa_log("%s", lua_tostring(L, -1));
         lua_pop(L, 1);
     }
     else {
-        success =TRUE;
-        scripting->configured = TRUE;
+        success =true;
+        scripting->configured = true;
         setup_murphy_interface(u);
         pa_zoneset_update_module_property(u);
     }
@@ -1512,7 +1512,7 @@ static void rtgroup_destroy(void *data)
 }
 
 
-static pa_bool_t rtgroup_accept(struct userdata *u,
+static bool rtgroup_accept(struct userdata *u,
                                 mir_rtgroup *rtg,
                                 mir_node *node)
 {
@@ -1522,7 +1522,7 @@ static pa_bool_t rtgroup_accept(struct userdata *u,
     mrp_funcbridge_value_t  args[2];
     char rt;
     mrp_funcbridge_value_t  rv;
-    pa_bool_t accept;
+    bool accept;
 
     pa_assert(u);
     pa_assert_se((scripting = u->scripting));
@@ -1701,12 +1701,12 @@ static int apclass_create(lua_State *L)
     route_t *route = NULL;
     map_t *roles = NULL;
     map_t *binaries = NULL;
-    pa_bool_t needs_resource = FALSE;
+    bool needs_resource = false;
     pa_nodeset_resdef *resdef;
     map_t *r, *b;
     size_t i;
     const char *n;
-    pa_bool_t ir, or;
+    bool ir, or;
 
     MRP_LUA_ENTER;
 
@@ -1744,7 +1744,7 @@ static int apclass_create(lua_State *L)
 
     mir_router_assign_class_priority(u, type, priority); 
 
-    ir = or = TRUE;
+    ir = or = true;
 
     if (route->input) {
         for (i = 0;  i < MRP_ZONE_MAX;  i++) {
@@ -2068,8 +2068,8 @@ static int vollim_create(lua_State *L)
     limit_data_t *limit = NULL;
     mrp_funcbridge_t *calculate = NULL;
     intarray_t *classes = NULL;
-    pa_bool_t suppress = FALSE;
-    pa_bool_t correct = FALSE;
+    bool suppress = false;
+    bool correct = false;
     size_t arglgh = 0;
     size_t i;
     int class;
@@ -2115,13 +2115,13 @@ static int vollim_create(lua_State *L)
         if (calculate->c.data == mir_volume_suppress) {
             if (type != vollim_class)
                 luaL_error(L, "attempt to make generic volume supression");
-            suppress = TRUE;
+            suppress = true;
             arglgh = sizeof(mir_volume_suppress_arg);
         }
         else if (calculate->c.data == mir_volume_correction) {
             if (type != vollim_generic)
                 luaL_error(L, "attempt to make class based volume correction");
-            correct = TRUE;
+            correct = true;
             arglgh = sizeof(double *);
         }
         else {
@@ -2372,7 +2372,7 @@ static limit_data_t *limit_data_check(lua_State *L, int idx)
             luaL_error(L, "volume limit is in dB and can't be positive");
         else {
             ld = pa_xnew0(limit_data_t, 1);
-            ld->mallocd = TRUE;
+            ld->mallocd = true;
             ld->value = pa_xnew0(double, 1);
             *ld->value = value;
         }
@@ -2382,12 +2382,12 @@ static limit_data_t *limit_data_check(lua_State *L, int idx)
             luaL_error(L, "broken link for volume limit value");
         else {
             ld = pa_xnew0(limit_data_t, 1);
-            ld->mallocd = FALSE;
+            ld->mallocd = false;
             ld->value = &v->floating;
         }
         break;
     default:
-        ld->mallocd = FALSE;
+        ld->mallocd = false;
         ld->value = &nolimit;
         break;
     }
@@ -2635,7 +2635,7 @@ static map_t *map_check(lua_State *L, int tbl)
         switch (lua_type(L, -1)) {
 
         case LUA_TNUMBER:
-            m->needres = FALSE;
+            m->needres = false;
             break;
 
         case LUA_TSTRING:
@@ -2644,7 +2644,7 @@ static map_t *map_check(lua_State *L, int tbl)
             break;
             
         case LUA_TTABLE:
-            m->needres = TRUE;
+            m->needres = true;
 
             if ((len = luaL_getn(L, def)) < 1)
                 luaL_error(L, "invalid resource definition '%s'", name);
@@ -2966,7 +2966,7 @@ static void setup_murphy_interface(struct userdata *u)
     const char *key;
     lua_State *L;
     int class;
-    pa_bool_t need_domainctl;
+    bool need_domainctl;
     char buf[8192];
     const char *columns;
     int top;
@@ -2988,7 +2988,7 @@ static void setup_murphy_interface(struct userdata *u)
                    (IMPORT_CLASS)->constructor);
     }
 
-    need_domainctl = FALSE;
+    need_domainctl = false;
 
     lua_pushnil(L);
     while (lua_next(L, class)) {
@@ -3001,7 +3001,7 @@ static void setup_murphy_interface(struct userdata *u)
 
                 pa_log_debug("adding import '%s'", imp->table);
 
-                need_domainctl = TRUE;
+                need_domainctl = true;
                 columns = comma_separated_list(imp->columns, buf,sizeof(buf));
 
                 pa_murphyif_add_watch(u, imp->table, columns, imp->condition,

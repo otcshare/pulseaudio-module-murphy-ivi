@@ -26,7 +26,7 @@
 pa_scripting *pa_scripting_init(struct userdata *);
 void pa_scripting_done(struct userdata *);
 
-pa_bool_t pa_scripting_dofile(struct userdata *, const char *);
+bool pa_scripting_dofile(struct userdata *, const char *);
 
 scripting_node *pa_scripting_node_create(struct userdata *, mir_node *);
 void pa_scripting_node_destroy(struct userdata *, mir_node *);

@@ -65,12 +65,26 @@ pa_nodeset *pa_nodeset_init(struct userdata *u)
 void pa_nodeset_done(struct userdata *u)
 {
     pa_nodeset *ns;
+    pa_nodeset_map *role, *binary;
+    void *state;
     int i;
 
     if (u && (ns = u->nodeset)) {
         pa_idxset_free(ns->nodes, NULL);
-        pa_hashmap_free(ns->roles, free_map_cb);
-        pa_hashmap_free(ns->binaries, free_map_cb);
+
+        PA_HASHMAP_FOREACH(role, ns->roles, state) {
+            pa_xfree((void *)role->name);
+            pa_xfree((void *)role->resdef);
+        }
+
+        pa_hashmap_free(ns->roles);
+
+        PA_HASHMAP_FOREACH(binary, ns->binaries, state) {
+            pa_xfree((void *)binary->name);
+            pa_xfree((void *)binary->resdef);
+        }
+
+        pa_hashmap_free(ns->binaries);
 
         for (i = 0;  i < APCLASS_DIM;  i++)
             pa_xfree((void *)ns->class_name[i]);
@@ -78,6 +92,8 @@ void pa_nodeset_done(struct userdata *u)
         free(ns);
     }    
 }
+
+
 
 int pa_nodeset_add_class(struct userdata *u, mir_node_type t,const char *clnam)
 {
@@ -148,7 +164,7 @@ int pa_nodeset_add_role(struct userdata *u,
         memcpy(map->resdef, resdef, sizeof(pa_nodeset_resdef));
     }
 
-    return pa_hashmap_put(ns->roles, map->name, map);
+    return pa_hashmap_put(ns->roles, (void *)map->name, map);
 }
 
 void pa_nodeset_delete_role(struct userdata *u, const char *role)
@@ -210,7 +226,7 @@ int pa_nodeset_add_binary(struct userdata *u,
         memcpy(map->resdef, resdef, sizeof(pa_nodeset_resdef));
     }
 
-    return pa_hashmap_put(ns->binaries, map->name, map);
+    return pa_hashmap_put(ns->binaries, (void *)map->name, map);
 }
 
 void pa_nodeset_delete_binary(struct userdata *u, const char *bin)

@@ -68,11 +68,11 @@ void pa_routerif_done(struct userdata *u)
 }
 
 
-pa_bool_t pa_routerif_register_domain(struct userdata   *u,
+bool pa_routerif_register_domain(struct userdata   *u,
                                            am_domainreg_data *dr)
 {
     pa_routerif *routerif;
-    int          success = TRUE;
+    int          success = true;
 
     pa_assert(u);
     pa_assert(dr);
@@ -84,10 +84,10 @@ pa_bool_t pa_routerif_register_domain(struct userdata   *u,
     return success;
 }
 
-pa_bool_t pa_routerif_domain_complete(struct userdata *u, uint16_t domain)
+bool pa_routerif_domain_complete(struct userdata *u, uint16_t domain)
 {
     pa_routerif *routerif;
-    pa_bool_t    success = TRUE;
+    bool    success = true;
 
     pa_assert(u);
     pa_assert_se((routerif = u->routerif));
@@ -99,10 +99,10 @@ pa_bool_t pa_routerif_domain_complete(struct userdata *u, uint16_t domain)
     return success;
 }
 
-pa_bool_t pa_routerif_unregister_domain(struct userdata *u, uint16_t domain)
+bool pa_routerif_unregister_domain(struct userdata *u, uint16_t domain)
 {
     pa_routerif *routerif;
-    pa_bool_t    success = TRUE;
+    bool    success = true;
 
     pa_assert(u);
     pa_assert_se((routerif = u->routerif));
@@ -115,13 +115,13 @@ pa_bool_t pa_routerif_unregister_domain(struct userdata *u, uint16_t domain)
 }
 
 
-pa_bool_t pa_routerif_register_node(struct userdata *u,
+bool pa_routerif_register_node(struct userdata *u,
                                     am_method m,
                                     am_nodereg_data *rd)
 {
     const char      *method = method_str(m);
     pa_routerif     *routerif;
-    pa_bool_t        success = TRUE;
+    bool        success = true;
 
     pa_assert(u);
     pa_assert(rd);
@@ -134,13 +134,13 @@ pa_bool_t pa_routerif_register_node(struct userdata *u,
 }
 
 
-pa_bool_t pa_routerif_unregister_node(struct userdata *u,
+bool pa_routerif_unregister_node(struct userdata *u,
                                       am_method m,
                                       am_nodeunreg_data *ud)
 {
     const char  *method = method_str(m);
     pa_routerif *routerif;
-    pa_bool_t    success = TRUE;
+    bool    success = true;
 
     pa_assert(u);
     pa_assert(ud);
@@ -153,12 +153,12 @@ pa_bool_t pa_routerif_unregister_node(struct userdata *u,
 }
 
 
-pa_bool_t pa_routerif_acknowledge(struct userdata *u, am_method m,
+bool pa_routerif_acknowledge(struct userdata *u, am_method m,
                                   struct am_ack_data *ad)
 {
     const char     *method = method_str(m);
     pa_routerif    *routerif;
-    pa_bool_t       success = TRUE;
+    bool       success = true;
 
     pa_assert(u);
     pa_assert(method);

@@ -131,7 +131,7 @@ void pa_extapi_done(struct userdata *u) {
 
     if (u && (ap = u->extapi)) {
         if (ap->conns)
-            pa_hashmap_free(ap->conns, NULL);
+            pa_hashmap_free(ap->conns);
         if (ap->subscribed)
             pa_idxset_free(ap->subscribed, NULL);
         pa_xfree(ap);
@@ -269,7 +269,7 @@ int extension_cb(pa_native_protocol *p, pa_module *m, pa_native_connection *c, u
 
     case SUBCOMMAND_SUBSCRIBE: {
 
-        pa_bool_t enabled;
+        bool enabled;
 
         pa_log_debug("subscribe called in module-murphy-ivi");
 

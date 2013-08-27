@@ -46,7 +46,7 @@
 PA_MODULE_AUTHOR("Lennart Poettering");
 PA_MODULE_DESCRIPTION("Augment the property sets of streams with additional static information");
 PA_MODULE_VERSION(PACKAGE_VERSION);
-PA_MODULE_LOAD_ONCE(TRUE);
+PA_MODULE_LOAD_ONCE(true);
 
 #ifndef CONFIG_FILE_DIR
 #define CONFIG_FILE_DIR "/etc/pulse/augment_property_client_rules"
@@ -71,7 +71,7 @@ static const char* const valid_modargs[] = {
 
 struct rule {
     time_t timestamp;
-    pa_bool_t good;
+    bool good;
     time_t desktop_mtime;
     time_t conf_mtime;
     char *process_name;
@@ -91,7 +91,7 @@ struct sink_input_rule_file {
 
 struct sink_input_rule_section {
     char *stream_key;
-    pa_bool_t comp;
+    bool comp;
     regex_t stream_value;
     char *section_name; /* for hashmap memory management */
 };
@@ -127,9 +127,20 @@ static void sink_input_rule_free(struct sink_input_rule_section *s, struct userd
 }
 
 static void sink_input_rule_file_free(struct sink_input_rule_file *rf, struct userdata *u) {
+    void       *state;
+    struct sink_input_rule_section   *section;
+
     pa_assert(rf);
 
-    pa_hashmap_free(rf->rules, (pa_free_cb_t) sink_input_rule_free);
+    PA_HASHMAP_FOREACH(section, rf->rules, state) {
+        pa_xfree(section->stream_key);
+        if (section->comp)
+            regfree(&section->stream_value);
+        pa_xfree(section->section_name);
+    }
+
+    pa_hashmap_free(rf->rules);
+
     pa_xfree(rf->client_name);
     pa_xfree(rf->target_key);
     pa_xfree(rf->target_value);
@@ -138,19 +149,14 @@ static void sink_input_rule_file_free(struct sink_input_rule_file *rf, struct us
     pa_xfree(rf);
 }
 
-static int parse_properties(
-        const char *filename,
-        unsigned line,
-        const char *section,
-        const char *lvalue,
-        const char *rvalue,
-        void *data,
-        void *userdata) {
+static int parse_properties(pa_config_parser_state *state) {
 
-    struct rule *r = userdata;
+    pa_assert(state);
+
+    struct rule *r = state->userdata;
     pa_proplist *n;
 
-    if (!(n = pa_proplist_from_string(rvalue)))
+    if (!(n = pa_proplist_from_string(state->rvalue)))
         return -1;
 
     if (r->proplist) {
@@ -162,20 +168,14 @@ static int parse_properties(
     return 0;
 }
 
-static int parse_categories(
-        const char *filename,
-        unsigned line,
-        const char *section,
-        const char *lvalue,
-        const char *rvalue,
-        void *data,
-        void *userdata) {
+static int parse_categories(pa_config_parser_state *state) {
+    pa_assert(state);
 
-    struct rule *r = userdata;
-    const char *state = NULL;
+    struct rule *r = state->userdata;
+    const char *s = NULL;
     char *c;
 
-    while ((c = pa_split(rvalue, ";", &state))) {
+    while ((c = pa_split(state->rvalue, ";", &s))) {
 
         if (pa_streq(c, "Game")) {
             pa_xfree(r->role);
@@ -191,31 +191,18 @@ static int parse_categories(
     return 0;
 }
 
-static int check_type(
-        const char *filename,
-        unsigned line,
-        const char *section,
-        const char *lvalue,
-        const char *rvalue,
-        void *data,
-        void *userdata) {
+static int check_type(pa_config_parser_state *state) {
+    pa_assert(state);
 
-    return pa_streq(rvalue, "Application") ? 0 : -1;
+    return pa_streq(state->rvalue, "Application") ? 0 : -1;
 }
 
-static int catch_all(
-        const char *filename,
-        unsigned line,
-        const char *section,
-        const char *lvalue,
-        const char *rvalue,
-        void *data,
-        void *userdata) {
+static int catch_all(pa_config_parser_state *state) {
 
     return 0;
 }
 
-static void parse_file(struct rule *r, const char *fn, pa_config_item *table, pa_bool_t first) {
+static void parse_file(struct rule *r, const char *fn, pa_config_item *table, bool first) {
     char *application_name = NULL;
     char *icon_name = NULL;
     char *role = NULL;
@@ -288,7 +275,7 @@ static void update_rule(struct rule *r) {
         { NULL,  catch_all, NULL, NULL },
         { NULL, NULL, NULL, NULL },
     };
-    pa_bool_t found = FALSE;
+    bool found = false;
 
     pa_assert(r);
 
@@ -301,10 +288,10 @@ static void update_rule(struct rule *r) {
     pa_log_debug("Looking for file %s", fn);
 
     if (stat(fn, &st) == 0)
-        found = TRUE;
+        found = true;
 
     if (!found)
-        r->good = FALSE;
+        r->good = false;
 
     if (found && !(r->good && st.st_mtime == r->conf_mtime)) {
         /* Theoretically the filename could have changed, but if so
@@ -314,20 +301,20 @@ static void update_rule(struct rule *r) {
         else
             pa_log_debug("Found %s.", fn);
 
-        parse_file(r, fn, table, TRUE);
+        parse_file(r, fn, table, true);
         r->conf_mtime = st.st_mtime;
-        r->good = TRUE;
+        r->good = true;
     }
 
     pa_xfree(fn);
-    found = FALSE;
+    found = false;
 
     fn = pa_sprintf_malloc(DESKTOPFILEDIR PA_PATH_SEP "%s.desktop", r->process_name);
 
     pa_log_debug("Looking for file %s", fn);
 
     if (stat(fn, &st) == 0)
-        found = TRUE;
+        found = true;
     else {
 #ifdef DT_DIR
         DIR *desktopfiles_dir;
@@ -345,7 +332,7 @@ static void update_rule(struct rule *r) {
                 fn = pa_sprintf_malloc(DESKTOPFILEDIR PA_PATH_SEP "%s" PA_PATH_SEP "%s.desktop", dir->d_name, r->process_name);
 
                 if (stat(fn, &st) == 0) {
-                    found = TRUE;
+                    found = true;
                     break;
                 }
             }
@@ -354,7 +341,7 @@ static void update_rule(struct rule *r) {
 #endif
     }
     if (!found) {
-        r->good = FALSE;
+        r->good = false;
         pa_xfree(fn);
         return;
     }
@@ -370,9 +357,9 @@ static void update_rule(struct rule *r) {
     } else
         pa_log_debug("Found %s.", fn);
 
-    parse_file(r, fn, table, FALSE);
+    parse_file(r, fn, table, false);
     r->desktop_mtime = st.st_mtime;
-    r->good = TRUE;
+    r->good = true;
 
 
     pa_xfree(fn);
@@ -447,7 +434,7 @@ static pa_hook_result_t process(struct userdata *u, pa_proplist *p) {
         r = pa_xnew0(struct rule, 1);
         r->process_name = pa_xstrdup(pn);
         r->timestamp = now;
-        pa_hashmap_put(u->cache, r->process_name, r);
+        pa_hashmap_put(u->cache, (void *)r->process_name, r);
         update_rule(r);
     }
 
@@ -533,7 +520,7 @@ static pa_hook_result_t process_sink_input(
     /* init the map */
 
     while (*iter) {
-        pa_hashmap_put(valid, (const void *) *iter, (void *) RULE_UNDEFINED);
+        pa_hashmap_put(valid, (void *) *iter, (void *) RULE_UNDEFINED);
         iter++;
     }
 
@@ -574,13 +561,13 @@ static pa_hook_result_t process_sink_input(
 
                             if (status == RULE_UNDEFINED) {
                                 pa_hashmap_remove(valid, *iter);
-                                pa_hashmap_put(valid, (const void *) *iter, (void *) RULE_HIT);
+                                pa_hashmap_put(valid, (void *) *iter, (void *) RULE_HIT);
                             }
                         }
                         else {
                             /* miss, no more processing for this rule file*/
                             pa_hashmap_remove(valid, *iter);
-                            pa_hashmap_put(valid, (const void *) *iter, (void *) RULE_MISS);
+                            pa_hashmap_put(valid, (void *) *iter, (void *) RULE_MISS);
                             pa_log_debug("miss %s", *iter);
                         }
                     }
@@ -613,7 +600,7 @@ static pa_hook_result_t process_sink_input(
         }
     }
 
-    pa_hashmap_free(valid, NULL);
+    pa_hashmap_free(valid);
 
     iter = possible;
     while (*iter) {
@@ -645,41 +632,39 @@ static pa_hook_result_t sink_input_new_cb(
     return process_sink_input(u, new_data->proplist, new_data->client);
 }
 
-static int parse_rule_sections(
-        const char *filename,
-        unsigned line,
-        const char *section,
-        const char *lvalue,
-        const char *rvalue,
-        void *data,
-        void *userdata) {
+static int parse_rule_sections(pa_config_parser_state *state) {
 
-    struct sink_input_rule_file **rfp = data;
-    struct sink_input_rule_file *rf = *rfp;
+    struct sink_input_rule_file **rfp;
+    struct sink_input_rule_file *rf;
+    struct sink_input_rule_section *s;
 
-   struct sink_input_rule_section *s = pa_hashmap_get(rf->rules, section);
+    pa_assert(state);
+
+    rfp = state->data;
+    rf = *rfp;
+    s = pa_hashmap_get(rf->rules, state->section);
 
     if (!s) {
         s = pa_xnew0(struct sink_input_rule_section, 1);
-        s->comp = FALSE;
+        s->comp = false;
 
         /* add key to the struct for later freeing */
-        s->section_name = pa_xstrdup(section);
-        pa_hashmap_put(rf->rules, s->section_name, s);
+        s->section_name = pa_xstrdup(state->section);
+        pa_hashmap_put(rf->rules, (void *)s->section_name, s);
     }
 
-    if (strcmp(lvalue, "prop_key") == 0) {
+    if (strcmp(state->lvalue, "prop_key") == 0) {
         if (s->stream_key)
             pa_xfree(s->stream_key);
-        s->stream_key = pa_xstrdup(rvalue);
+        s->stream_key = pa_xstrdup(state->rvalue);
     }
-    else if (strcmp(lvalue, "prop_value") == 0) {
+    else if (strcmp(state->lvalue, "prop_value") == 0) {
         int ret;
         if (s->comp)
             regfree(&s->stream_value);
 
-        ret = regcomp(&s->stream_value, rvalue, REG_EXTENDED|REG_NOSUB);
-        s->comp = TRUE;
+        ret = regcomp(&s->stream_value, state->rvalue, REG_EXTENDED|REG_NOSUB);
+        s->comp = true;
 
         if (ret != 0) {
             char errbuf[256];
@@ -691,7 +676,7 @@ static int parse_rule_sections(
     return 0;
 }
 
-static pa_bool_t validate_sink_input_rule(struct sink_input_rule_file *rf) {
+static bool validate_sink_input_rule(struct sink_input_rule_file *rf) {
 
     void *state;
     struct sink_input_rule_section *s;
@@ -699,17 +684,17 @@ static pa_bool_t validate_sink_input_rule(struct sink_input_rule_file *rf) {
     if (!rf->target_key || !rf->target_value) {
         pa_log_error("No result condition listed for rule file");
         /* no result condition listed, so no point in using this rule file */
-        return FALSE;
+        return false;
     }
 
     PA_HASHMAP_FOREACH(s, rf->rules, state) {
-        if (!s->stream_key || s->comp == FALSE) {
+        if (!s->stream_key || s->comp == false) {
             pa_log_error("Incomplete rule section [%s] in rule file", s->section_name);
-            return FALSE;
+            return false;
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 static pa_hashmap *update_sink_input_rules() {
@@ -753,7 +738,7 @@ static pa_hashmap *update_sink_input_rules() {
                 }
                 else {
                     pa_log_info("adding filename %s to %p", rf->fn, rf);
-                    pa_hashmap_put(rules, rf->fn, rf);
+                    pa_hashmap_put(rules, (void *)rf->fn, rf);
                 }
             }
         }
@@ -762,7 +747,7 @@ static pa_hashmap *update_sink_input_rules() {
     closedir(sinkinputrulefiles_dir);
 
     if (pa_hashmap_isempty(rules)) {
-        pa_hashmap_free(rules, NULL);
+        pa_hashmap_free(rules);
         return NULL;
     }
 
@@ -854,6 +839,8 @@ fail:
 
 void pa__done(pa_module *m) {
     struct userdata* u;
+    struct sink_input_rule_file *rf;
+    void *state;
 
     pa_assert(m);
 
@@ -873,11 +860,17 @@ void pa__done(pa_module *m) {
         while ((r = pa_hashmap_steal_first(u->cache)))
             rule_free(r);
 
-        pa_hashmap_free(u->cache, NULL);
+        pa_hashmap_free(u->cache);
     }
 
-    if (u->sink_input_rules)
-        pa_hashmap_free(u->sink_input_rules, (pa_free_cb_t) sink_input_rule_file_free);
+    if (u->sink_input_rules) {
+
+        PA_HASHMAP_FOREACH(rf, u->sink_input_rules, state) {
+            sink_input_rule_file_free(rf, NULL);
+        }
+
+        pa_hashmap_free(u->sink_input_rules);
+    }
 
     if (u->directory_watch_client)
         pa_client_free(u->directory_watch_client);

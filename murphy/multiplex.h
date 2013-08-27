@@ -51,16 +51,16 @@ void pa_multiplex_destroy(pa_multiplex *, pa_core *, pa_muxnode *);
 pa_muxnode *pa_multiplex_find_by_sink(pa_multiplex *, uint32_t);
 pa_muxnode *pa_multiplex_find_by_module(pa_multiplex *, pa_module *);
 
-pa_bool_t pa_multiplex_sink_input_remove(pa_multiplex *, pa_sink_input *);
+bool pa_multiplex_sink_input_remove(pa_multiplex *, pa_sink_input *);
 
-pa_bool_t pa_multiplex_add_default_route(pa_core *, pa_muxnode *,pa_sink *,int);
-pa_bool_t pa_multiplex_remove_default_route(pa_core *,pa_muxnode *,pa_bool_t);
-pa_bool_t pa_multiplex_change_default_route(pa_core *,pa_muxnode *,pa_sink *);
+bool pa_multiplex_add_default_route(pa_core *, pa_muxnode *,pa_sink *,int);
+bool pa_multiplex_remove_default_route(pa_core *,pa_muxnode *,bool);
+bool pa_multiplex_change_default_route(pa_core *,pa_muxnode *,pa_sink *);
 
-pa_bool_t pa_multiplex_add_explicit_route(pa_core*, pa_muxnode*, pa_sink*,int);
-pa_bool_t pa_multiplex_remove_explicit_route(pa_core *, pa_muxnode *, pa_sink *);
+bool pa_multiplex_add_explicit_route(pa_core*, pa_muxnode*, pa_sink*,int);
+bool pa_multiplex_remove_explicit_route(pa_core *, pa_muxnode *, pa_sink *);
 
-pa_bool_t pa_multiplex_duplicate_route(pa_core *, pa_muxnode *,
+bool pa_multiplex_duplicate_route(pa_core *, pa_muxnode *,
                                        pa_sink_input *, pa_sink *);
 
 int pa_multiplex_no_of_routes(pa_core *, pa_muxnode *);

@@ -25,7 +25,7 @@
 #include "userdata.h"
 #include "list.h"
 
-typedef pa_bool_t (*mir_constrain_func_t)(struct userdata *, mir_constr_def *,
+typedef bool (*mir_constrain_func_t)(struct userdata *, mir_constr_def *,
                                           mir_node *, mir_node *);
 
 struct pa_constrain {
@@ -66,9 +66,9 @@ void mir_constrain_apply(struct userdata *, mir_node *, uint32_t);
 int mir_constrain_print(mir_node *, char *, int);
 
 
-pa_bool_t mir_constrain_port(struct userdata *, mir_constr_def *,
+bool mir_constrain_port(struct userdata *, mir_constr_def *,
                              mir_node *, mir_node *);
-pa_bool_t mir_constrain_profile(struct userdata *, mir_constr_def *,
+bool mir_constrain_profile(struct userdata *, mir_constr_def *,
                                 mir_node *, mir_node *);
 
 

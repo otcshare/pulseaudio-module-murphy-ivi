@@ -128,7 +128,7 @@ typedef struct {
     mrp_sockaddr_t   saddr;
     socklen_t        alen;
     const char      *atype;
-    pa_bool_t        connected;
+    bool        connected;
     struct {
         pa_time_event *evt;
         pa_usec_t      period;
@@ -158,9 +158,9 @@ struct pa_murphyif {
 #ifdef WITH_RESOURCES
 typedef struct {
     const char *id;
-    pa_bool_t   autorel;
+    bool   autorel;
     int         state;
-    pa_bool_t   grant;
+    bool   grant;
     const char *policy;
 } rset_data;
 
@@ -192,17 +192,17 @@ static int        resource_transport_connect(resource_interface *);
 static void       resource_xport_closed_evt(mrp_transport_t *, int, void *);
 
 static mrp_msg_t *resource_create_request(uint32_t, mrp_resproto_request_t);
-static pa_bool_t  resource_send_message(resource_interface *, mrp_msg_t *,
+static bool  resource_send_message(resource_interface *, mrp_msg_t *,
                                         uint32_t, uint16_t, uint32_t);
-static pa_bool_t  resource_set_create_node(struct userdata *, mir_node *,
-                                           pa_nodeset_resdef *, pa_bool_t);
-static pa_bool_t  resource_set_create_all(struct userdata *);
-static pa_bool_t  resource_set_destroy_node(struct userdata *, uint32_t);
-static pa_bool_t  resource_set_destroy_all(struct userdata *);
+static bool  resource_set_create_node(struct userdata *, mir_node *,
+                                           pa_nodeset_resdef *, bool);
+static bool  resource_set_create_all(struct userdata *);
+static bool  resource_set_destroy_node(struct userdata *, uint32_t);
+static bool  resource_set_destroy_all(struct userdata *);
 static void       resource_set_notification(struct userdata *, const char *,
                                             int, mrp_domctl_value_t **);
 
-static pa_bool_t  resource_push_attributes(mrp_msg_t *, resource_interface *,
+static bool  resource_push_attributes(mrp_msg_t *, resource_interface *,
                                            pa_proplist *);
 
 static void       resource_recv_msg(mrp_transport_t *, mrp_msg_t *, void *);
@@ -213,16 +213,16 @@ static void       resource_set_create_response(struct userdata *, mir_node *,
 static void       resource_set_create_response_abort(struct userdata *,
                                                      mrp_msg_t *, void **);
 
-static pa_bool_t  resource_fetch_seqno(mrp_msg_t *, void **, uint32_t *);
-static pa_bool_t  resource_fetch_request(mrp_msg_t *, void **, uint16_t *);
-static pa_bool_t  resource_fetch_status(mrp_msg_t *, void **, int *);
-static pa_bool_t  resource_fetch_rset_id(mrp_msg_t *, void **, uint32_t*);
-static pa_bool_t  resource_fetch_rset_state(mrp_msg_t *, void **,
+static bool  resource_fetch_seqno(mrp_msg_t *, void **, uint32_t *);
+static bool  resource_fetch_request(mrp_msg_t *, void **, uint16_t *);
+static bool  resource_fetch_status(mrp_msg_t *, void **, int *);
+static bool  resource_fetch_rset_id(mrp_msg_t *, void **, uint32_t*);
+static bool  resource_fetch_rset_state(mrp_msg_t *, void **,
                                             mrp_resproto_state_t *);
-static pa_bool_t  resource_fetch_rset_mask(mrp_msg_t *, void **,
+static bool  resource_fetch_rset_mask(mrp_msg_t *, void **,
                                            mrp_resproto_state_t *);
 
-static pa_bool_t  resource_transport_create(struct userdata *, pa_murphyif *);
+static bool  resource_transport_create(struct userdata *, pa_murphyif *);
 static void       resource_transport_destroy(pa_murphyif *);
 
 static void connect_attempt(pa_mainloop_api *, pa_time_event *,
@@ -389,8 +389,8 @@ void pa_murphyif_done(struct userdata *u)
             }
         }
 
-        pa_hashmap_free(rif->nodes.rsetid, NULL);
-        pa_hashmap_free(rif->nodes.pid, NULL);
+        pa_hashmap_free(rif->nodes.rsetid);
+        pa_hashmap_free(rif->nodes.pid);
 
         PA_LLIST_FOREACH_SAFE(attr, a, rif->attrs)
             resource_attribute_destroy(rif, attr);
@@ -626,7 +626,7 @@ void pa_murphyif_create_resource_set(struct userdata *u,
         break;
 
     case CONNECTED:
-        node->localrset = resource_set_create_node(u, node, resdef, TRUE);
+        node->localrset = resource_set_create_node(u, node, resdef, true);
         break;
 
     case DISCONNECTED:
@@ -669,7 +669,7 @@ void pa_murphyif_destroy_resource_set(struct userdata *u, mir_node *node)
 
             pa_xfree(node->rsetid);
 
-            node->localrset = FALSE;
+            node->localrset = false;
             node->rsetid = NULL;
         }
     }
@@ -923,7 +923,7 @@ static int resource_transport_connect(resource_interface *rif)
             status = DISCONNECTED;
         else {
             pa_log_info("resource transport connected to '%s'", rif->addr);
-            rif->connected = TRUE;
+            rif->connected = true;
             status = CONNECTING;
         }
     }
@@ -973,18 +973,18 @@ static mrp_msg_t *resource_create_request(uint32_t seqno,
     return msg;
 }
 
-static pa_bool_t resource_send_message(resource_interface *rif,
+static bool resource_send_message(resource_interface *rif,
                                        mrp_msg_t          *msg,
                                        uint32_t            nodidx,
                                        uint16_t            reqid,
                                        uint32_t            seqno)
 {
     resource_request *req;
-    pa_bool_t success = TRUE;
+    bool success = true;
 
     if (!mrp_transport_send(rif->transp, msg)) {
         pa_log("failed to send resource message");
-        success = FALSE;
+        success = false;
     }
     else {
         req = pa_xnew0(resource_request, 1);
@@ -1000,10 +1000,10 @@ static pa_bool_t resource_send_message(resource_interface *rif,
     return success;
 }
 
-static pa_bool_t resource_set_create_node(struct userdata *u,
+static bool resource_set_create_node(struct userdata *u,
                                           mir_node *node,
                                           pa_nodeset_resdef *resdef,
-                                          pa_bool_t acquire)
+                                          bool acquire)
 {
     pa_core *core;
     pa_murphyif *murphyif;
@@ -1025,7 +1025,7 @@ static pa_bool_t resource_set_create_node(struct userdata *u,
     uint32_t audio_flags = 0;
     uint32_t priority;
     pa_proplist *proplist = NULL;
-    pa_bool_t success = TRUE;
+    bool success = true;
 
     pa_assert(u);
     pa_assert(node);
@@ -1102,7 +1102,7 @@ static pa_bool_t resource_set_create_node(struct userdata *u,
         success = resource_send_message(rif, msg, node->index, reqid, seqno);
     }
     else {
-        success = FALSE;
+        success = false;
         mrp_msg_unref(msg);
     }
 
@@ -1114,15 +1114,15 @@ static pa_bool_t resource_set_create_node(struct userdata *u,
     return success;
 }
 
-static pa_bool_t resource_set_create_all(struct userdata *u)
+static bool resource_set_create_all(struct userdata *u)
 {
     uint32_t idx;
     mir_node *node;
-    pa_bool_t success;
+    bool success;
 
     pa_assert(u);
 
-    success = TRUE;
+    success = true;
 
     idx = PA_IDXSET_INVALID;
 
@@ -1131,7 +1131,7 @@ static pa_bool_t resource_set_create_all(struct userdata *u)
             (node->implement == mir_device &&  node->loop)   )
         {
             if (!node->rsetid) {
-                node->localrset = resource_set_create_node(u, node, NULL, FALSE);
+                node->localrset = resource_set_create_node(u, node, NULL, false);
                 success &= node->localrset;
             }
         }
@@ -1140,7 +1140,7 @@ static pa_bool_t resource_set_create_all(struct userdata *u)
     return success;
 }
 
-static pa_bool_t resource_set_destroy_node(struct userdata *u, uint32_t rsetid)
+static bool resource_set_destroy_node(struct userdata *u, uint32_t rsetid)
 {
     pa_murphyif *murphyif;
     resource_interface *rif;
@@ -1148,7 +1148,7 @@ static pa_bool_t resource_set_destroy_node(struct userdata *u, uint32_t rsetid)
     uint16_t reqid;
     uint32_t seqno;
     uint32_t nodidx;
-    pa_bool_t success;
+    bool success;
 
     pa_assert(u);
 
@@ -1163,14 +1163,14 @@ static pa_bool_t resource_set_destroy_node(struct userdata *u, uint32_t rsetid)
     if (PUSH_VALUE(msg, RESOURCE_SET_ID, UINT32, rsetid))
         success = resource_send_message(rif, msg, nodidx, reqid, seqno);
     else {
-        success = FALSE;
+        success = false;
         mrp_msg_unref(msg);
     }
 
     return success;
 }
 
-static pa_bool_t resource_set_destroy_all(struct userdata *u)
+static bool resource_set_destroy_all(struct userdata *u)
 {
     pa_murphyif *murphyif;
     resource_interface *rif;
@@ -1178,14 +1178,14 @@ static pa_bool_t resource_set_destroy_all(struct userdata *u)
     mir_node *node;
     uint32_t rsetid;
     char *e;
-    pa_bool_t success;
+    bool success;
 
     pa_assert(u);
     pa_assert_se((murphyif = u->murphyif));
 
     rif = &murphyif->resource;
 
-    success = TRUE;
+    success = true;
 
     idx = PA_IDXSET_INVALID;
 
@@ -1197,7 +1197,7 @@ static pa_bool_t resource_set_destroy_all(struct userdata *u)
                 rsetid = strtoul(node->rsetid, &e, 10);
 
                 if (e == node->rsetid || *e)
-                    success = FALSE;
+                    success = false;
                 else {
                     rset_hashmap_remove(u, node->rsetid, node);
                     success &= resource_set_destroy_node(u, rsetid);
@@ -1206,7 +1206,7 @@ static pa_bool_t resource_set_destroy_all(struct userdata *u)
 
             pa_xfree(node->rsetid);
 
-            node->localrset = FALSE;
+            node->localrset = false;
             node->rsetid = NULL;
         }
     }
@@ -1350,7 +1350,7 @@ static void resource_set_notification(struct userdata *u,
 }
 
 
-static pa_bool_t resource_push_attributes(mrp_msg_t *msg,
+static bool resource_push_attributes(mrp_msg_t *msg,
                                           resource_interface *rif,
                                           pa_proplist *proplist)
 {
@@ -1370,7 +1370,7 @@ static pa_bool_t resource_push_attributes(mrp_msg_t *msg,
 
     PA_LLIST_FOREACH(attr, rif->attrs) {
         if (!PUSH_VALUE(msg, ATTRIBUTE_NAME, STRING, attr->def.name))
-            return FALSE;
+            return false;
 
         if (proplist)
             sts = pa_proplist_get(proplist, attr->prop, &v.ptr, &size);
@@ -1383,44 +1383,44 @@ static pa_bool_t resource_push_attributes(mrp_msg_t *msg,
                 v.str = attr->def.value.string;
             else if (v.str[size-1] != '\0' || strlen(v.str) != (size-1) ||
                      !pa_utf8_valid(v.str))
-                return FALSE;
+                return false;
             if (!PUSH_VALUE(msg, ATTRIBUTE_VALUE, STRING, v.str))
-                return FALSE;
+                return false;
             break;
 
         case mqi_integer:
             if (sts < 0)
                 v.i32 = &attr->def.value.integer;
             else if (size != sizeof(*v.i32))
-                return FALSE;
+                return false;
             if (!PUSH_VALUE(msg, ATTRIBUTE_VALUE, SINT8, *v.i32))
-                return FALSE;
+                return false;
             break;
             
         case mqi_unsignd:
             if (sts < 0)
                 v.u32 = &attr->def.value.unsignd;
             else if (size != sizeof(*v.u32))
-                return FALSE;
+                return false;
             if (!PUSH_VALUE(msg, ATTRIBUTE_VALUE, SINT8, *v.u32))
-                return FALSE;
+                return false;
             break;
             
         case mqi_floating:
             if (sts < 0)
                 v.dbl = &attr->def.value.floating;
             else if (size != sizeof(*v.dbl))
-                return FALSE;
+                return false;
             if (!PUSH_VALUE(msg, ATTRIBUTE_VALUE, SINT8, *v.dbl))
-                return FALSE;
+                return false;
             break;
 
         default: /* we should never get here */
-            return FALSE;
+            return false;
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -1571,7 +1571,7 @@ static void resource_set_create_response_abort(struct userdata *u,
 }
 
 
-static pa_bool_t resource_fetch_seqno(mrp_msg_t *msg,
+static bool resource_fetch_seqno(mrp_msg_t *msg,
                                       void **pcursor,
                                       uint32_t *pseqno)
 {
@@ -1592,7 +1592,7 @@ static pa_bool_t resource_fetch_seqno(mrp_msg_t *msg,
 }
 
 
-static pa_bool_t resource_fetch_request(mrp_msg_t *msg,
+static bool resource_fetch_request(mrp_msg_t *msg,
                                         void **pcursor,
                                         uint16_t *preqtype)
 {
@@ -1612,7 +1612,7 @@ static pa_bool_t resource_fetch_request(mrp_msg_t *msg,
     return true;
 }
 
-static pa_bool_t resource_fetch_status(mrp_msg_t *msg,
+static bool resource_fetch_status(mrp_msg_t *msg,
                                        void **pcursor,
                                        int *pstatus)
 {
@@ -1625,14 +1625,14 @@ static pa_bool_t resource_fetch_status(mrp_msg_t *msg,
         tag != RESPROTO_REQUEST_STATUS || type != MRP_MSG_FIELD_SINT16)
     {
         *pstatus = EINVAL;
-        return FALSE;
+        return false;
     }
 
     *pstatus = value.s16;
-    return TRUE;
+    return true;
 }
 
-static pa_bool_t resource_fetch_rset_id(mrp_msg_t *msg,
+static bool resource_fetch_rset_id(mrp_msg_t *msg,
                                         void **pcursor,
                                         uint32_t *pid)
 {
@@ -1645,14 +1645,14 @@ static pa_bool_t resource_fetch_rset_id(mrp_msg_t *msg,
         tag != RESPROTO_RESOURCE_SET_ID || type != MRP_MSG_FIELD_UINT32)
     {
         *pid = INVALID_ID;
-        return FALSE;
+        return false;
     }
 
     *pid = value.u32;
-    return TRUE;
+    return true;
 }
 
-static pa_bool_t resource_fetch_rset_state(mrp_msg_t *msg,
+static bool resource_fetch_rset_state(mrp_msg_t *msg,
                                            void **pcursor,
                                            mrp_resproto_state_t *pstate)
 {
@@ -1665,15 +1665,15 @@ static pa_bool_t resource_fetch_rset_state(mrp_msg_t *msg,
         tag != RESPROTO_RESOURCE_STATE || type != MRP_MSG_FIELD_UINT16)
     {
         *pstate = 0;
-        return FALSE;
+        return false;
     }
 
     *pstate = value.u16;
-    return TRUE;
+    return true;
 }
 
 
-static pa_bool_t resource_fetch_rset_mask(mrp_msg_t *msg,
+static bool resource_fetch_rset_mask(mrp_msg_t *msg,
                                           void **pcursor,
                                           mrp_resproto_state_t *pmask)
 {
@@ -1686,14 +1686,14 @@ static pa_bool_t resource_fetch_rset_mask(mrp_msg_t *msg,
         tag != RESPROTO_RESOURCE_GRANT || type != MRP_MSG_FIELD_UINT32)
     {
         *pmask = 0;
-        return FALSE;
+        return false;
     }
 
     *pmask = value.u32;
-    return TRUE;
+    return true;
 }
 
-static pa_bool_t resource_transport_create(struct userdata *u,
+static bool resource_transport_create(struct userdata *u,
                                            pa_murphyif *murphyif)
 {
     static mrp_transport_evt_t ev = {
@@ -1713,7 +1713,7 @@ static pa_bool_t resource_transport_create(struct userdata *u,
     if (!rif->transp)
         rif->transp = mrp_transport_create(murphyif->ml, rif->atype, &ev, u,0);
 
-    return rif->transp ? TRUE : FALSE;
+    return rif->transp ? true : false;
 }
 
 static void resource_transport_destroy(pa_murphyif *murphyif)
@@ -1727,7 +1727,7 @@ static void resource_transport_destroy(pa_murphyif *murphyif)
         mrp_transport_destroy(rif->transp);
 
     rif->transp = NULL;
-    rif->connected = FALSE;
+    rif->connected = false;
 }
 
 static void connect_attempt(pa_mainloop_api *a,
@@ -1984,7 +1984,7 @@ static int pid_hashmap_put(struct userdata *u, const char *pid,
     ph->node = node;
     ph->rset = rset;
 
-    if (pa_hashmap_put(rif->nodes.pid, ph->pid, ph) == 0)
+    if (pa_hashmap_put(rif->nodes.pid, (void *)ph->pid, ph) == 0)
         return 0;
     else
         pid_hashmap_free(ph, NULL);
@@ -2043,7 +2043,7 @@ static mir_node *pid_hashmap_remove_node(struct userdata *u, const char *pid)
     if (!(ph = pa_hashmap_remove(rif->nodes.pid, pid)))
         node = NULL;
     else if (!(node = ph->node))
-        pa_hashmap_put(rif->nodes.pid, ph->pid, ph);
+        pa_hashmap_put(rif->nodes.pid, (void *)ph->pid, ph);
     else
         pid_hashmap_free(ph, NULL);
 
@@ -2067,7 +2067,7 @@ static rset_data *pid_hashmap_remove_rset(struct userdata *u, const char *pid)
     if (!(ph = pa_hashmap_remove(rif->nodes.pid, pid)))
         rset = NULL;
     else if (!(rset = ph->rset))
-        pa_hashmap_put(rif->nodes.pid, ph->pid, ph);
+        pa_hashmap_put(rif->nodes.pid, (void *)ph->pid, ph);
     else {
         ph->rset = NULL;
         pid_hashmap_free(ph, NULL);
@@ -2128,7 +2128,7 @@ static rset_hash *rset_hashmap_put(struct userdata *u,
         rh->nodes = pa_xnew0(mir_node *, 2);
         rh->rset  = rset;
 
-        pa_hashmap_put(rif->nodes.rsetid, rh->rset->id, rh);
+        pa_hashmap_put(rif->nodes.rsetid, (void *)rh->rset->id, rh);
 
         i = 0;
     }

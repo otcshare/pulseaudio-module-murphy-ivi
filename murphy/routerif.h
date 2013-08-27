@@ -66,16 +66,16 @@ pa_routerif *pa_routerif_init(struct userdata *, const char *,
 void pa_routerif_done(struct userdata *);
 
 
-pa_bool_t pa_routerif_register_domain(struct userdata *,
+bool pa_routerif_register_domain(struct userdata *,
                                       am_domainreg_data *);
-pa_bool_t pa_routerif_domain_complete(struct userdata *, uint16_t);
-pa_bool_t pa_routerif_unregister_domain(struct userdata *, uint16_t);
+bool pa_routerif_domain_complete(struct userdata *, uint16_t);
+bool pa_routerif_unregister_domain(struct userdata *, uint16_t);
 
-pa_bool_t pa_routerif_register_node(struct userdata *, am_method,
+bool pa_routerif_register_node(struct userdata *, am_method,
                                     am_nodereg_data *);
-pa_bool_t pa_routerif_unregister_node(struct userdata *, am_method,
+bool pa_routerif_unregister_node(struct userdata *, am_method,
                                       am_nodeunreg_data *);
-pa_bool_t pa_routerif_acknowledge(struct userdata *, am_method, am_ack_data *);
+bool pa_routerif_acknowledge(struct userdata *, am_method, am_ack_data *);
 
 #endif  /* foorouteriffoo */
 
