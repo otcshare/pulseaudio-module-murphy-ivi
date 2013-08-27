@@ -50,7 +50,7 @@
 PA_MODULE_AUTHOR("Lennart Poettering");
 PA_MODULE_DESCRIPTION("Combine multiple sinks to one");
 PA_MODULE_VERSION(PACKAGE_VERSION);
-PA_MODULE_LOAD_ONCE(FALSE);
+PA_MODULE_LOAD_ONCE(false);
 PA_MODULE_USAGE(
         "sink_name=<name for the sink> "
         "sink_properties=<properties for the sink> "
@@ -83,11 +83,7 @@ static const char* const valid_modargs[] = {
     NULL
 };
 
-
-
-
 #include "userdata.h"
-
 
 enum {
     SINK_MESSAGE_ADD_OUTPUT = PA_SINK_MESSAGE_MAX,
@@ -687,7 +683,7 @@ static int sink_process_msg(pa_msgobject *o, int code, void *data, int64_t offse
     switch (code) {
 
         case PA_SINK_MESSAGE_SET_STATE: {
-            pa_bool_t running = (PA_PTR_TO_UINT(data) == PA_SINK_RUNNING);
+            bool running = (PA_PTR_TO_UINT(data) == PA_SINK_RUNNING);
 
             pa_atomic_store(&u->thread_info.running, running);
 
@@ -759,7 +755,7 @@ static int sink_process_msg(pa_msgobject *o, int code, void *data, int64_t offse
 }
 
 static void update_description(struct userdata *u) {
-    pa_bool_t first = TRUE;
+    bool first = TRUE;
     char *t;
     struct output *o;
     uint32_t idx;
@@ -965,7 +961,7 @@ static void output_verify(struct output *o) {
 }
 
 /* Called from main context */
-static pa_bool_t is_suitable_sink(struct userdata *u, pa_sink *s) {
+static bool is_suitable_sink(struct userdata *u, pa_sink *s) {
     const char *t;
 
     pa_sink_assert_ref(s);
@@ -1151,7 +1147,7 @@ int pa__init(pa_module*m) {
         char *n = NULL;
         pa_sample_spec slaves_spec;
         pa_channel_map slaves_map;
-        pa_bool_t is_first_slave = TRUE;
+        bool is_first_slave = TRUE;
 
         pa_sample_spec_init(&slaves_spec);
 
