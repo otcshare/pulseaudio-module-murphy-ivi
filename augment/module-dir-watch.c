@@ -55,7 +55,7 @@
 PA_MODULE_AUTHOR("Ismo Puustinen");
 PA_MODULE_DESCRIPTION("Directory watch module");
 PA_MODULE_VERSION(PACKAGE_VERSION);
-PA_MODULE_LOAD_ONCE(TRUE);
+PA_MODULE_LOAD_ONCE(true);
 PA_MODULE_USAGE("");
 
 struct userdata {
@@ -172,7 +172,7 @@ static void dir_watch_inotify_cb(
 
     pa_log_debug("> inotify_cb");
 
-    while (TRUE) {
+    while (true) {
 
         r = pa_read(fd, &eventbuf, sizeof(eventbuf), &type);
 
@@ -302,14 +302,14 @@ static pa_hook_result_t client_unlink_cb(
     void *state;
     struct client_data *cd;
     struct client_id *id;
-    pa_bool_t found = FALSE;
+    bool found = false;
 
     PA_HASHMAP_FOREACH(cd, u->paths_to_clients, state) {
         PA_LLIST_FOREACH(id, cd->ids) {
             if (id->id == c->index) {
                 PA_LLIST_REMOVE(struct client_id, cd->ids, id);
                 pa_xfree(id);
-                found = TRUE;
+                found = true;
                 break;
             }
         }

@@ -46,7 +46,7 @@
 PA_MODULE_AUTHOR("Lennart Poettering");
 PA_MODULE_DESCRIPTION("Augment the property sets of streams with additional static information");
 PA_MODULE_VERSION(PACKAGE_VERSION);
-PA_MODULE_LOAD_ONCE(TRUE);
+PA_MODULE_LOAD_ONCE(true);
 
 #ifndef CONFIG_FILE_DIR
 #define CONFIG_FILE_DIR "/etc/pulse/augment_property_client_rules"
@@ -71,7 +71,7 @@ static const char* const valid_modargs[] = {
 
 struct rule {
     time_t timestamp;
-    pa_bool_t good;
+    bool good;
     time_t desktop_mtime;
     time_t conf_mtime;
     char *process_name;
@@ -91,7 +91,7 @@ struct sink_input_rule_file {
 
 struct sink_input_rule_section {
     char *stream_key;
-    pa_bool_t comp;
+    bool comp;
     regex_t stream_value;
     char *section_name; /* for hashmap memory management */
 };
@@ -215,7 +215,7 @@ static int catch_all(
     return 0;
 }
 
-static void parse_file(struct rule *r, const char *fn, pa_config_item *table, pa_bool_t first) {
+static void parse_file(struct rule *r, const char *fn, pa_config_item *table, bool first) {
     char *application_name = NULL;
     char *icon_name = NULL;
     char *role = NULL;
@@ -288,7 +288,7 @@ static void update_rule(struct rule *r) {
         { NULL,  catch_all, NULL, NULL },
         { NULL, NULL, NULL, NULL },
     };
-    pa_bool_t found = FALSE;
+    bool found = false;
 
     pa_assert(r);
 
@@ -301,10 +301,10 @@ static void update_rule(struct rule *r) {
     pa_log_debug("Looking for file %s", fn);
 
     if (stat(fn, &st) == 0)
-        found = TRUE;
+        found = true;
 
     if (!found)
-        r->good = FALSE;
+        r->good = false;
 
     if (found && !(r->good && st.st_mtime == r->conf_mtime)) {
         /* Theoretically the filename could have changed, but if so
@@ -314,20 +314,20 @@ static void update_rule(struct rule *r) {
         else
             pa_log_debug("Found %s.", fn);
 
-        parse_file(r, fn, table, TRUE);
+        parse_file(r, fn, table, true);
         r->conf_mtime = st.st_mtime;
-        r->good = TRUE;
+        r->good = true;
     }
 
     pa_xfree(fn);
-    found = FALSE;
+    found = false;
 
     fn = pa_sprintf_malloc(DESKTOPFILEDIR PA_PATH_SEP "%s.desktop", r->process_name);
 
     pa_log_debug("Looking for file %s", fn);
 
     if (stat(fn, &st) == 0)
-        found = TRUE;
+        found = true;
     else {
 #ifdef DT_DIR
         DIR *desktopfiles_dir;
@@ -345,7 +345,7 @@ static void update_rule(struct rule *r) {
                 fn = pa_sprintf_malloc(DESKTOPFILEDIR PA_PATH_SEP "%s" PA_PATH_SEP "%s.desktop", dir->d_name, r->process_name);
 
                 if (stat(fn, &st) == 0) {
-                    found = TRUE;
+                    found = true;
                     break;
                 }
             }
@@ -354,7 +354,7 @@ static void update_rule(struct rule *r) {
 #endif
     }
     if (!found) {
-        r->good = FALSE;
+        r->good = false;
         pa_xfree(fn);
         return;
     }
@@ -370,9 +370,9 @@ static void update_rule(struct rule *r) {
     } else
         pa_log_debug("Found %s.", fn);
 
-    parse_file(r, fn, table, FALSE);
+    parse_file(r, fn, table, false);
     r->desktop_mtime = st.st_mtime;
-    r->good = TRUE;
+    r->good = true;
 
 
     pa_xfree(fn);
@@ -661,7 +661,7 @@ static int parse_rule_sections(
 
     if (!s) {
         s = pa_xnew0(struct sink_input_rule_section, 1);
-        s->comp = FALSE;
+        s->comp = false;
 
         /* add key to the struct for later freeing */
         s->section_name = pa_xstrdup(section);
@@ -679,7 +679,7 @@ static int parse_rule_sections(
             regfree(&s->stream_value);
 
         ret = regcomp(&s->stream_value, rvalue, REG_EXTENDED|REG_NOSUB);
-        s->comp = TRUE;
+        s->comp = true;
 
         if (ret != 0) {
             char errbuf[256];
@@ -691,7 +691,7 @@ static int parse_rule_sections(
     return 0;
 }
 
-static pa_bool_t validate_sink_input_rule(struct sink_input_rule_file *rf) {
+static bool validate_sink_input_rule(struct sink_input_rule_file *rf) {
 
     void *state;
     struct sink_input_rule_section *s;
@@ -699,17 +699,17 @@ static pa_bool_t validate_sink_input_rule(struct sink_input_rule_file *rf) {
     if (!rf->target_key || !rf->target_value) {
         pa_log_error("No result condition listed for rule file");
         /* no result condition listed, so no point in using this rule file */
-        return FALSE;
+        return false;
     }
 
     PA_HASHMAP_FOREACH(s, rf->rules, state) {
-        if (!s->stream_key || s->comp == FALSE) {
+        if (!s->stream_key || s->comp == false) {
             pa_log_error("Incomplete rule section [%s] in rule file", s->section_name);
-            return FALSE;
+            return false;
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 static pa_hashmap *update_sink_input_rules() {
