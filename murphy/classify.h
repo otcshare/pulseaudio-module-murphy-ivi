@@ -26,7 +26,7 @@
 
 void pa_classify_node_by_card(mir_node *, pa_card *, pa_card_profile *,
                               pa_device_port *);
-pa_bool_t pa_classify_node_by_property(mir_node *, pa_proplist *);
+bool pa_classify_node_by_property(mir_node *, pa_proplist *);
 void pa_classify_guess_device_node_type_and_name(mir_node*, const char *,
                                                  const char *);
 mir_node_type pa_classify_guess_stream_node_type(struct userdata *,
@@ -34,7 +34,7 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *,
                                                  pa_nodeset_resdef **);
 mir_node_type pa_classify_guess_application_class(mir_node *);
 
-pa_bool_t pa_classify_multiplex_stream(mir_node *);
+bool pa_classify_multiplex_stream(mir_node *);
 
 const char *pa_classify_loopback_stream(mir_node *);
 

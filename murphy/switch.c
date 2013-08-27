@@ -41,31 +41,31 @@
 #include "utils.h"
 #include "classify.h"
 
-static pa_bool_t setup_explicit_stream2dev_link(struct userdata *,
+static bool setup_explicit_stream2dev_link(struct userdata *,
                                                 mir_node *,
                                                 mir_node *);
-static pa_bool_t teardown_explicit_stream2dev_link(struct userdata*, mir_node*,
+static bool teardown_explicit_stream2dev_link(struct userdata*, mir_node*,
                                                    mir_node *);
 
-static pa_bool_t setup_default_dev2stream_link(struct userdata *, mir_node *,
+static bool setup_default_dev2stream_link(struct userdata *, mir_node *,
                                                mir_node *);
-static pa_bool_t setup_default_stream2dev_link(struct userdata *, mir_node *,
+static bool setup_default_stream2dev_link(struct userdata *, mir_node *,
                                                mir_node *);
-static pa_bool_t setup_default_dev2dev_link(struct userdata *,
+static bool setup_default_dev2dev_link(struct userdata *,
                                             mir_node *,
                                             mir_node *);
 
 static pa_source *setup_device_input(struct userdata *, mir_node *);
 static pa_sink   *setup_device_output(struct userdata *, mir_node *);
 
-static pa_bool_t set_profile(struct userdata *, mir_node *);
-static pa_bool_t set_port(struct userdata *, mir_node *);
+static bool set_profile(struct userdata *, mir_node *);
+static bool set_port(struct userdata *, mir_node *);
 
 
-pa_bool_t mir_switch_setup_link(struct userdata *u,
+bool mir_switch_setup_link(struct userdata *u,
                                 mir_node *from,
                                 mir_node *to,
-                                pa_bool_t explicit)
+                                bool explicit)
 {
     pa_core *core;
 
@@ -92,13 +92,13 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
 
             case mir_device:
                 if (!setup_explicit_stream2dev_link(u, from, to))
-                    return FALSE;
+                    return false;
                 break;
 
             default:
                 pa_log("%s: can't setup link: invalid sink node "
                        "implement", __FILE__);
-                return FALSE;
+                return false;
             }
             break;
 
@@ -109,7 +109,7 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
         default:
             pa_log("%s: can't setup link: invalid source node "
                    "implement", __FILE__);
-            return FALSE;
+            return false;
         }
     }
     else {
@@ -132,13 +132,13 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
 
                 case mir_device:
                     if (!setup_default_dev2stream_link(u, from, to))
-                        return FALSE;
+                        return false;
                     break;
 
                 default:
                     pa_log("%s: can't setup link: invalid source node "
                            "implement", __FILE__);
-                    return FALSE;
+                    return false;
                 }
                 break;
 
@@ -151,18 +151,18 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
 
                     case mir_stream:
                         if (!setup_default_stream2dev_link(u, from, to))
-                            return FALSE;
+                            return false;
                         break;
 
                     case mir_device:
                         if (!setup_default_dev2dev_link(u, from, to))
-                            return FALSE;
+                            return false;
                         break;
 
                     default:
                         pa_log("%s: can't setup link: invalid source node "
                                "implement", __FILE__);
-                        return FALSE;
+                        return false;
                     }
                 }
                 break;
@@ -170,7 +170,7 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
             default:
                 pa_log("%s: can't setup link: invalid sink node "
                        "implement", __FILE__);
-                return FALSE;
+                return false;
             }
         }
         else {
@@ -183,10 +183,10 @@ pa_bool_t mir_switch_setup_link(struct userdata *u,
 
     pa_log_debug("link %s => %s is established", from->amname, to->amname);
 
-    return TRUE;
+    return true;
 }
 
-pa_bool_t mir_switch_teardown_link(struct userdata *u,
+bool mir_switch_teardown_link(struct userdata *u,
                                    mir_node        *from,
                                    mir_node        *to)
 {
@@ -211,13 +211,13 @@ pa_bool_t mir_switch_teardown_link(struct userdata *u,
             
         case mir_device: /* stream -> device */
             if (!teardown_explicit_stream2dev_link(u, from, to))
-                return FALSE;
+                return false;
             break;
             
         default:
             pa_log("%s: can't teardown link: invalid sink node "
                    "implement", __FILE__);
-            return FALSE;
+            return false;
         }
         break;
         
@@ -228,15 +228,15 @@ pa_bool_t mir_switch_teardown_link(struct userdata *u,
     default:
         pa_log("%s: can't teardown link: invalid source node "
                "implement", __FILE__);
-        return FALSE;
+        return false;
     }
 
     pa_log_debug("link %s => %s is torn down", from->amname, to->amname);
 
-    return TRUE;
+    return true;
 }
 
-static pa_bool_t setup_explicit_stream2dev_link(struct userdata *u,
+static bool setup_explicit_stream2dev_link(struct userdata *u,
                                                 mir_node *from,
                                                 mir_node *to)
 {
@@ -251,28 +251,28 @@ static pa_bool_t setup_explicit_stream2dev_link(struct userdata *u,
     pa_assert((core = u->core));
 
     if (!(sink = setup_device_output(u, to)))
-        return FALSE;
+        return false;
 
     if (!set_profile(u, from) || !set_port(u, from)) {
         pa_log("can't route from '%s'", from->amname);
-        return FALSE;
+        return false;
     }
 
     if ((mux = from->mux)) {
         sinp = pa_idxset_get_by_index(core->sink_inputs, mux->defstream_index);
 
         if (sinp && sinp->sink == sink) {
-            if (!pa_multiplex_remove_default_route(core, mux, TRUE))
-                return FALSE;
+            if (!pa_multiplex_remove_default_route(core, mux, true))
+                return false;
         }
         else if (pa_multiplex_duplicate_route(core, mux, NULL, sink)) {
             pa_log_debug("multiplex route %s => %s already exists",
                          from->amname, to->amname);
-            return TRUE;
+            return true;
         }
         else {
             if (!pa_multiplex_add_explicit_route(core, mux, sink, from->type))
-                return FALSE;
+                return false;
         }
     }
     else {
@@ -283,19 +283,19 @@ static pa_bool_t setup_explicit_stream2dev_link(struct userdata *u,
                 pa_log_debug("direct route: sink-input.%u -> sink.%u",
                              sinp->index, sink->index);
 
-                if (pa_sink_input_move_to(sinp, sink, FALSE) < 0)
-                    return FALSE;
+                if (pa_sink_input_move_to(sinp, sink, false) < 0)
+                    return false;
             }
         }
     }
 
     pa_log_debug("link %s => %s is established", from->amname, to->amname);
 
-    return TRUE;
+    return true;
 }
 
 
-static pa_bool_t teardown_explicit_stream2dev_link(struct userdata *u,
+static bool teardown_explicit_stream2dev_link(struct userdata *u,
                                                    mir_node *from,
                                                    mir_node *to)
 {
@@ -312,36 +312,36 @@ static pa_bool_t teardown_explicit_stream2dev_link(struct userdata *u,
     if ((mux = from->mux)) {
         if (!(sink = pa_idxset_get_by_index(core->sinks, to->paidx))) {
             pa_log_debug("can't find sink.%u", to->paidx);
-            return FALSE;
+            return false;
         }
 
         if (!pa_multiplex_remove_explicit_route(core, mux, sink)) {
             pa_log_debug("can't remove multiplex route on mux %u", mux->module_index);
-            return FALSE;
+            return false;
         }
     }
     else {
         if (!(sinp = pa_idxset_get_by_index(core->sink_inputs, from->paidx))) {
             pa_log_debug("can't find source.%u", from->paidx);
-            return FALSE;
+            return false;
         }
 
         if (!(sink = pa_utils_get_null_sink(u))) {
             pa_log_debug("can't remove direct route: no null sink");
-            return FALSE;
+            return false;
         }
 
-        if (pa_sink_input_move_to(sinp, sink, FALSE) < 0)
-            return FALSE;
+        if (pa_sink_input_move_to(sinp, sink, false) < 0)
+            return false;
     }
 
     pa_log_debug("link %s => %s is torn down", from->amname, to->amname);
 
-    return TRUE;
+    return true;
 }
 
 
-static pa_bool_t setup_default_dev2stream_link(struct userdata *u,
+static bool setup_default_dev2stream_link(struct userdata *u,
                                                mir_node *from,
                                                mir_node *to)
 {
@@ -356,29 +356,29 @@ static pa_bool_t setup_default_dev2stream_link(struct userdata *u,
 
     if (!(source = setup_device_input(u, from))) {
         pa_log_debug("can't route '%s': no source", from->amname);
-        return FALSE;
+        return false;
     }
 
     if (to->paidx == PA_IDXSET_INVALID) {
         pa_log_debug("can't route '%s': no source-output", to->amname);
-        return FALSE;
+        return false;
     }
 
     if (!(sout = pa_idxset_get_by_index(core->source_outputs, to->paidx))) {
         pa_log_debug("can't find sink input for '%s'", to->amname);
-        return FALSE;
+        return false;
     }
 
     pa_log_debug("direct route: source.%d -> source->output.%d",
                  source->index, sout->index);
 
-    if (pa_source_output_move_to(sout, source, FALSE) < 0)
-        return FALSE;
+    if (pa_source_output_move_to(sout, source, false) < 0)
+        return false;
 
-    return TRUE;
+    return true;
 }
 
-static pa_bool_t setup_default_stream2dev_link(struct userdata *u,
+static bool setup_default_stream2dev_link(struct userdata *u,
                                                mir_node *from,
                                                mir_node *to)
 {
@@ -394,21 +394,21 @@ static pa_bool_t setup_default_stream2dev_link(struct userdata *u,
     pa_assert((core = u->core));
 
     if (!(sink = setup_device_output(u, to)))
-        return FALSE;
+        return false;
 
     if (!set_profile(u, from) || !set_port(u, from)) {
         pa_log("can't route from '%s'", from->amname);
-        return FALSE;
+        return false;
     }
 
     if ((mux = from->mux)) {
         if (mux->defstream_index == PA_IDXSET_INVALID) {
             if ((n = pa_multiplex_no_of_routes(core, mux)) < 0)
-                return FALSE;
+                return false;
             else if (n > 0) {
                 pa_log_debug("currently mux %u has no default route",
                              mux->module_index);
-                return TRUE;
+                return true;
             }
             sinp = NULL;
         }
@@ -432,21 +432,21 @@ static pa_bool_t setup_default_stream2dev_link(struct userdata *u,
                              "duplicate to an explicit route. "
                              "Removing it ...", mux->module_index);
                 mux->defstream_index = PA_IDXSET_INVALID;
-                return TRUE; /* the routing is a success */
+                return true; /* the routing is a success */
             }
 
             if (!pa_multiplex_add_default_route(core, mux,sink, from->type)) {
                 pa_log_debug("failed to add default route on mux %d",
                              mux->module_index);
                 mux->defstream_index = PA_IDXSET_INVALID;
-                return FALSE;
+                return false;
             }
         }
         else if (pa_multiplex_duplicate_route(core, mux, sinp, sink)) {
             pa_log_debug("the default stream on mux %u would be a duplicate "
                          "to an explicit route. Removing it ...",
                          mux->module_index);
-            return TRUE;        /* the routing is a success */
+            return true;        /* the routing is a success */
         }
             
         if (sinp) {
@@ -461,30 +461,30 @@ static pa_bool_t setup_default_stream2dev_link(struct userdata *u,
         }
 
         if (!pa_multiplex_change_default_route(core, mux, sink))
-            return FALSE;
+            return false;
     }
     else {
         if (from->paidx == PA_IDXSET_INVALID) {
             pa_log_debug("can't route '%s': no sink-input", to->amname);
-            return FALSE;
+            return false;
         }
 
         if (!(sinp = pa_idxset_get_by_index(core->sink_inputs, from->paidx))) {
             pa_log_debug("can't find sink input for '%s'", from->amname);
-            return FALSE;
+            return false;
         }
 
         pa_log_debug("direct route: sink-input.%d -> sink.%d",
                      sinp->index, sink->index);
 
-        if (pa_sink_input_move_to(sinp, sink, FALSE) < 0)
-            return FALSE;
+        if (pa_sink_input_move_to(sinp, sink, false) < 0)
+            return false;
     }
 
-    return TRUE;
+    return true;
 }
 
-static pa_bool_t setup_default_dev2dev_link(struct userdata *u,
+static bool setup_default_dev2dev_link(struct userdata *u,
                                             mir_node *from,
                                             mir_node *to)
 {
@@ -503,20 +503,20 @@ static pa_bool_t setup_default_dev2dev_link(struct userdata *u,
 
     if (!(loop = from->loop)) {
         pa_log_debug("source is not looped back");
-        return FALSE;
+        return false;
     }
 
     if (!(sink = setup_device_output(u, to)))
-        return FALSE;
+        return false;
 
     if ((mux = from->mux)) {
         if (mux->defstream_index == PA_IDXSET_INVALID) {
             if ((n = pa_multiplex_no_of_routes(core, mux)) < 0)
-                return FALSE;
+                return false;
             else if (n > 0) {
                 pa_log_debug("currently mux %u has no default route",
                              mux->module_index);
-                return TRUE;
+                return true;
             }
             sinp = NULL;
         }
@@ -540,7 +540,7 @@ static pa_bool_t setup_default_dev2dev_link(struct userdata *u,
                              "duplicate to an explicit route. "
                              "Removing it ...", mux->module_index);
                 mux->defstream_index = PA_IDXSET_INVALID;
-                return TRUE; /* the routing is a success */
+                return true; /* the routing is a success */
             }
 
             type = pa_classify_guess_application_class(from);
@@ -549,14 +549,14 @@ static pa_bool_t setup_default_dev2dev_link(struct userdata *u,
                 pa_log_debug("failed to add default route on mux %d",
                              mux->module_index);
                 mux->defstream_index = PA_IDXSET_INVALID;
-                return FALSE;
+                return false;
             }
         }
         else if (pa_multiplex_duplicate_route(core, mux, sinp, sink)) {
             pa_log_debug("the default stream on mux %u would be a duplicate "
                          "to an explicit route. Removing it ...",
                          mux->module_index);
-            return TRUE;        /* the routing is a success */
+            return true;        /* the routing is a success */
         }
             
         if (sinp) {
@@ -575,7 +575,7 @@ static pa_bool_t setup_default_dev2dev_link(struct userdata *u,
         }
 
         if (!pa_multiplex_change_default_route(core, mux, sink))
-            return FALSE;
+            return false;
     }
     else {
         sinp = pa_idxset_get_by_index(core->sink_inputs,
@@ -584,18 +584,18 @@ static pa_bool_t setup_default_dev2dev_link(struct userdata *u,
         if (!sinp) {
             pa_log_debug("can't find looped back sink input for '%s'",
                          from->amname);
-            return FALSE;
+            return false;
         }
 
         pa_log_debug("loopback route: source.%d -> (source-output - "
                      "sink-input.%d) -> sink.%d",
                      from->paidx, sinp->index, sink->index);
 
-        if (pa_sink_input_move_to(sinp, sink, FALSE) < 0)
-            return FALSE;
+        if (pa_sink_input_move_to(sinp, sink, false) < 0)
+            return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 static pa_source *setup_device_input(struct userdata *u, mir_node *node)
@@ -654,7 +654,7 @@ static pa_sink *setup_device_output(struct userdata *u, mir_node *node)
 }
 
 
-static pa_bool_t set_profile(struct userdata *u, mir_node *node)
+static bool set_profile(struct userdata *u, mir_node *node)
 {
     pa_core         *core;
     pa_card         *card;
@@ -665,7 +665,7 @@ static pa_bool_t set_profile(struct userdata *u, mir_node *node)
     pa_assert_se((core = u->core));
 
     if (node->implement != mir_device)
-        return TRUE;
+        return true;
 
     if (node->type == mir_bluetooth_a2dp ||
         node->type == mir_bluetooth_sco)
@@ -674,7 +674,7 @@ static pa_bool_t set_profile(struct userdata *u, mir_node *node)
 
         if (!card) {
             pa_log("can't find card for '%s'", node->amname);
-            return FALSE;
+            return false;
         }
 
         pa_assert_se(prof = card->active_profile);
@@ -686,23 +686,23 @@ static pa_bool_t set_profile(struct userdata *u, mir_node *node)
             if (u->state.profile) {
                 pa_log("nested profile setting is not allowed. won't change "
                        "'%s' => '%s'", prof->name, node->pacard.profile);
-                return FALSE;
+                return false;
             }
 
             u->state.profile = node->pacard.profile;
 
-            pa_card_set_profile(card, node->pacard.profile, FALSE);
+            pa_card_set_profile(card, node->pacard.profile, false);
 
             u->state.profile = NULL;            
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 
 
-static pa_bool_t set_port(struct userdata *u, mir_node *node)
+static bool set_port(struct userdata *u, mir_node *node)
 {
     pa_core   *core;
     pa_sink   *sink;
@@ -718,13 +718,13 @@ static pa_bool_t set_port(struct userdata *u, mir_node *node)
     pa_assert_se((core = u->core));
 
     if (node->direction != mir_input && node->direction != mir_output)
-        return FALSE;
+        return false;
 
     if (node->implement != mir_device)
-        return TRUE;
+        return true;
 
     if (!node->paport)
-        return TRUE;
+        return true;
 
     if (node->direction == mir_input) {
         source = pa_namereg_get(core, node->paname, PA_NAMEREG_SOURCE);
@@ -732,14 +732,14 @@ static pa_bool_t set_port(struct userdata *u, mir_node *node)
         if (!(data = source)) {
             pa_log("can't set port for '%s': source not found",
                    node->paname);
-            return FALSE;
+            return false;
         }
         
         if ((port = source->active_port) && pa_streq(node->paport, port->name))
-            return TRUE;
+            return true;
 
-        if (pa_source_set_port(source, node->paport, FALSE) < 0)
-            return FALSE;
+        if (pa_source_set_port(source, node->paport, false) < 0)
+            return false;
 
         paidx = source->index;
     }
@@ -750,14 +750,14 @@ static pa_bool_t set_port(struct userdata *u, mir_node *node)
         if (!(data = sink)) {
             pa_log("can't set port for '%s': sink not found",
                    node->paname);
-            return FALSE;
+            return false;
         }
 
         if ((port = sink->active_port) && pa_streq(node->paport, port->name))
-            return TRUE;
+            return true;
 
-        if (pa_sink_set_port(sink, node->paport, FALSE) < 0)
-            return FALSE;
+        if (pa_sink_set_port(sink, node->paport, false) < 0)
+            return false;
 
         paidx = sink->index;
     }
@@ -769,7 +769,7 @@ static pa_bool_t set_port(struct userdata *u, mir_node *node)
     pa_discover_add_node_to_ptr_hash(u, data, node);
 
 
-    return TRUE;
+    return true;
 }
 
 

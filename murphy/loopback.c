@@ -57,7 +57,7 @@ void pa_loopback_done(pa_loopback *loopback, pa_core *core)
     pa_loopnode *loop, *n;
 
     PA_LLIST_FOREACH_SAFE(loop,n, loopback->loopnodes) {
-        pa_module_unload_by_index(core, loop->module_index, FALSE);
+        pa_module_unload_by_index(core, loop->module_index, false);
     }
 }
 
@@ -158,7 +158,7 @@ pa_loopnode *pa_loopback_create(pa_loopback      *loopback,
             pa_log("can't find input stream of loopback module (index %u)",
                    module->index);
         }
-        pa_module_unload(core, module, FALSE);
+        pa_module_unload(core, module, false);
         return NULL;
     }
 
@@ -188,7 +188,7 @@ void pa_loopback_destroy(pa_loopback *loopback,
 
     if (loop) {
         PA_LLIST_REMOVE(pa_loopnode, loopback->loopnodes, loop);
-        pa_module_unload_by_index(core, loop->module_index, FALSE);
+        pa_module_unload_by_index(core, loop->module_index, false);
         pa_xfree(loop);
     }
 }

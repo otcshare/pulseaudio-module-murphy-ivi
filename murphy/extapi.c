@@ -269,7 +269,7 @@ int extension_cb(pa_native_protocol *p, pa_module *m, pa_native_connection *c, u
 
     case SUBCOMMAND_SUBSCRIBE: {
 
-        pa_bool_t enabled;
+        bool enabled;
 
         pa_log_debug("subscribe called in module-murphy-ivi");
 

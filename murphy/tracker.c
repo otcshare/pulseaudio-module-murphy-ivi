@@ -256,7 +256,7 @@ void pa_tracker_synchronize(struct userdata *u)
     }
 
     PA_IDXSET_FOREACH(sink, core->sinks, index) {
-        pa_discover_add_sink(u, sink, FALSE);
+        pa_discover_add_sink(u, sink, false);
     }
 
     PA_IDXSET_FOREACH(source, core->sources, index) {
@@ -360,7 +360,7 @@ static pa_hook_result_t sink_put(void *hook_data,
     pa_assert(u);
     pa_assert(sink);
 
-    pa_discover_add_sink(u, sink, TRUE);
+    pa_discover_add_sink(u, sink, true);
 
     return PA_HOOK_OK;
 }

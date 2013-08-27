@@ -89,21 +89,21 @@ static const char loopback_inpatrn[]  = "Loopback to ";
 
 static void handle_alsa_card(struct userdata *, pa_card *);
 static void handle_bluetooth_card(struct userdata *, pa_card *);
-static pa_bool_t get_bluetooth_port_availability(mir_node *, pa_device_port *);
+static bool get_bluetooth_port_availability(mir_node *, pa_device_port *);
 
 static void handle_udev_loaded_card(struct userdata *, pa_card *,
                                     mir_node *, char *);
 static void handle_card_ports(struct userdata *, mir_node *,
                               pa_card *, pa_card_profile *);
 
-static mir_node *create_node(struct userdata *, mir_node *, pa_bool_t *);
+static mir_node *create_node(struct userdata *, mir_node *, bool *);
 static void destroy_node(struct userdata *, mir_node *);
-static pa_bool_t update_node_availability(struct userdata *, mir_node *,
-                                          pa_bool_t);
-static pa_bool_t update_node_availability_by_device(struct userdata *,
+static bool update_node_availability(struct userdata *, mir_node *,
+                                          bool);
+static bool update_node_availability_by_device(struct userdata *,
                                                     mir_direction,
                                                     void *, pa_device_port *,
-                                                    pa_bool_t);
+                                                    bool);
 
 static void parse_profile_name(pa_card_profile *,
                                char **, char **, char *, int);
@@ -141,7 +141,7 @@ struct pa_discover *pa_discover_init(struct userdata *u)
 
     discover->chmin = 1;
     discover->chmax = 2;
-    discover->selected = TRUE;
+    discover->selected = true;
 
     discover->nodes.byname = pa_hashmap_new(pa_idxset_string_hash_func,
                                             pa_idxset_string_compare_func);
@@ -254,14 +254,14 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
     pa_source       *source;
     pa_discover     *discover;
     const char      *bus;
-    pa_bool_t        pci;
-    pa_bool_t        usb;
-    pa_bool_t        bluetooth;
+    bool        pci;
+    bool        usb;
+    bool        bluetooth;
     uint32_t         stamp;
     mir_node        *node;
     void            *state;
     uint32_t         index;
-    pa_bool_t        need_routing;
+    bool        need_routing;
 
     pa_assert(u);
     pa_assert(card);
@@ -289,7 +289,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 
     if ((index = u->state.sink) != PA_IDXSET_INVALID) {
         if ((sink = pa_idxset_get_by_index(core->sinks, index)))
-            pa_discover_add_sink(u, sink, TRUE);
+            pa_discover_add_sink(u, sink, true);
         else
             pa_log_debug("sink.%u is gone", index);
         u->state.sink = PA_IDXSET_INVALID;
@@ -311,7 +311,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
 
         if (!prof->n_sinks && !prof->n_sources) {
             /* switched off but not unloaded yet */
-            need_routing = FALSE;
+            need_routing = false;
 
             PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
                 if (node->implement == mir_device &&
@@ -321,8 +321,8 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
                         node->type != mir_bluetooth_sco)
                     {
                         if (node->available) {
-                            node->available = FALSE;
-                            need_routing = TRUE;
+                            node->available = false;
+                            need_routing = true;
                         }
                     }
                 }
@@ -360,10 +360,10 @@ void pa_discover_port_available_changed(struct userdata *u,
     pa_source     *source;
     mir_node      *node;
     uint32_t       idx;
-    pa_bool_t      available;
+    bool      available;
     const char    *state;
-    pa_bool_t      btport;
-    pa_bool_t      route;
+    bool      btport;
+    bool      route;
     pa_direction_t direction;
     void          *iter;
 
@@ -380,13 +380,13 @@ void pa_discover_port_available_changed(struct userdata *u,
     pa_log_debug("port '%s' availabilty changed to %s. Updating",
                  port->name, state);
 
-    btport = FALSE;
-    route = FALSE;
+    btport = false;
+    route = false;
     direction = 0;
     iter = NULL;
 
     while ((node = pa_utils_get_node_from_port(u, port, &iter))) {
-        btport = TRUE;
+        btport = true;
         available = get_bluetooth_port_availability(node, port);
         route |= update_node_availability(u, node, available);
         direction |= (node->direction == mir_input) ? PA_DIRECTION_INPUT : PA_DIRECTION_OUTPUT;
@@ -396,8 +396,8 @@ void pa_discover_port_available_changed(struct userdata *u,
         set_bluetooth_profile(u, port->card, direction);
     else {
         switch (port->available) {
-        case PA_PORT_AVAILABLE_NO:    available = FALSE;    break;
-        case PA_PORT_AVAILABLE_YES:   available = TRUE;     break;
+        case PA_PORT_AVAILABLE_NO:    available = false;    break;
+        case PA_PORT_AVAILABLE_YES:   available = true;     break;
         default:                      /* do nothing */      return;
         }
 
@@ -434,7 +434,7 @@ void pa_discover_port_available_changed(struct userdata *u,
         mir_router_make_routing(u);
 }
 
-void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
+void pa_discover_add_sink(struct userdata *u, pa_sink *sink, bool route)
 {
     static pa_nodeset_resdef def_resdef = {0, {0, 0}};
 
@@ -449,7 +449,7 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
     const char        *loopback_role;
     pa_nodeset_map    *map;
     pa_nodeset_resdef *resdef;
-    pa_bool_t          make_rset;
+    bool          make_rset;
     pa_nodeset_resdef  rdbuf;
     pa_source         *ns;
     mir_node           data;
@@ -475,7 +475,7 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         pa_log_debug("node for '%s' found (key %s). Updating with sink data",
                      node->paname, node->key);
         node->paidx = sink->index;
-        node->available = TRUE;
+        node->available = true;
         pa_discover_add_node_to_ptr_hash(u, sink, node);
 
         if ((loopback_role = pa_classify_loopback_stream(node))) {
@@ -520,11 +520,11 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         data.direction = mir_output;
         data.implement = mir_device;
         data.channels  = sink->channel_map.channels;
-        data.available = TRUE;
+        data.available = true;
         data.paidx     = sink->index;
 
         if (sink == pa_utils_get_null_sink(u)) {
-            data.visible = FALSE;
+            data.visible = false;
             data.type = mir_null;
             data.amname = pa_xstrdup("Silent");
             data.amid = AM_ID_INVALID;
@@ -532,7 +532,7 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, pa_bool_t route)
         }
         else if (pa_classify_node_by_property(&data, sink->proplist)) {
             data.privacy = mir_public;
-            data.visible = TRUE;
+            data.visible = true;
             data.amname = pa_xstrdup(mir_node_type_str(data.type));
             data.amid = AM_ID_INVALID;
             data.paname = pa_xstrdup(sink->name);
@@ -575,7 +575,7 @@ void pa_discover_remove_sink(struct userdata *u, pa_sink *sink)
 
         if (sink->card) {
             if (type != mir_bluetooth_a2dp && type != mir_bluetooth_sco)
-                node->available = FALSE;
+                node->available = false;
             else {
                 if (!u->state.profile)
                     schedule_deferred_routing(u);
@@ -602,7 +602,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
     const char        *loopback_role;
     pa_nodeset_map    *map;
     pa_nodeset_resdef *resdef;
-    pa_bool_t          make_rset;
+    bool          make_rset;
     uint32_t           sink_index;
     pa_sink           *ns;
     mir_node           data;
@@ -625,7 +625,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
         pa_log_debug("node for '%s' found. Updating with source data",
                      node->amname);
         node->paidx = source->index;
-        node->available = TRUE;
+        node->available = true;
         pa_discover_add_node_to_ptr_hash(u, source, node);
         if ((loopback_role = pa_classify_loopback_stream(node))) {
             if (!(ns = pa_utils_get_null_sink(u))) {
@@ -662,10 +662,10 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
         data.direction = mir_input;
         data.implement = mir_device;
         data.channels  = source->channel_map.channels;
-        data.available = TRUE;
+        data.available = true;
 
         if (source == pa_utils_get_null_source(u)) {
-            data.visible = FALSE;
+            data.visible = false;
             data.type = mir_null;
             data.amname = pa_xstrdup("Silent");
             data.amid = AM_ID_INVALID;
@@ -673,7 +673,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
             data.paidx = source->index;
         }
         else if (pa_classify_node_by_property(&data, source->proplist)) {
-            data.visible = TRUE;
+            data.visible = true;
             data.amname = pa_xstrdup(mir_node_type_str(data.type));
             data.amid   = AM_ID_INVALID;
             data.paname = pa_xstrdup(source->name);
@@ -716,7 +716,7 @@ void pa_discover_remove_source(struct userdata *u, pa_source *source)
 
         if (source->card) {
             if (type != mir_bluetooth_sco)
-                node->available = FALSE;
+                node->available = false;
             else {
                 if (!u->state.profile)
                     schedule_deferred_routing(u);
@@ -784,8 +784,8 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     data.channels  = sinp->channel_map.channels;
     data.type      = type;
     data.zone      = pa_utils_get_zone(sinp->proplist);
-    data.visible   = TRUE;
-    data.available = TRUE;
+    data.visible   = true;
+    data.available = true;
     data.amname    = name;
     data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
     data.amid      = AM_ID_INVALID;
@@ -811,7 +811,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     if (sink && target) {
         pa_log_debug("move stream to sink %u (%s)", sink->index, sink->name);
 
-        if (pa_sink_input_move_to(sinp, sink, FALSE) < 0)
+        if (pa_sink_input_move_to(sinp, sink, false) < 0)
             pa_log("failed to route '%s' => '%s'",node->amname,target->amname);
         else {
             pa_log_debug("register route '%s' => '%s'",
@@ -899,8 +899,8 @@ void pa_discover_preroute_sink_input(struct userdata *u,
         fake.channels  = data->channel_map.channels;
         fake.type      = type;
         fake.zone      = pa_utils_get_zone(data->proplist);
-        fake.visible   = TRUE;
-        fake.available = TRUE;
+        fake.visible   = true;
+        fake.available = true;
         fake.amname    = "<preroute sink-input>";
 
         role = pa_proplist_gets(data->proplist, PA_PROP_MEDIA_ROLE);
@@ -914,7 +914,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
             }
 #endif
 
-            if (pa_sink_input_new_data_set_sink(data, sink, FALSE))
+            if (pa_sink_input_new_data_set_sink(data, sink, false))
                 pa_log_debug("set sink %u for new sink-input", sink->index);
             else
                 pa_log("can't set sink %u for new sink-input", sink->index);
@@ -938,7 +938,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     const char        *media;
     mir_node_type      type;
     char               key[256];
-    pa_bool_t          created;
+    bool          created;
     pa_muxnode        *mux;
     pa_nodeset_resdef *resdef;
     pa_nodeset_resdef  rdbuf;
@@ -1016,8 +1016,8 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         data.channels  = sinp->channel_map.channels;
         data.type      = type;
         data.zone      = pa_utils_get_zone(pl);
-        data.visible   = TRUE;
-        data.available = TRUE;
+        data.visible   = true;
+        data.available = true;
         data.amname    = name;
         data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
         data.amid      = AM_ID_INVALID;
@@ -1073,7 +1073,7 @@ void pa_discover_remove_sink_input(struct userdata *u, pa_sink_input *sinp)
     mir_node       *node;
     mir_node       *sinknod;
     char           *name;
-    pa_bool_t       had_properties;
+    bool       had_properties;
 
     pa_assert(u);
     pa_assert(sinp);
@@ -1162,8 +1162,8 @@ void pa_discover_register_source_output(struct userdata  *u,
     data.channels  = sout->channel_map.channels;
     data.type      = type;
     data.zone      = pa_utils_get_zone(sout->proplist);
-    data.visible   = TRUE;
-    data.available = TRUE;
+    data.visible   = true;
+    data.available = true;
     data.amname    = name;
     data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
     data.amid      = AM_ID_INVALID;
@@ -1189,7 +1189,7 @@ void pa_discover_register_source_output(struct userdata  *u,
         pa_log_debug("move stream to source %u (%s)",
                      source->index, source->name);
 
-        if (pa_source_output_move_to(sout, source, FALSE) < 0)
+        if (pa_source_output_move_to(sout, source, false) < 0)
             pa_log("failed to route '%s' => '%s'",node->amname,target->amname);
         else {
             pa_log_debug("register route '%s' => '%s'",
@@ -1254,15 +1254,15 @@ void pa_discover_preroute_source_output(struct userdata *u,
         fake.channels  = data->channel_map.channels;
         fake.type      = type;
         fake.zone      = pa_utils_get_zone(data->proplist);
-        fake.visible   = TRUE;
-        fake.available = TRUE;
+        fake.visible   = true;
+        fake.available = true;
         fake.amname    = "<preroute source-output>";
 
         role   = pa_proplist_gets(data->proplist, PA_PROP_MEDIA_ROLE);
         source = make_input_prerouting(u, &fake, role, NULL);
 
         if (source) {
-            if (pa_source_output_new_data_set_source(data, source, FALSE)) {
+            if (pa_source_output_new_data_set_source(data, source, false)) {
                 pa_log_debug("set source %u for new source-output",
                              source->index);
             }
@@ -1288,7 +1288,7 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
     const char        *media;
     mir_node_type      type;
     char               key[256];
-    pa_bool_t          created;
+    bool          created;
     pa_nodeset_resdef *resdef;
     pa_nodeset_resdef  rdbuf;
 
@@ -1349,8 +1349,8 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
         data.channels  = sout->channel_map.channels;
         data.type      = type;
         data.zone      = pa_utils_get_zone(pl);
-        data.visible   = TRUE;
-        data.available = TRUE;
+        data.visible   = true;
+        data.available = true;
         data.amname    = name;
         data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
         data.amid      = AM_ID_INVALID;
@@ -1496,7 +1496,7 @@ static void handle_alsa_card(struct userdata *u, pa_card *card)
 
     memset(&data, 0, sizeof(data));
     data.zone = pa_utils_get_zone(card->proplist);
-    data.visible = TRUE;
+    data.visible = true;
     data.amid = AM_ID_INVALID;
     data.implement = mir_device;
     data.paidx = PA_IDXSET_INVALID;
@@ -1548,7 +1548,7 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
 
     memset(&data, 0, sizeof(data));
     data.key = key;
-    data.visible = TRUE;
+    data.visible = true;
     data.amid = AM_ID_INVALID;
     data.implement = mir_device;
     data.paidx = PA_IDXSET_INVALID;
@@ -1568,7 +1568,7 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
         cd = mir_constrain_create(u, "profile", mir_constrain_profile, cnam);
 
         PA_HASHMAP_FOREACH(prof, card->profiles, cstate) {
-            data.available = FALSE;
+            data.available = false;
             data.pacard.profile = prof->name;
 
             if (prof->n_sinks > 0) {
@@ -1625,8 +1625,8 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     char             amname[MAX_NAME_LENGTH+1];
     char             key[MAX_NAME_LENGTH+1];
     int              len;
-    pa_bool_t        input;
-    pa_bool_t        output;
+    bool        input;
+    bool        output;
 
     pa_assert_se((discover = u->discover));
 
@@ -1640,7 +1640,7 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     memset(&data, 0, sizeof(data));
     data.key = key;
     data.zone = pa_utils_get_zone(card->proplist);
-    data.visible = TRUE;
+    data.visible = true;
     data.amid = AM_ID_INVALID;
     data.implement = mir_device;
     data.paidx = PA_IDXSET_INVALID;
@@ -1663,12 +1663,12 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
             pa_assert(port->profiles);
 
 
-            input = output = TRUE;
+            input = output = true;
             len = strlen(port->name);
             if (len >= 6 && !strcmp("-input", port->name + (len-6)))
-                output = FALSE;
+                output = false;
             else if (len >= 7 && !strcmp("-output", port->name + (len-7)))
-                input  = FALSE;
+                input  = false;
             
 
             PA_HASHMAP_FOREACH(prof, port->profiles, state1) {
@@ -1714,10 +1714,10 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
     }
 }
 
-static pa_bool_t get_bluetooth_port_availability(mir_node *node,
+static bool get_bluetooth_port_availability(mir_node *node,
                                                  pa_device_port *port)
 {
-    pa_bool_t available = FALSE;
+    bool available = false;
     const char *prof;
 
     pa_assert(node);
@@ -1729,7 +1729,7 @@ static pa_bool_t get_bluetooth_port_availability(mir_node *node,
             !strcmp(prof, "a2dp_sink"))
             available = (port->available != PA_PORT_AVAILABLE_NO);
         else
-            available = TRUE;
+            available = true;
     }
 
     return available;
@@ -1813,12 +1813,12 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
                               pa_card *card, pa_card_profile *prof)
 {
     mir_node       *node = NULL;
-    pa_bool_t       have_ports = FALSE;
+    bool       have_ports = false;
     mir_constr_def *cd = NULL;
     char           *amname = data->amname;
     pa_device_port *port;
     void           *state;
-    pa_bool_t       created;
+    bool       created;
     char            key[MAX_NAME_LENGTH+1];
 
     pa_assert(u);
@@ -1837,7 +1837,7 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
                 ((port->direction == PA_DIRECTION_INPUT && data->direction == mir_input)||
                  (port->direction == PA_DIRECTION_OUTPUT && data->direction == mir_output)))
             {
-                have_ports = TRUE;
+                have_ports = true;
 
                 amname[0] = '\0';
                 snprintf(key, sizeof(key), "%s@%s", data->paname, port->name);
@@ -1865,7 +1865,7 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
 
     if (!have_ports) {
         data->key = data->paname;
-        data->available = TRUE;
+        data->available = true;
 
         pa_classify_node_by_card(data, card, prof, NULL);
 
@@ -1881,11 +1881,11 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
 
 
 static mir_node *create_node(struct userdata *u, mir_node *data,
-                             pa_bool_t *created_ret)
+                             bool *created_ret)
 {
     pa_discover *discover;
     mir_node    *node;
-    pa_bool_t    created;
+    bool    created;
     char         buf[2048];
 
     pa_assert(u);
@@ -1895,9 +1895,9 @@ static mir_node *create_node(struct userdata *u, mir_node *data,
     pa_assert_se((discover = u->discover));
 
     if ((node = pa_hashmap_get(discover->nodes.byname, data->key)))
-        created = FALSE;
+        created = false;
     else {
-        created = TRUE;
+        created = true;
 
         node = mir_node_create(u, data);
         pa_hashmap_put(discover->nodes.byname, node->key, node);
@@ -1960,9 +1960,9 @@ static void destroy_node(struct userdata *u, mir_node *node)
     }
 }
 
-static pa_bool_t update_node_availability(struct userdata *u,
+static bool update_node_availability(struct userdata *u,
                                           mir_node *node,
-                                          pa_bool_t available)
+                                          bool available)
 {
     pa_assert(u);
     pa_assert(node);
@@ -1979,17 +1979,17 @@ static pa_bool_t update_node_availability(struct userdata *u,
 
         extapi_signal_node_change(u);
 
-        return TRUE; /* routing needed */
+        return true; /* routing needed */
     }
 
-    return FALSE;
+    return false;
 }
 
-static pa_bool_t update_node_availability_by_device(struct userdata *u,
+static bool update_node_availability_by_device(struct userdata *u,
                                                     mir_direction direction,
                                                     void *data,
                                                     pa_device_port *port,
-                                                    pa_bool_t available)
+                                                    bool available)
 {
     mir_node *node;
     char     *key;
@@ -2011,7 +2011,7 @@ static pa_bool_t update_node_availability_by_device(struct userdata *u,
         }
     }
 
-    return FALSE; /* no routing needed */
+    return false; /* no routing needed */
 }
 
 static char *get_name(char **string_ptr, int offs)
@@ -2082,9 +2082,9 @@ static char *node_key(struct userdata *u, mir_direction direction,
     pa_card         *card;
     pa_card_profile *profile;
     const char      *bus;
-    pa_bool_t        pci;
-    pa_bool_t        usb;
-    pa_bool_t        bluetooth;
+    bool        pci;
+    bool        usb;
+    bool        bluetooth;
     char            *type;
     char            *name;
     const char      *profile_name;
@@ -2261,8 +2261,8 @@ static void set_bluetooth_profile(struct userdata *u,
     pa_device_port *port;
     pa_card_profile *prof, *make_active;
     void *state0, *state1;
-    pa_bool_t port_available;
-    pa_bool_t switch_off;
+    bool port_available;
+    bool switch_off;
     int nport;
 
     pa_assert(u);
@@ -2270,7 +2270,7 @@ static void set_bluetooth_profile(struct userdata *u,
     pa_assert_se((core = u->core));
 
     make_active = NULL;
-    switch_off = FALSE;
+    switch_off = false;
     nport = 0;
 
     pa_log_debug("which profile to make active:");
@@ -2280,11 +2280,11 @@ static void set_bluetooth_profile(struct userdata *u,
             if (!make_active) {
                 pa_log_debug("   considering %s", prof->name);
                 make_active = prof;
-                switch_off = TRUE;
+                switch_off = true;
             }
         }
         else {
-            port_available = FALSE;
+            port_available = false;
 
             PA_HASHMAP_FOREACH(port, card->ports, state1) {
                 if ((direction & port->direction) &&
@@ -2331,7 +2331,7 @@ static void set_bluetooth_profile(struct userdata *u,
             else {
                 pa_log_debug("Set profile %s", make_active->name);
 
-                if (pa_card_set_profile(card, make_active->name, FALSE) < 0) {
+                if (pa_card_set_profile(card, make_active->name, false) < 0) {
                     pa_log_debug("Failed to change profile to %s",
                                  make_active->name);
                 }
@@ -2510,7 +2510,7 @@ static void stream_uncork_cb(pa_mainloop_api *m, void *d)
         goto out;
     }
 
-    pa_sink_input_cork(sinp, FALSE);
+    pa_sink_input_cork(sinp, false);
 
     pa_log_debug("stream.%u uncorked", sinp->index);
 

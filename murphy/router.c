@@ -227,7 +227,7 @@ void mir_router_destroy_rtgroup(struct userdata *u,
 }
 
 
-pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *u,
+bool mir_router_assign_class_to_rtgroup(struct userdata *u,
                                              mir_node_type    class,
                                              uint32_t         zone,
                                              mir_direction    type,
@@ -261,7 +261,7 @@ pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *u,
         pa_log_debug("can't assign class (%d) to  routing group '%s': "
                      "class id is out of range (0 - %d)",
                      class, rtgrpnam, router->maplen);
-        return FALSE;
+        return false;
     }
 
     clnam = mir_node_type_str(class);
@@ -288,7 +288,7 @@ pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *u,
                      clnam, zone, direction, rtgrpnam);
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -455,7 +455,7 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
     mir_node      *start;
     mir_node      *end;
     int            priority;
-    pa_bool_t      done;
+    bool      done;
     mir_node      *target;
     uint32_t       stamp;
 
@@ -464,7 +464,7 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
     pa_assert_se((data->implement == mir_stream));
 
     priority = node_priority(u, data);
-    done = FALSE;
+    done = false;
     target = NULL;
     stamp = pa_utils_new_stamp();
 
@@ -485,7 +485,7 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
         if (priority >= node_priority(u, start)) {
             if ((target = find_default_route(u, data, stamp)))
                 implement_preroute(u, data, target, stamp);
-            done = TRUE;
+            done = true;
         }
 
         if (start->stamp >= stamp)
@@ -504,7 +504,7 @@ mir_node *mir_router_make_prerouting(struct userdata *u, mir_node *data)
 
 void mir_router_make_routing(struct userdata *u)
 {
-    static pa_bool_t ongoing_routing;
+    static bool ongoing_routing;
 
     pa_router  *router;
     mir_node   *start;
@@ -517,7 +517,7 @@ void mir_router_make_routing(struct userdata *u)
     if (ongoing_routing)
         return;
 
-    ongoing_routing = TRUE;
+    ongoing_routing = true;
     stamp = pa_utils_new_stamp();
 
     make_explicit_routes(u, stamp);
@@ -543,12 +543,12 @@ void mir_router_make_routing(struct userdata *u)
 
     pa_fader_apply_volume_limits(u, stamp);
 
-    ongoing_routing = FALSE;
+    ongoing_routing = false;
 }
 
 
 
-pa_bool_t mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
+bool mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
                                     mir_node *node)
 {
     pa_core *core;
@@ -556,7 +556,7 @@ pa_bool_t mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
     pa_source *source;
     pa_proplist *pl;
     mir_node_type class;
-    pa_bool_t accept;
+    bool accept;
     const char *role, *excluded_role;
 
     pa_assert(u);
@@ -566,7 +566,7 @@ pa_bool_t mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
     class = node->type;
 
     if (class == mir_bluetooth_carkit)
-        accept = FALSE;
+        accept = false;
     else if (class == mir_jack || class == mir_hdmi) {
         pa_assert_se((core = u->core));
             
@@ -581,7 +581,7 @@ pa_bool_t mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
             excluded_role = "hfp_downlink";
         }
         role = pl ? pa_proplist_gets(pl, PA_PROP_NODE_ROLE) : NULL;
-        accept = role ? strcmp(role, excluded_role) : TRUE;
+        accept = role ? strcmp(role, excluded_role) : true;
     }
     else {
         accept = (class >= mir_device_class_begin &&
@@ -592,7 +592,7 @@ pa_bool_t mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
 }
 
 
-pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
+bool mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
                                   mir_node *node)
 {
     pa_core *core;
@@ -620,7 +620,7 @@ pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 
@@ -812,7 +812,7 @@ static void make_explicit_routes(struct userdata *u, uint32_t stamp)
             continue;
         }
 
-        if (!mir_switch_setup_link(u, from, to, TRUE))
+        if (!mir_switch_setup_link(u, from, to, true))
             continue;
 
         if (from->implement == mir_stream)
@@ -918,9 +918,9 @@ static void implement_preroute(struct userdata *u,
                                uint32_t         stamp)
 {
     if (data->direction == mir_output)
-        mir_switch_setup_link(u, target, NULL, FALSE);
+        mir_switch_setup_link(u, target, NULL, false);
     else {
-        mir_switch_setup_link(u, NULL, target, FALSE);
+        mir_switch_setup_link(u, NULL, target, false);
         mir_volume_add_limiting_class(u, target, data->type, stamp);
     }
 }
@@ -931,9 +931,9 @@ static void implement_default_route(struct userdata *u,
                                     uint32_t         stamp)
 {
     if (start->direction == mir_output)
-        mir_switch_setup_link(u, end, start, FALSE);
+        mir_switch_setup_link(u, end, start, false);
     else {
-        mir_switch_setup_link(u, start, end, FALSE);
+        mir_switch_setup_link(u, start, end, false);
         mir_volume_add_limiting_class(u, end, volume_class(start), stamp);
     }
 }

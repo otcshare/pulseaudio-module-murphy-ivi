@@ -193,7 +193,7 @@ void pa_classify_node_by_card(mir_node        *node,
     }
 }
 
-pa_bool_t pa_classify_node_by_property(mir_node *node, pa_proplist *pl)
+bool pa_classify_node_by_property(mir_node *node, pa_proplist *pl)
 {
     typedef struct {
         const char *name;
@@ -221,12 +221,12 @@ pa_bool_t pa_classify_node_by_property(mir_node *node, pa_proplist *pl)
         for (i = 0; map[i].name;  i++) {
             if (pa_streq(type, map[i].name)) {
                 node->type = map[i].value;
-                return TRUE;
+                return true;
             }
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 /* data->direction must be set */
@@ -332,11 +332,11 @@ mir_node_type pa_classify_guess_application_class(mir_node *node)
 }
 
 
-pa_bool_t pa_classify_multiplex_stream(mir_node *node)
+bool pa_classify_multiplex_stream(mir_node *node)
 {
-    static pa_bool_t multiplex[mir_application_class_end] = {
-        [ mir_player  ] = TRUE,
-        [ mir_game    ] = TRUE,
+    static bool multiplex[mir_application_class_end] = {
+        [ mir_player  ] = true,
+        [ mir_game    ] = true,
     };
 
     mir_node_type class;
@@ -353,7 +353,7 @@ pa_bool_t pa_classify_multiplex_stream(mir_node *node)
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 const char *pa_classify_loopback_stream(mir_node *node)

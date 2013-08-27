@@ -36,9 +36,9 @@ static pa_sink_input_flags_t flag_mask = PA_SINK_INPUT_NO_CREATE_ON_SUSPEND |
                                          PA_SINK_INPUT_KILL_ON_SUSPEND;
 
 
-static void sink_input_block(pa_sink_input *, pa_bool_t);
+static void sink_input_block(pa_sink_input *, bool);
 
-pa_bool_t pa_stream_state_start_corked(struct userdata *u,
+bool pa_stream_state_start_corked(struct userdata *u,
                                        pa_sink_input_new_data *data,
                                        pa_nodeset_resdef *resdef)
 {
@@ -50,10 +50,10 @@ pa_bool_t pa_stream_state_start_corked(struct userdata *u,
         data->flags &= ~flag_mask;
         data->flags |= PA_SINK_INPUT_START_CORKED;
 
-        return TRUE;
+        return true;
     }
 
-    return FALSE;
+    return false;
 }
 
 void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
@@ -85,12 +85,12 @@ void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
             case PA_STREAM_KILL:
             case PA_STREAM_BLOCK:
                 pa_log_debug("mute '%s'", node->amname);
-                pa_sink_input_set_mute(sinp, TRUE, FALSE);
+                pa_sink_input_set_mute(sinp, true, false);
                 break;
                 
             case PA_STREAM_RUN:
                 pa_log_debug("unmute '%s'", node->amname);
-                pa_sink_input_set_mute(sinp, FALSE, FALSE);
+                pa_sink_input_set_mute(sinp, false, false);
                 break;
                 
             default:
@@ -118,12 +118,12 @@ void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
                 
             case PA_STREAM_BLOCK:
                 pa_log_debug("blocking '%s'", node->amname);
-                sink_input_block(sinp, TRUE);
+                sink_input_block(sinp, true);
                 break;
                 
             case PA_STREAM_RUN:
                 pa_log_debug("unblock '%s'", node->amname);
-                sink_input_block(sinp, FALSE);
+                sink_input_block(sinp, false);
                 break;
                 
             default:
@@ -140,7 +140,7 @@ void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
 }
 
 
-static void sink_input_block(pa_sink_input *sinp, pa_bool_t block)
+static void sink_input_block(pa_sink_input *sinp, bool block)
 {
     const char *event;
     pa_proplist *pl;

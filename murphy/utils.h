@@ -41,16 +41,16 @@ char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data *);
 
 char *pa_utils_get_zone(pa_proplist *);
 
-pa_bool_t pa_utils_set_stream_routing_properties(pa_proplist *, int, void *);
-pa_bool_t pa_utils_unset_stream_routing_properties(pa_proplist *);
-void      pa_utils_set_stream_routing_method_property(pa_proplist *,pa_bool_t);
-pa_bool_t pa_utils_stream_has_default_route(pa_proplist *);
+bool pa_utils_set_stream_routing_properties(pa_proplist *, int, void *);
+bool pa_utils_unset_stream_routing_properties(pa_proplist *);
+void      pa_utils_set_stream_routing_method_property(pa_proplist *,bool);
+bool pa_utils_stream_has_default_route(pa_proplist *);
 int       pa_utils_get_stream_class(pa_proplist *);
 
 
 #ifdef foomurphyuserdatafoo  /* argh ... */
-pa_bool_t pa_utils_set_resource_properties(pa_proplist *, pa_nodeset_resdef *);
-pa_bool_t pa_utils_unset_resource_properties(pa_proplist *);
+bool pa_utils_set_resource_properties(pa_proplist *, pa_nodeset_resdef *);
+bool pa_utils_unset_resource_properties(pa_proplist *);
 pa_nodeset_resdef *pa_utils_get_resource_properties(pa_proplist *,
                                                     pa_nodeset_resdef *);
 

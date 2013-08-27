@@ -148,10 +148,10 @@ static mir_volume_suppress_arg suppress = {
 };
 
 
-static pa_bool_t use_default_configuration(struct userdata *);
+static bool use_default_configuration(struct userdata *);
 
 #if 0
-static pa_bool_t parse_config_file(struct userdata *, FILE *);
+static bool parse_config_file(struct userdata *, FILE *);
 #endif
 
 pa_mir_config *pa_mir_config_init(struct userdata *u)
@@ -176,7 +176,7 @@ void pa_mir_config_done(struct userdata *u)
 }
 
 
-pa_bool_t pa_mir_config_parse_file(struct userdata *u, const char *path)
+bool pa_mir_config_parse_file(struct userdata *u, const char *path)
 {
     pa_module *module;
     pa_mir_config *config;
@@ -188,7 +188,7 @@ pa_bool_t pa_mir_config_parse_file(struct userdata *u, const char *path)
     pa_assert_se((config = u->config));
 
     if (!path)
-        success = FALSE;
+        success = false;
     else {
         pa_log_info("%s: configuration file is '%s'", module->name, path);
         success =  pa_scripting_dofile(u, path);
@@ -205,7 +205,7 @@ pa_bool_t pa_mir_config_parse_file(struct userdata *u, const char *path)
     return success;
 }
 
-static pa_bool_t use_default_configuration(struct userdata *u)
+static bool use_default_configuration(struct userdata *u)
 {
     zone_def     *z;
     rtgroup_def  *r;
@@ -242,7 +242,7 @@ static pa_bool_t use_default_configuration(struct userdata *u)
     mir_volume_add_class_limit(u, mir_navigator,mir_volume_suppress,&suppress);
 
 
-    return TRUE;
+    return true;
 }
 
 /*

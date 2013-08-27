@@ -137,10 +137,10 @@ struct mir_node {
     mir_privacy    privacy;   /**< mir_public | mir_private */
     mir_node_type  type;      /**< mir_speakers | mir_headset | ...  */
     char          *zone;      /**< zone where the node belong */
-    pa_bool_t      visible;   /**< internal or can appear on UI  */
-    pa_bool_t      available; /**< eg. is the headset connected?  */
-    pa_bool_t      ignore;    /**< do not consider it while routing  */
-    pa_bool_t      localrset; /**< locally generated resource set */
+    bool      visible;   /**< internal or can appear on UI  */
+    bool      available; /**< eg. is the headset connected?  */
+    bool      ignore;    /**< do not consider it while routing  */
+    bool      localrset; /**< locally generated resource set */
     char          *amname;    /**< audiomanager name */
     char          *amdescr;   /**< UI description */
     uint16_t       amid;      /**< handle to audiomanager, if any */

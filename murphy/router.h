@@ -27,7 +27,7 @@
 #include "userdata.h"
 #include "list.h"
 
-typedef pa_bool_t (*mir_rtgroup_accept_t)(struct userdata *, mir_rtgroup *,
+typedef bool (*mir_rtgroup_accept_t)(struct userdata *, mir_rtgroup *,
                                           mir_node *);
 typedef int       (*mir_rtgroup_compare_t)(struct userdata *, mir_rtgroup *,
                                            mir_node *, mir_node *);
@@ -72,7 +72,7 @@ struct mir_rtgroup {
 
 struct mir_connection {
     mir_dlist     link;     /**< list of connections */
-    pa_bool_t     blocked;  /**< true if this conflicts with another route */
+    bool     blocked;  /**< true if this conflicts with another route */
     uint16_t      amid;     /**< audio manager connection id */
     uint32_t      from;     /**< source node index */
     uint32_t      to;       /**< destination node index */
@@ -91,7 +91,7 @@ mir_rtgroup *mir_router_create_rtgroup(struct userdata *,
                                        mir_rtgroup_compare_t);
 void mir_router_destroy_rtgroup(struct userdata *, mir_direction,
                                 const char *);
-pa_bool_t mir_router_assign_class_to_rtgroup(struct userdata *, mir_node_type,
+bool mir_router_assign_class_to_rtgroup(struct userdata *, mir_node_type,
                                              uint32_t, mir_direction,
                                              const char *);
 
@@ -108,9 +108,9 @@ void mir_router_remove_explicit_route(struct userdata *, mir_connection *);
 
 int mir_router_print_rtgroups(struct userdata *, char *, int);
 
-pa_bool_t mir_router_default_accept(struct userdata *, mir_rtgroup *,
+bool mir_router_default_accept(struct userdata *, mir_rtgroup *,
                                     mir_node *);
-pa_bool_t mir_router_phone_accept(struct userdata *, mir_rtgroup *,
+bool mir_router_phone_accept(struct userdata *, mir_rtgroup *,
                                   mir_node *);
 
 int mir_router_default_compare(struct userdata *, mir_rtgroup *,

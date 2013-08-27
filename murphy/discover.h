@@ -60,7 +60,7 @@ struct pa_discover {
      */
     unsigned        chmin;    /**< minimum of max channels */
     unsigned        chmax;    /**< maximum of max channels */
-    pa_bool_t       selected; /**< for alsa cards: whether to consider the
+    bool       selected; /**< for alsa cards: whether to consider the
                                    selected profile alone.
                                    for bluetooth cards: no effect */
     struct {
@@ -82,7 +82,7 @@ void pa_discover_profile_changed(struct userdata *, pa_card *);
 
 void pa_discover_port_available_changed(struct userdata *, pa_device_port *);
 
-void pa_discover_add_sink(struct userdata *, pa_sink *, pa_bool_t);
+void pa_discover_add_sink(struct userdata *, pa_sink *, bool);
 void pa_discover_remove_sink(struct userdata *, pa_sink *);
 
 void pa_discover_add_source(struct userdata *, pa_source *);

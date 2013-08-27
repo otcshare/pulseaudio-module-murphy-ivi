@@ -56,7 +56,7 @@ struct pa_null_sink {
 static uint32_t stamp;
 
 static char *stream_name(pa_proplist *);
-static pa_bool_t get_unsigned_property(pa_proplist *, const char *,uint32_t *);
+static bool get_unsigned_property(pa_proplist *, const char *,uint32_t *);
 
 
 pa_null_sink *pa_utils_create_null_sink(struct userdata *u, const char *name)
@@ -110,7 +110,7 @@ void pa_utils_destroy_null_sink(struct userdata *u)
     if (u && (ns = u->nullsink) && (core = u->core)) {
         if ((module = pa_idxset_get_by_index(core->modules,ns->module_index))){
             pa_log_info("unloading null sink '%s'", ns->name);
-            pa_module_unload(core, module, FALSE);
+            pa_module_unload(core, module, false);
         }
 
         pa_xfree(ns->name);
@@ -225,7 +225,7 @@ char *pa_utils_get_zone(pa_proplist *pl)
     return (char *)zone;
 }
 
-pa_bool_t pa_utils_set_stream_routing_properties(pa_proplist *pl,
+bool pa_utils_set_stream_routing_properties(pa_proplist *pl,
                                                  int          styp,
                                                  void        *target)
 {
@@ -245,13 +245,13 @@ pa_bool_t pa_utils_set_stream_routing_properties(pa_proplist *pl,
         pa_proplist_sets(pl, PA_PROP_ROUTING_METHOD    , method) < 0  )
     {
         pa_log("failed to set some stream property");
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
-pa_bool_t pa_utils_unset_stream_routing_properties(pa_proplist *pl)
+bool pa_utils_unset_stream_routing_properties(pa_proplist *pl)
 {
     pa_assert(pl);
 
@@ -260,14 +260,14 @@ pa_bool_t pa_utils_unset_stream_routing_properties(pa_proplist *pl)
         pa_proplist_unset(pl, PA_PROP_ROUTING_METHOD    ) < 0  )
     {
         pa_log("failed to unset some stream property");
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 void pa_utils_set_stream_routing_method_property(pa_proplist *pl,
-                                                 pa_bool_t explicit)
+                                                 bool explicit)
 {
     const char *method = explicit ? PA_ROUTING_EXPLICIT : PA_ROUTING_DEFAULT;
 
@@ -278,7 +278,7 @@ void pa_utils_set_stream_routing_method_property(pa_proplist *pl,
     }
 }
 
-pa_bool_t pa_utils_stream_has_default_route(pa_proplist *pl)
+bool pa_utils_stream_has_default_route(pa_proplist *pl)
 {
     const char *method;
 
@@ -287,9 +287,9 @@ pa_bool_t pa_utils_stream_has_default_route(pa_proplist *pl)
     method = pa_proplist_gets(pl, PA_PROP_ROUTING_METHOD);
 
     if (method && pa_streq(method, PA_ROUTING_DEFAULT))
-        return TRUE;
+        return true;
 
-    return FALSE;
+    return false;
 }
 
 int pa_utils_get_stream_class(pa_proplist *pl)
@@ -311,7 +311,7 @@ int pa_utils_get_stream_class(pa_proplist *pl)
 }
 
 
-pa_bool_t pa_utils_set_resource_properties(pa_proplist *pl,
+bool pa_utils_set_resource_properties(pa_proplist *pl,
                                            pa_nodeset_resdef *resdef)
 {
     char priority[32];
@@ -321,7 +321,7 @@ pa_bool_t pa_utils_set_resource_properties(pa_proplist *pl,
     pa_assert(pl);
 
     if (!resdef)
-        return FALSE;
+        return false;
 
     snprintf(priority  , sizeof(priority)  , "%d", resdef->priority   );
     snprintf(rsetflags , sizeof(rsetflags) , "%d", resdef->flags.rset );
@@ -332,13 +332,13 @@ pa_bool_t pa_utils_set_resource_properties(pa_proplist *pl,
         pa_proplist_sets(pl, PA_PROP_RESOURCE_AUDIO_FLAGS, audioflags) < 0  )
     {
         pa_log("failed to set some resource property");
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
-pa_bool_t pa_utils_unset_resource_properties(pa_proplist *pl)
+bool pa_utils_unset_resource_properties(pa_proplist *pl)
 {
     pa_assert(pl);
 
@@ -347,10 +347,10 @@ pa_bool_t pa_utils_unset_resource_properties(pa_proplist *pl)
         pa_proplist_unset(pl, PA_PROP_RESOURCE_AUDIO_FLAGS) < 0  )
     {
         pa_log("failed to unset some resource property");
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 pa_nodeset_resdef *pa_utils_get_resource_properties(pa_proplist *pl,
@@ -374,7 +374,7 @@ pa_nodeset_resdef *pa_utils_get_resource_properties(pa_proplist *pl,
 }
 
 
-static pa_bool_t get_unsigned_property(pa_proplist *pl,
+static bool get_unsigned_property(pa_proplist *pl,
                                        const char *name,
                                        uint32_t *value)
 {
@@ -387,17 +387,17 @@ static pa_bool_t get_unsigned_property(pa_proplist *pl,
 
     if (!(str = pa_proplist_gets(pl, name))) {
         *value = 0;
-        return FALSE;
+        return false;
     }
 
     *value = strtoul(str, &e, 10);
 
     if (e == str || *e) {
         *value = 0;
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 
