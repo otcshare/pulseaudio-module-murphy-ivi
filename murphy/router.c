@@ -611,35 +611,11 @@ pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
     if (class >= mir_device_class_begin &&  class < mir_device_class_end) {
         if (class != mir_bluetooth_a2dp   &&
             class != mir_spdif            &&
+            class != mir_jack             &&
             class != mir_bluetooth_source &&
             class != mir_bluetooth_sink   &&
             class != mir_bluetooth_carkit   )
         {
-#if 0
-            if (class == mir_usb_headphone || class == mir_wired_headphone) {
-		return TRUE;
-            }
-            else if (class == mir_jack || class == mir_hdmi) {
-                pa_assert_se((core = u->core));
-
-                if (node->direction == mir_input) {
-                    source = pa_idxset_get_by_index(core->sources,node->paidx);
-                    pl = source ? source->proplist : NULL;
-                    expected_role = "hfp_uplink";
-                }
-                else {
-                    sink = pa_idxset_get_by_index(core->sinks, node->paidx);
-                    pl = sink ? sink->proplist : NULL;
-                    expected_role = "hfp_downlink";
-                }
-                if (!pl || !(role = pa_proplist_gets(pl, PA_PROP_NODE_ROLE)) ||
-                    strcmp(role, expected_role))
-                {
-                    return FALSE;
-                }
-            }
-#endif
-
             return TRUE;
         }
     }
