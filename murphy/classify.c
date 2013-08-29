@@ -258,7 +258,9 @@ void pa_classify_guess_device_node_type_and_name(mir_node   *node,
         node->type = mir_hdmi;
         node->amname = (char *)desc;
     }
-    else if (node->direction == mir_input && strcasestr(name, "microphone")) {
+    else if (node->direction == mir_input &&
+             (strcasestr(name, "microphone") || strcasestr(desc, "microphone")))
+    {
         node->type = mir_microphone;
         node->amname = (char *)desc;
     }
