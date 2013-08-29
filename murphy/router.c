@@ -615,6 +615,7 @@ pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
             class != mir_bluetooth_sink   &&
             class != mir_bluetooth_carkit   )
         {
+#if 0
             if (class == mir_usb_headphone || class == mir_wired_headphone) {
 		return TRUE;
             }
@@ -637,6 +638,7 @@ pa_bool_t mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
                     return FALSE;
                 }
             }
+#endif
 
             return TRUE;
         }
