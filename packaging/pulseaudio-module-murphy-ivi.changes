@@ -1,3 +1,6 @@
+* Mon Aug 23 14:06:24 EEST 2013 Jaska Uimonen * <jaska.uimonen@intel.com> - 0.9.15
+- add navigator binary to configuration to classify it correctly
+
 * Thu Aug 29 14:06:24 EEST 2013 Jaska Uimonen * <jaska.uimonen@intel.com> - 0.9.14
 - zone routing
 - fix for changed input routing in pulseaudio 4.0
