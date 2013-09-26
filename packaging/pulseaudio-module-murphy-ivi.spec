@@ -20,7 +20,9 @@ Buildrequires: pkgconfig(json)
 BuildRequires: config(pulseaudio)
 BuildRequires: pkgconfig(murphy-pulse)
 BuildRequires: murphy-pulse
+BuildRequires: pkgconfig(aul)
 Requires: pulseaudio
+Requires: aul
 Conflicts: pulseaudio-module-combine-sink
 Conflicts: pulseaudio-module-augment-properties
 

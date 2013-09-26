@@ -58,8 +58,11 @@ module_murphy_ivi_la_LDFLAGS = -module -avoid-version -Wl,--no-undefined
 module_murphy_ivi_la_LIBADD = $(AM_LIBADD) $(CONDITIONAL_LIBS)              \
                               $(LIBPULSE_LIBS) $(PULSEDEVEL_LIBS)           \
                               $(MURPHYCOMMON_LIBS) $(MURPHYDOMCTL_LIBS)     \
-                              $(LUAUTILS_LIBS) $(LUA_LIBS)
+                              $(LUAUTILS_LIBS) $(LUA_LIBS)                  \
+                              $(AUL_LIBS)
 module_murphy_ivi_la_CFLAGS = $(AM_CFLAGS) $(CONDITIONAL_CFLAGS)            \
                               $(LIBPULSE_CFLAGS) $(PULSEDEVEL_CFLAGS)       \
                               $(MURPHYCOMMON_CFLAGS) $(MURPHYDOMCTL_CFLAGS) \
-                              $(LUAUTILS_CFLAGS) $(LUA_CFLAGS)
+                              $(LUAUTILS_CFLAGS) $(LUA_CFLAGS)              \
+                              $(AUL_CFLAGS)
+

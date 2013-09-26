@@ -83,6 +83,9 @@ PKG_CHECK_MODULES(LUA, lua >= 5.1.1)
 AC_SUBST(LUA_CFLAGS)
 AC_SUBST(LUA_LIBS)
 
+PKG_CHECK_MODULES(AUL, aul)
+AC_SUBST(AUL_CFLAGS)
+AC_SUBST(AUL_LIBS)
 
 # D-Bus
 AC_ARG_WITH([dbus],
@@ -234,6 +237,8 @@ echo "
     LUAUTILS_LIBS         ${LUAUTILS_LIBS}
     LUA_CFLAGS:           ${LUA_CFLAGS}
     LUA_LIBS:             ${LUA_LIBS}
+    AUL_CFLAGS            ${AUL_CFLAGS}
+    AUL_LIBS              ${AUL_LIBS}
     murphyif enabled:     $build_with_murphyif
     MURPHYIF_CFLAGS       ${MURPHYIF_CFLAGS}
     MURPHYIF_LIBS         ${MURPHYIF_LIBS}
