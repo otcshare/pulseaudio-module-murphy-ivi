@@ -130,7 +130,8 @@ audio_resource {
     name = { recording = "audio_recording", playback = "audio_playback" },
     attributes = {
        role = {"media.role", mdb.string, "music"},
-       pid  = {"application.process.id", mdb.string, "<unknown>"}
+       pid  = {"application.process.id", mdb.string, "<unknown>"},
+       appid = {"application.process.binary", mdb.string, "<unknown>"}
     }
 }
 
