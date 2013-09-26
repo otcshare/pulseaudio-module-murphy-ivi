@@ -12,7 +12,8 @@
  * See the GNU Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public License
- * along with this program; if not, write to the
+Requires(postun): /sbin/ldconfig
+ot, write to the
  * Free Software Foundation, Inc., 51 Franklin St - Fifth Floor, Boston,
  * MA 02110-1301 USA.
  *
@@ -28,6 +29,9 @@
 #include <pulsecore/card.h>
 #include <pulsecore/device-port.h>
 #include <pulsecore/core-util.h>
+
+#include <aul.h>
+#include <bundle.h>
 
 #include "classify.h"
 #include "node.h"
@@ -147,7 +151,7 @@ void pa_classify_node_by_card(mir_node        *node,
     }
 
     if (!node->amname[0]) {
-        if (node->type != mir_node_type_unknown)
+       if (node->type != mir_node_type_unknown)
             node->amname = (char *)mir_node_type_str(node->type);
         else if (port && port->description)
             node->amname = port->description;
@@ -166,7 +170,6 @@ void pa_classify_node_by_card(mir_node        *node,
         default:
         case mir_speakers:
         case mir_front_speakers:
-        case mir_rear_speakers:
             node->privacy = mir_public;
             break;
             
@@ -278,18 +281,44 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
                                                  pa_proplist *pl,
                                                  pa_nodeset_resdef **resdef)
 {
-    pa_nodeset_map *map;
+    pa_nodeset_map *map = NULL;
     const char     *role;
     const char     *bin;
+    char            buf[4096];
+    const char     *pidstr;
+    const char     *name;
+    int             pid;
 
     pa_assert(u);
     pa_assert(pl);
 
 
     do {
-        if ((bin = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_BINARY)) &&
-            (map = pa_nodeset_get_map_by_binary(u, bin)))
-            break;
+        if ((bin = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_BINARY))) {
+            if (!strcmp(bin, "threaded-ml") || !strcmp(bin, "WebProcess")) {
+                if (!(pidstr = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_ID)) ||
+                    (pid = strtol(pidstr, NULL, 10)) < 2)
+                    break;
+
+                if (aul_app_get_appid_bypid(pid, buf, sizeof(buf)) < 0) {
+                    pa_log("can't obtain real application name for wrt '%s' (pid %d)", bin, pid);
+                    break;
+                }
+
+		if ((name = strrchr(buf, '.')))
+                    name++;
+                else
+                    name = buf;
+
+                pa_proplist_sets(pl, PA_PROP_APPLICATION_NAME, name);
+                pa_proplist_sets(pl, PA_PROP_APPLICATION_PROCESS_BINARY, buf);
+
+                bin = buf;
+            }
+
+            if ((map = pa_nodeset_get_map_by_binary(u, bin)))
+                break;
+	}
 
         if ((role = pa_proplist_gets(pl, PA_PROP_MEDIA_ROLE)) &&
             (map = pa_nodeset_get_map_by_role(u, role)))
@@ -303,9 +332,9 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
     } while (0);
 
     if (resdef)
-        *resdef = map->resdef;
+        *resdef = map ? map->resdef : NULL;
 
-    return map->type;
+    return map ? map->type : mir_player;
 }
 
 mir_node_type pa_classify_guess_application_class(mir_node *node)
