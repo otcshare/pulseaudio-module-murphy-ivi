@@ -154,19 +154,23 @@ static void sink_input_block(pa_sink_input *sinp, pa_bool_t block)
             sinp->flags |= flag_mask;
     }
 
-    pa_sink_input_cork_internal(sinp, block);
+    if (( sinp->corked_internal && !block) ||
+        (!sinp->corked_internal &&  block)  )
+    {
+        pa_sink_input_cork_internal(sinp, block);
 
-    if (sinp->send_event) {
-        if (block)
-            event = PA_STREAM_EVENT_REQUEST_CORK;
-        else
-            event = PA_STREAM_EVENT_REQUEST_UNCORK;
+        if (sinp->send_event) {
+            if (block)
+                event = PA_STREAM_EVENT_REQUEST_CORK;
+            else
+                event = PA_STREAM_EVENT_REQUEST_UNCORK;
 
-        pl = pa_proplist_new();
+            pl = pa_proplist_new();
 
-        sinp->send_event(sinp, event, pl);
+            sinp->send_event(sinp, event, pl);
 
-        pa_proplist_free(pl);
+            pa_proplist_free(pl);
+        }
     }
 }
 
