@@ -301,11 +301,12 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
                     break;
 
                 if (aul_app_get_appid_bypid(pid, buf, sizeof(buf)) < 0) {
-                    pa_log("can't obtain real application name for wrt '%s' (pid %d)", bin, pid);
+                    pa_log("can't obtain real application name for wrt '%s' "
+                           "(pid %d)", bin, pid);
                     break;
                 }
 
-		if ((name = strrchr(buf, '.')))
+                if ((name = strrchr(buf, '.')))
                     name++;
                 else
                     name = buf;
@@ -316,9 +317,12 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
                 bin = buf;
             }
 
-            if ((map = pa_nodeset_get_map_by_binary(u, bin)))
+            if ((map = pa_nodeset_get_map_by_binary(u, bin))) {
+                if (map->role)
+                    pa_proplist_sets(pl, PA_PROP_MEDIA_ROLE, map->role);
                 break;
-	}
+            }
+        }
 
         if ((role = pa_proplist_gets(pl, PA_PROP_MEDIA_ROLE)) &&
             (map = pa_nodeset_get_map_by_role(u, role)))

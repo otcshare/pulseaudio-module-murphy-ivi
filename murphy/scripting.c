@@ -132,6 +132,7 @@ typedef struct {
 typedef struct {
     const char         *name;
     pa_bool_t           needres;
+    const char         *role;
     pa_nodeset_resdef   resource;
 } map_t;
 
@@ -1785,6 +1786,11 @@ static int apclass_create(lua_State *L)
         for (r = roles;  r->name;  r++) {
             resdef = r->needres ? &r->resource : NULL;
 
+            if (r->role && strcmp(r->role, r->name)) {
+                luaL_error(L, "conflicting roles in role definition '%s' (%s)",
+                           r->name, r->role);
+            }
+
             if (pa_nodeset_add_role(u, r->name, type, resdef)) {
                 luaL_error(L, "role '%s' is added to mutiple application "
                            "classes", r->name);
@@ -1796,7 +1802,7 @@ static int apclass_create(lua_State *L)
         for (b = binaries;  b->name;  b++) {
             resdef = b->needres ? &b->resource : NULL;
 
-            if (pa_nodeset_add_binary(u, b->name, type, resdef)) {
+            if (pa_nodeset_add_binary(u, b->name, type, b->role, resdef)) {
                 luaL_error(L, "binary '%s' is added to multiple application "
                            "classes", b->name);
             }
@@ -2602,7 +2608,8 @@ static map_t *map_check(lua_State *L, int tbl)
     int def;
     size_t namlen;
     const char *name;
-    const char *flag;
+    const char *option;
+    const char *role;
     map_t *m, *map = NULL;
     size_t n = 0;
     size_t i, len;
@@ -2631,6 +2638,11 @@ static map_t *map_check(lua_State *L, int tbl)
             m->needres = FALSE;
             break;
 
+        case LUA_TSTRING:
+            m->needres = FALSE;
+            m->role = mrp_strdup(lua_tostring(L, def));
+            break;
+            
         case LUA_TTABLE:
             m->needres = TRUE;
 
@@ -2652,19 +2664,24 @@ static map_t *map_check(lua_State *L, int tbl)
                     m->resource.priority = priority;
                 }
                 else {
-                    flag = luaL_checkstring(L, -1);
+                    option = luaL_checkstring(L, -1);
                     rd = &m->resource;
 
-                    if (pa_streq(flag, "autorelease"))
+                    if (pa_streq(option, "autorelease"))
                         rd->flags.rset |= RESPROTO_RSETFLAG_AUTORELEASE;
-                    else if (pa_streq(flag, "mandatory"))
+                    else if (pa_streq(option, "mandatory"))
                         rd->flags.audio |= RESPROTO_RESFLAG_MANDATORY;
-                    else if (pa_streq(flag, "shared"))
+                    else if (pa_streq(option, "shared"))
                         rd->flags.audio |= RESPROTO_RESFLAG_SHARED;
-                    else if (!pa_streq(flag, "optional") &&
-                             !pa_streq(flag, "exclusive") )
+                    else if (!pa_streq(option, "optional") &&
+                             !pa_streq(option, "exclusive") )
                     {
-                        luaL_error(L, "invalid flag '%s' for '%s'", flag,name);
+                        if (!m->role)
+                            m->role = pa_xstrdup(option);
+                        else {
+                            luaL_error(L, "multiple role definition '%s','%s'",
+                                       m->role, option);
+                        }
                     }
                 }
 
@@ -2693,11 +2710,17 @@ static int map_push(lua_State *L, map_t *map)
         lua_newtable(L);
 
         for (m = map;  m->name;  m++) {
-            if (!m->needres)
-                lua_pushnumber(L, 0);
+            if (!m->needres) {
+                if (m->role)
+                    lua_pushstring(L, m->role);
+                else
+                    lua_pushnumber(L, 0);
+            }
             else {
                 lua_newtable(L);
                 lua_pushinteger(L, m->resource.priority);
+                if (m->role)
+                    lua_pushstring(L, m->role);
                 if (m->resource.flags.rset & RESPROTO_RSETFLAG_AUTORELEASE)
                     lua_pushstring(L, "autorelease");
                 if (m->resource.flags.audio & RESPROTO_RESFLAG_MANDATORY)
@@ -2723,6 +2746,7 @@ static void map_destroy(map_t *map)
     if (map) {
         for (m = map;  m->name;  m++) {
             pa_xfree((void *)m->name);
+            pa_xfree((void *)m->role);
         }
         pa_xfree(map);
     }

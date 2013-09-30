@@ -141,6 +141,7 @@ int pa_nodeset_add_role(struct userdata *u,
     map = pa_xnew0(pa_nodeset_map, 1);
     map->name = pa_xstrdup(role);
     map->type = type;
+    map->role = pa_xstrdup(role);
 
     if (resdef) {
         map->resdef = pa_xnew(pa_nodeset_resdef, 1);
@@ -161,6 +162,7 @@ void pa_nodeset_delete_role(struct userdata *u, const char *role)
 
     if ((map = pa_hashmap_remove(ns->roles, role))) {
         pa_xfree((void *)map->name);
+        pa_xfree((void *)map->role);
         pa_xfree((void *)map->resdef);
     }
 }
@@ -186,6 +188,7 @@ pa_nodeset_map *pa_nodeset_get_map_by_role(struct userdata *u,
 int pa_nodeset_add_binary(struct userdata *u,
                           const char *bin,
                           mir_node_type type,
+                          const char *role,
                           pa_nodeset_resdef *resdef)
 {
     pa_nodeset *ns;
@@ -200,6 +203,7 @@ int pa_nodeset_add_binary(struct userdata *u,
     map = pa_xnew0(pa_nodeset_map, 1);
     map->name = pa_xstrdup(bin);
     map->type = type;
+    map->role = role ? pa_xstrdup(role) : NULL;
 
     if (resdef) {
         map->resdef = pa_xnew(pa_nodeset_resdef, 1);
@@ -220,6 +224,7 @@ void pa_nodeset_delete_binary(struct userdata *u, const char *bin)
 
     if ((map = pa_hashmap_remove(ns->binaries, bin))) {
         pa_xfree((void *)map->name);
+        pa_xfree((void *)map->role);
         pa_xfree((void *)map->resdef);
     }
 }

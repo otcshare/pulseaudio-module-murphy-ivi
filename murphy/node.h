@@ -107,6 +107,7 @@ struct pa_nodeset_resdef {
 struct pa_nodeset_map {
     const char        *name;
     mir_node_type      type;
+    const char        *role;
     pa_nodeset_resdef *resdef;
 }; 
 
@@ -174,7 +175,7 @@ void pa_nodeset_delete_role(struct userdata *, const char *);
 pa_nodeset_map *pa_nodeset_get_map_by_role(struct userdata *, const char *);
 
 int pa_nodeset_add_binary(struct userdata *, const char *, mir_node_type,
-                        pa_nodeset_resdef *);
+                          const char *, pa_nodeset_resdef *);
 void pa_nodeset_delete_binary(struct userdata *, const char *);
 pa_nodeset_map *pa_nodeset_get_map_by_binary(struct userdata *, const char *);
 

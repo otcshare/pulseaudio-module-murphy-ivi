@@ -230,7 +230,7 @@ static pa_bool_t use_default_configuration(struct userdata *u)
         pa_nodeset_add_role(u, t->id, t->type, NULL);
 
     for (t = binmap; t->id; t++)
-        pa_nodeset_add_binary(u, t->id, t->type, NULL);
+        pa_nodeset_add_binary(u, t->id, t->type, NULL, NULL);
 
     for (p = priormap;  p->class;  p++)
         mir_router_assign_class_priority(u, p->class, p->priority);

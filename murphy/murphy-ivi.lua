@@ -108,7 +108,7 @@ application_class {
     },
     roles = { music   = {0, "mandatory", "exclusive"},
               video   = {0, "mandatory", "exclusive"},
-	      test    = {0, "mandatory", "exclusive"}
+	          test    = {0, "mandatory", "exclusive"}
     },
     binaries = { ['t8j6HTRpuz.MediaPlayer'] = no_resource }
 }
