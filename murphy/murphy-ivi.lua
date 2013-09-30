@@ -110,7 +110,7 @@ application_class {
               video   = {0, "mandatory", "exclusive"},
 	          test    = {0, "mandatory", "exclusive"}
     },
-    binaries = { ['t8j6HTRpuz.MediaPlayer'] = no_resource }
+    binaries = { ['t8j6HTRpuz.MediaPlayer'] = "music" }
 }
 
 application_class {
