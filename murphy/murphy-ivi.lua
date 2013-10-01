@@ -37,12 +37,14 @@ routing_group {
 }
 
 application_class {
+    class = "event",
     node_type = node.event,
     priority = 6,
     route = {
         output = { driver = routing_group.default_driver_output }
     },
-    roles = { event = no_resource }
+    roles = { event  = no_resource,
+              speech = no_resource }
 }
 
 application_class {
