@@ -20,6 +20,10 @@ ot, write to the
  */
 #define _GNU_SOURCE
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -37,6 +41,7 @@ ot, write to the
 #include "node.h"
 #include "utils.h"
 
+static int pid2exe(pid_t, char *, size_t);
 
 void pa_classify_node_by_card(mir_node        *node,
                               pa_card         *card,
@@ -300,7 +305,9 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
                     (pid = strtol(pidstr, NULL, 10)) < 2)
                     break;
 
-                if (aul_app_get_appid_bypid(pid, buf, sizeof(buf)) < 0) {
+                if (aul_app_get_appid_bypid(pid, buf, sizeof(buf)) < 0 &&
+                    pid2exe(pid, buf, sizeof(buf)) < 0)
+                {
                     pa_log("can't obtain real application name for wrt '%s' "
                            "(pid %d)", bin, pid);
                     break;
@@ -340,6 +347,120 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
 
     return map ? map->type : mir_player;
 }
+
+static char *get_tag(pid_t pid, char *tag, char *buf, size_t size)
+{
+    char path[PATH_MAX];
+    char data[8192], *p, *q;
+    int  fd, n, tlen;
+
+    fd = -1;
+    snprintf(path, sizeof(path), "/proc/%u/status", pid);
+
+    if ((fd = open(path, O_RDONLY)) < 0) {
+    fail:
+        if (fd >= 0)
+            close(fd);
+        return NULL;
+    }
+
+    if ((n = read(fd, data, sizeof(data) - 1)) <= 0)
+        goto fail;
+    else
+        data[sizeof(data)-1] = '\0';
+
+    close(fd);
+    fd = -1;
+    tlen = strlen(tag);
+
+    p = data;
+    while (*p) {
+        if (*p != '\n' && p != data) {
+            while (*p && *p != '\n')
+                p++;
+        }
+
+        if (*p == '\n')
+            p++;
+        else
+            if (p != data)
+                goto fail;
+
+        if (!strncmp(p, tag, tlen) && p[tlen] == ':') {
+            p += tlen + 1;
+            while (*p == ' ' || *p == '\t')
+                p++;
+
+            q = buf;
+            while (*p != '\n' && *p && size > 1)
+                *q++ = *p++;
+            *q = '\0';
+
+            return buf;
+        }
+        else
+            p++;
+    }
+
+    goto fail;
+}
+
+
+static pid_t get_ppid(pid_t pid)
+{
+    char  buf[32], *end;
+    pid_t ppid;
+
+    if (get_tag(pid, "PPid", buf, sizeof(buf)) != NULL) {
+        ppid = strtoul(buf, &end, 10);
+
+        if (end && !*end)
+            return ppid;
+    }
+
+    return 0;
+}
+
+
+static int pid2exe(pid_t pid, char *buf, size_t len)
+{
+    pid_t ppid;
+    FILE *f;
+    char path[PATH_MAX];
+    char *p, *q;
+    int st = -1;
+
+    if (buf && len > 0) {
+        ppid = get_ppid(pid);
+
+        snprintf(path, sizeof(path), "/proc/%u/cmdline", ppid);
+
+        if ((f = fopen(path, "r"))) {
+            if (fgets(buf, len-1, f)) {
+                if ((p = strchr(buf, ' ')))
+                    *p = '\0';
+                else if ((p = strchr(buf, '\n')))
+                    *p = '\0';
+                else
+                    p = buf + strlen(buf);
+
+                if ((q = strrchr(buf, '/')))
+                    memmove(buf, q+1, p-q); 
+
+                st = 0;
+            }
+            fclose(f);
+        }
+    }
+
+    if (st < 0)
+        pa_log("pid2exe(%u) failed", pid);
+    else
+        pa_log_debug("pid2exe(%u) => exe %s", pid, buf);
+
+    return st;
+}
+
 
 mir_node_type pa_classify_guess_application_class(mir_node *node)
 {
