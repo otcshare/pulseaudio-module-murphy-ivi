@@ -42,6 +42,7 @@
 #define PA_PROP_NODE_TYPE              "node.type"
 #define PA_PROP_NODE_ROLE              "node.role"
 #define PA_PROP_RESOURCE_SET_ID        "resource.set.id"
+#define PA_PROP_RESOURCE_SET_APPID     "resource.set.appid"
 #define PA_PROP_RESOURCE_PRIORITY      "resource.set.priority"
 #define PA_PROP_RESOURCE_SET_FLAGS     "resource.set.flags"
 #define PA_PROP_RESOURCE_AUDIO_FLAGS   "resource.audio.flags"

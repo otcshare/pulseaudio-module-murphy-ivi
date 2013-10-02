@@ -133,7 +133,7 @@ audio_resource {
     attributes = {
        role = {"media.role", mdb.string, "music"},
        pid  = {"application.process.id", mdb.string, "<unknown>"},
-       appid = {"application.process.binary", mdb.string, "<unknown>"}
+       appid = {"resource.set.appid", mdb.string, "<unknown>"}
     }
 }
 

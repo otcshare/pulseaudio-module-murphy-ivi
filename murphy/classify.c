@@ -41,7 +41,9 @@ ot, write to the
 #include "node.h"
 #include "utils.h"
 
+
 static int pid2exe(pid_t, char *, size_t);
+static char *pid2appid(pid_t, char *, size_t);
 
 void pa_classify_node_by_card(mir_node        *node,
                               pa_card         *card,
@@ -290,6 +292,7 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
     const char     *role;
     const char     *bin;
     char            buf[4096];
+    char            appid[PATH_MAX];
     const char     *pidstr;
     const char     *name;
     int             pid;
@@ -299,10 +302,15 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
 
 
     do {
+        if (!(pidstr = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_ID)) ||
+            (pid = strtol(pidstr, NULL, 10)) < 2)
+        {
+            pid = 0;
+        }
+
         if ((bin = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_BINARY))) {
             if (!strcmp(bin, "threaded-ml") || !strcmp(bin, "WebProcess")) {
-                if (!(pidstr = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_ID)) ||
-                    (pid = strtol(pidstr, NULL, 10)) < 2)
+                if (!pid)
                     break;
 
                 if (aul_app_get_appid_bypid(pid, buf, sizeof(buf)) < 0 &&
@@ -341,6 +349,9 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
         return role ? mir_node_type_unknown : mir_player;
 
     } while (0);
+
+    if (pid2appid(pid, appid, sizeof(appid)))
+        pa_proplist_sets(pl, PA_PROP_RESOURCE_SET_APPID, appid);
 
     if (resdef)
         *resdef = map ? map->resdef : NULL;
@@ -459,6 +470,92 @@ static int pid2exe(pid_t pid, char *buf, size_t len)
         pa_log_debug("pid2exe(%u) => exe %s", pid, buf);
 
     return st;
+}
+
+
+static char *get_binary(pid_t pid, char *buf, size_t size)
+{
+    char    path[128];
+    ssize_t len;
+
+    snprintf(path, sizeof(path), "/proc/%u/exe", pid);
+    if ((len = readlink(path, buf, size - 1)) > 0) {
+        buf[len] = '\0';
+        return buf;
+    }
+    else
+        return NULL;
+}
+
+
+static char *strprev(char *point, char c, char *base)
+{
+    while (point > base && *point != c)
+        point--;
+
+    if (*point == c)
+        return point;
+    else
+        return NULL;
+}
+
+
+static char *pid2appid(pid_t pid, char *buf, size_t size)
+{
+    char binary[PATH_MAX];
+    char path[PATH_MAX], *dir, *p, *base;
+    int  len;
+
+    if (!pid || !get_binary(pid, binary, sizeof(binary)))
+        return NULL;
+
+    strncpy(path, binary, sizeof(path) - 1);
+    path[sizeof(path) - 1] = '\0';
+
+    /* fetch basename */
+    if ((p = strrchr(path, '/')) == NULL || p == path) {
+        strncpy(buf, binary, size - 1);
+        buf[size - 1] = '\0';
+        return buf;
+    }
+
+    base = p-- + 1;
+
+    /* fetch ../bin/<basename> */
+    if ((p = strprev(p, '/', path)) == NULL || p == path)
+        goto return_base;
+
+    if (strncmp(p + 1, "bin/", 4) != 0)
+        goto return_base;
+    else
+        p--;
+
+    /* fetch dir name above bin */
+    if ((dir = strprev(p, '/', path)) == NULL || dir == path)
+        goto return_base;
+
+    len = p - dir;
+
+    /* fetch 'apps' dir */
+    p = dir - 1;
+
+    if ((p = strprev(p, '/', path)) == NULL)
+        goto return_base;
+
+    if (strncmp(p + 1, "apps/", 5) != 0)
+        goto return_base;
+
+    if (len + 1 <= size) {
+        strncpy(buf, dir + 1, len);
+        buf[len] = '\0';
+
+        return buf;
+    }
+
+ return_base:
+    strncpy(buf, base, size - 1);
+    buf[size - 1] = '\0';
+    return buf;
 }
 
 

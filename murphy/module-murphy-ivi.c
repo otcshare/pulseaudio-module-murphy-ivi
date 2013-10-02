@@ -63,6 +63,7 @@
 #include "scripting.h"
 #include "extapi.h"
 #include "murphyif.h"
+#include "classify.h"
 
 #ifndef DEFAULT_CONFIG_DIR
 #define DEFAULT_CONFIG_DIR "/etc/pulse"
