@@ -1,3 +1,17 @@
+* Wed Sep 02 14:06:24 EEST 2013 Janos Kovacs <jankovac503@gmail.com> - 0.9.18
+- Fixes TIVI-1920.
+- stream classification enhancements:
+-   figure out correctly the application binaries & appid for webruntime using AUL libraries and  procfs
+-   add media role for binary overrides
+-   support for resource.set.appid property
+- configuration:
+-   source of the appid attribute of the audio_playback property is now the resource.set.appid stream property instead of application.process.binary
+-   MediaPlayer stream:
+-     disable resource creation as it is created by WebRT nowadays
+-     set media.role as 'music'  (ie. override 'browser')
+-   classifying TTS streams as events to route them correctly and let them all the time trough
+- fix to filter duplicate cork events
+
 * Mon Sep 23 14:06:24 EEST 2013 Jaska Uimonen * <jaska.uimonen@intel.com> - 0.9.15
 - add navigator binary to configuration to classify it correctly
 
