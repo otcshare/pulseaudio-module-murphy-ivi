@@ -1,3 +1,8 @@
+* Thu Oct 03 19:56:13 EEST 2013 Janos Kovacs <jankovac503@gmail.com> - 0.9.19
+- Fixes TIVI-1927
+- mute streams instead of corking them when enforcing policies
+- do not let navigation streams to attenuate all other streams
+
 * Wed Oct 02 23:35:24 EEST 2013 Janos Kovacs <jankovac503@gmail.com> - 0.9.18
 - Fixes TIVI-1920.
 - stream classification enhancements:
