@@ -144,6 +144,8 @@ static void sink_input_block(pa_sink_input *sinp, pa_bool_t block)
 {
     const char *event;
     pa_proplist *pl;
+    bool block_by_mute;
+    bool muted, corked;
 
     pa_assert(sinp);
 
@@ -154,22 +156,37 @@ static void sink_input_block(pa_sink_input *sinp, pa_bool_t block)
             sinp->flags |= flag_mask;
     }
 
-    if (( sinp->corked_internal && !block) ||
-        (!sinp->corked_internal &&  block)  )
-    {
-        pa_sink_input_cork_internal(sinp, block);
+    muted = pa_sink_input_get_mute(sinp);
+    corked = (sinp->flags & PA_SINK_INPUT_START_CORKED);
 
-        if (sinp->send_event) {
-            if (block)
-                event = PA_STREAM_EVENT_REQUEST_CORK;
-            else
-                event = PA_STREAM_EVENT_REQUEST_UNCORK;
+    if (corked && !block)
+        sinp->flags &= ~PA_SINK_INPUT_START_CORKED;
 
-            pl = pa_proplist_new();
+    block_by_mute = !corked;
 
-            sinp->send_event(sinp, event, pl);
+    pa_log_debug("%sblock by %s", block ? "":"un",
+                 block_by_mute ? "muting":"corking");
 
-            pa_proplist_free(pl);
+    if (block_by_mute) {
+        if ((muted && !block) || (!muted && block))
+            pa_sink_input_set_mute(sinp, block, FALSE);
+    }
+    else {
+        if ((corked && !block) || (!corked &&  block)) {
+            pa_sink_input_cork_internal(sinp, block);
+
+            if (sinp->send_event) {
+                if (block)
+                    event = PA_STREAM_EVENT_REQUEST_CORK;
+                else
+                    event = PA_STREAM_EVENT_REQUEST_UNCORK;
+                
+                pl = pa_proplist_new();
+                
+                sinp->send_event(sinp, event, pl);
+                
+                pa_proplist_free(pl);
+            }
         }
     }
 }

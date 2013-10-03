@@ -1867,7 +1867,7 @@ static void node_enforce_resource_policy(struct userdata *u,
     if (pa_streq(rset->policy, "relaxed"))
         req = PA_STREAM_RUN;
     else if (pa_streq(rset->policy, "strict")) {
-        if (rset->state == RSET_RELEASE)
+        if (rset->state == RSET_RELEASE && rset->autorel)
             req = PA_STREAM_KILL;
         else {
             if (rset->grant)
