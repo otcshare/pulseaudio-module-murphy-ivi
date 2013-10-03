@@ -180,7 +180,7 @@ volume_limit {
     name = "suppress",
     type = volume_limit.class,
     limit = -20;
-    node_type = { node.phone, node.navigator },
+    node_type = { node.phone },
     calculate = builtin.method.volume_supress
 }
 
