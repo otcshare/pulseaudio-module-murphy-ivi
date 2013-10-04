@@ -30,13 +30,14 @@
 #include "stream-state.h"
 #include "node.h"
 #include "loopback.h"
+#include "fader.h"
 
 static const char *scache_driver = "play-memblockq.c";
 static pa_sink_input_flags_t flag_mask = PA_SINK_INPUT_NO_CREATE_ON_SUSPEND |
                                          PA_SINK_INPUT_KILL_ON_SUSPEND;
 
 
-static void sink_input_block(pa_sink_input *, pa_bool_t);
+static void sink_input_block(struct userdata *, pa_sink_input *, pa_bool_t);
 
 pa_bool_t pa_stream_state_start_corked(struct userdata *u,
                                        pa_sink_input_new_data *data,
@@ -118,12 +119,12 @@ void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
                 
             case PA_STREAM_BLOCK:
                 pa_log_debug("blocking '%s'", node->amname);
-                sink_input_block(sinp, TRUE);
+                sink_input_block(u, sinp, TRUE);
                 break;
                 
             case PA_STREAM_RUN:
                 pa_log_debug("unblock '%s'", node->amname);
-                sink_input_block(sinp, FALSE);
+                sink_input_block(u, sinp, FALSE);
                 break;
                 
             default:
@@ -140,12 +141,15 @@ void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
 }
 
 
-static void sink_input_block(pa_sink_input *sinp, pa_bool_t block)
+static void sink_input_block(struct userdata *u,
+                             pa_sink_input *sinp,
+                             pa_bool_t block)
 {
     const char *event;
     pa_proplist *pl;
     bool block_by_mute;
     bool muted, corked;
+    pa_volume_t oldvol;
 
     pa_assert(sinp);
 
@@ -168,8 +172,18 @@ static void sink_input_block(pa_sink_input *sinp, pa_bool_t block)
                  block_by_mute ? "muting":"corking");
 
     if (block_by_mute) {
-        if ((muted && !block) || (!muted && block))
+        if ((muted && !block) || (!muted && block)) {
+            if (!block) {
+                oldvol = pa_fader_get_volume(u, sinp);
+
+                pa_log_debug("fading in to %u", oldvol);
+
+                pa_fader_set_volume(u, sinp, 0);
+                pa_fader_ramp_volume(u, sinp, oldvol);
+            }
+
             pa_sink_input_set_mute(sinp, block, FALSE);
+        }
     }
     else {
         if ((corked && !block) || (!corked &&  block)) {

@@ -654,6 +654,8 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
 
             if (make_rset)
                 pa_murphyif_create_resource_set(u, node, resdef);
+
+            pa_fader_apply_volume_limits(u, node->stamp);
         }
     }
     else {
@@ -838,6 +840,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     mir_node          *node;
     pa_muxnode        *mux;
     pa_nodeset_resdef *resdef;
+    bool               loopback;
 
     pa_assert(u);
     pa_assert(data);
@@ -849,6 +852,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
     mnam = (m = data->module) ? m->name : "";
 
     if (pa_streq(mnam, "module-combine-sink")) {
+        loopback = false;
         type = mir_node_type_unknown;
 
         if (!(mux  = pa_multiplex_find_by_module(multiplex, m)) ||
@@ -863,7 +867,9 @@ void pa_discover_preroute_sink_input(struct userdata *u,
         }
     }
     else {
-        if (pa_streq(mnam, "module-loopback")) {
+        loopback = pa_streq(mnam, "module-loopback");
+
+        if (loopback) {
             if (!(node = pa_utils_get_node_from_data(u, mir_input, data))) {
                 pa_log_debug("can't find loopback node for sink-input");
                 return;
@@ -889,6 +895,7 @@ void pa_discover_preroute_sink_input(struct userdata *u,
                 pa_log_debug("start corked");
             }
         }
+
         pa_utils_set_stream_routing_properties(pl, type, data->sink);
     }
 
@@ -913,13 +920,20 @@ void pa_discover_preroute_sink_input(struct userdata *u,
                 schedule_stream_uncorking(u, sink);
             }
 #endif
-
             if (pa_sink_input_new_data_set_sink(data, sink, FALSE))
                 pa_log_debug("set sink %u for new sink-input", sink->index);
             else
                 pa_log("can't set sink %u for new sink-input", sink->index);
         }
     }
+
+    if (loopback && data->sink && data->sink->module) {
+        if (pa_streq(data->sink->module->name, "module-combine-sink"))
+            return;
+    }
+
+    pa_log_debug("set sink-input ramp-muted");
+    data->flags |= PA_SINK_INPUT_START_RAMP_MUTED;
 }
 
 
@@ -1049,6 +1063,11 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
             csinp = pa_idxset_get_by_index(core->sink_inputs,
                                            data.mux->defstream_index);
             s = csinp ? csinp->sink : NULL;
+
+            if ((sinp->flags & PA_SINK_INPUT_START_RAMP_MUTED)) {
+                pa_log_debug("ramp '%s' to 100%", media);
+                pa_fader_ramp_volume(u, sinp, PA_VOLUME_NORM);
+            }
         }
     }
 

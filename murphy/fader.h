@@ -31,6 +31,9 @@ void pa_fader_done(struct userdata *);
 
 void pa_fader_apply_volume_limits(struct userdata *, uint32_t);
 
+void pa_fader_ramp_volume(struct userdata *, pa_sink_input *, pa_volume_t);
+void pa_fader_set_volume(struct userdata *, pa_sink_input *, pa_volume_t);
+pa_volume_t pa_fader_get_volume(struct userdata *, pa_sink_input *);
 
 #endif  /* foomirfaderfoo */
 
