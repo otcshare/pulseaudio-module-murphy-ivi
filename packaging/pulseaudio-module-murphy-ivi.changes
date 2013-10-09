@@ -1,3 +1,7 @@
+* Wed Oct 09 18:54:11 EEST 2013 Janos Kovacs <jankovac503@gmail.com> - 0.9.20
+- volume ramping for resumed streams
+- let a2dp always play
+
 * Thu Oct 03 19:56:13 EEST 2013 Janos Kovacs <jankovac503@gmail.com> - 0.9.19
 - Fixes TIVI-1927
 - mute streams instead of corking them when enforcing policies
