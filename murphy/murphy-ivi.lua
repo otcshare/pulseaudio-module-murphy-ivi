@@ -106,11 +106,12 @@ application_class {
     priority = 1,
     route = {
         output = { driver = routing_group.default_driver_output,
-	           passanger1 = routing_group.default_passanger1_output }
+	               passanger1 = routing_group.default_passanger1_output }
     },
-    roles = { music   = {0, "mandatory", "exclusive"},
-              video   = {0, "mandatory", "exclusive"},
-	          test    = {0, "mandatory", "exclusive"}
+    roles = { music    = {0, "mandatory", "exclusive"},
+              video    = {0, "mandatory", "exclusive"},
+	          test     = {0, "mandatory", "exclusive"},
+              bt_music = no_resource
     },
     binaries = { ['t8j6HTRpuz.MediaPlayer'] = "music" }
 }
