@@ -450,13 +450,14 @@ static pa_hook_result_t sink_input_new(void *hook_data,
 {
     pa_sink_input_new_data *data = (pa_sink_input_new_data *)call_data;
     struct userdata *u = (struct userdata *)slot_data;
+    pa_bool_t success;
 
     pa_assert(u);
     pa_assert(data);
 
-    pa_discover_preroute_sink_input(u, data);
+    success = pa_discover_preroute_sink_input(u, data);
 
-    return PA_HOOK_OK;
+    return success ? PA_HOOK_OK : PA_HOOK_CANCEL;
 }
 
 static pa_hook_result_t sink_input_put(void *hook_data,
@@ -497,13 +498,14 @@ static pa_hook_result_t source_output_new(void *hook_data,
 {
     pa_source_output_new_data *data = (pa_source_output_new_data *)call_data;
     struct userdata *u = (struct userdata *)slot_data;
+    pa_bool_t success;
 
     pa_assert(u);
     pa_assert(data);
 
-    pa_discover_preroute_source_output(u, data);
+    success = pa_discover_preroute_source_output(u, data);
 
-    return PA_HOOK_OK;
+    return success ? PA_HOOK_OK : PA_HOOK_CANCEL;
 }
 
 static pa_hook_result_t source_output_put(void *hook_data,

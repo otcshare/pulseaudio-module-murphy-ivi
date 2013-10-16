@@ -89,14 +89,14 @@ void pa_discover_add_source(struct userdata *, pa_source *);
 void pa_discover_remove_source(struct userdata *, pa_source *);
 
 void pa_discover_register_sink_input(struct userdata *, pa_sink_input *);
-void pa_discover_preroute_sink_input(struct userdata *,
-                                     pa_sink_input_new_data *);
+pa_bool_t pa_discover_preroute_sink_input(struct userdata *,
+                                          pa_sink_input_new_data *);
 void pa_discover_add_sink_input(struct userdata *, pa_sink_input *);
 void pa_discover_remove_sink_input(struct userdata *, pa_sink_input *);
 
 void pa_discover_register_source_output(struct userdata *, pa_source_output *);
-void pa_discover_preroute_source_output(struct userdata *,
-                                        pa_source_output_new_data *);
+pa_bool_t pa_discover_preroute_source_output(struct userdata *,
+                                             pa_source_output_new_data *);
 void pa_discover_add_source_output(struct userdata *, pa_source_output *);
 void pa_discover_remove_source_output(struct userdata *, pa_source_output *);
 

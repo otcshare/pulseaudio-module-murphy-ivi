@@ -823,8 +823,8 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     }
 }
 
-void pa_discover_preroute_sink_input(struct userdata *u,
-                                     pa_sink_input_new_data *data)
+pa_bool_t pa_discover_preroute_sink_input(struct userdata *u,
+                                          pa_sink_input_new_data *data)
 {
     pa_core           *core;
     pa_module         *m;
@@ -872,14 +872,14 @@ void pa_discover_preroute_sink_input(struct userdata *u,
         if (loopback) {
             if (!(node = pa_utils_get_node_from_data(u, mir_input, data))) {
                 pa_log_debug("can't find loopback node for sink-input");
-                return;
+                return TRUE;
             }
 
             if (node->direction == mir_output) {
                 pa_log_debug("refuse to preroute loopback sink-input "
                              "(current route: sink %u @ %p)", data->sink ?
                              data->sink->index : PA_IDXSET_INVALID,data->sink);
-                return;
+                return TRUE;
             }
 
             data->sink = NULL;
@@ -922,18 +922,25 @@ void pa_discover_preroute_sink_input(struct userdata *u,
 #endif
             if (pa_sink_input_new_data_set_sink(data, sink, FALSE))
                 pa_log_debug("set sink %u for new sink-input", sink->index);
-            else
+            else {
                 pa_log("can't set sink %u for new sink-input", sink->index);
+                                                      /* copes wit NULL mux */
+                pa_multiplex_destroy(u->multiplex, core, fake.mux);
+                return FALSE;
+            }
         }
     }
 
     if (loopback && data->sink && data->sink->module) {
+        /* no ramp needed */
         if (pa_streq(data->sink->module->name, "module-combine-sink"))
-            return;
+            return TRUE;
     }
 
     pa_log_debug("set sink-input ramp-muted");
     data->flags |= PA_SINK_INPUT_START_RAMP_MUTED;
+
+    return TRUE;
 }
 
 
@@ -1218,8 +1225,8 @@ void pa_discover_register_source_output(struct userdata  *u,
     }
 }
 
-void pa_discover_preroute_source_output(struct userdata *u,
-                                        pa_source_output_new_data *data)
+pa_bool_t pa_discover_preroute_source_output(struct userdata *u,
+                                             pa_source_output_new_data *data)
 {
     pa_core           *core;
     pa_module         *m;
@@ -1244,14 +1251,14 @@ void pa_discover_preroute_source_output(struct userdata *u,
     if (pa_streq(mnam, "module-loopback")) {
         if (!(node = pa_utils_get_node_from_data(u, mir_output, data))) {
             pa_log_debug("can't find loopback node for source-output");
-            return;
+            return TRUE;
         }
 
         if (node->direction == mir_input) {
             pa_log_debug("refuse to preroute loopback source-output "
                          "(current route: source %u @ %p)", data->source ?
                          data->source->index : PA_IDXSET_INVALID,data->source);
-            return;
+            return TRUE;
         }
 
         data->source = NULL;
@@ -1291,6 +1298,8 @@ void pa_discover_preroute_source_output(struct userdata *u,
             }
         }
     }
+
+    return TRUE;
 }
 
 
