@@ -1,3 +1,6 @@
+* Thu Oct 17 17:53:12 EEST 2013 Janos Kovacs <jankovac503@gmail.com> - 0.9.22
+- get ready for pulse 4+ release
+
 * Wed Oct 16 17:53:12 EEST 2013 Janos Kovacs <jankovac503@gmail.com> - 0.9.21
 - get rid of zombie combine modules
 - fixes TIVI-1965
