@@ -1107,11 +1107,13 @@ static void audiomgr_register_domain_cb(struct userdata *u,
 
 
 bool pa_routerif_register_domain(struct userdata   *u,
-                                           am_domainreg_data *dr)
+                                 am_domainreg_data *dr)
 {
     pa_routerif    *routerif;
     DBusConnection *conn;
     DBusMessage    *msg;
+    DBusMessageIter iter;
+    DBusMessageIter sub_iter;
     const char     *dbus_name;
     const char     *dbus_path;
     const char     *dbus_if;
@@ -1140,18 +1142,23 @@ bool pa_routerif_register_domain(struct userdata   *u,
     dbus_path = PULSE_DBUS_PATH;
     dbus_if   = PULSE_DBUS_INTERFACE;
 
-    success = dbus_message_append_args(msg,
-                                       DBUS_TYPE_UINT16,  &dr->domain_id,
-                                       DBUS_TYPE_STRING,  &dr->name,
-                                       DBUS_TYPE_STRING,  &dr->node_name,
-                                       DBUS_TYPE_STRING,  &dr->bus_name,
-                                       DBUS_TYPE_BOOLEAN, &dr->early,
-                                       DBUS_TYPE_BOOLEAN, &dr->complete,
-                                       DBUS_TYPE_UINT16 , &dr->state,
-                                       DBUS_TYPE_STRING , &dbus_name,
-                                       DBUS_TYPE_STRING , &dbus_path,
-                                       DBUS_TYPE_STRING , &dbus_if,
-                                       DBUS_TYPE_INVALID);
+    dbus_message_iter_init_append(msg, &iter);
+    success = dbus_message_iter_open_container(&iter, DBUS_TYPE_STRUCT, NULL, &sub_iter);
+
+    success = success && dbus_message_iter_append_basic(&sub_iter, DBUS_TYPE_UINT16,  &dr->domain_id);
+    success = success && dbus_message_iter_append_basic(&sub_iter, DBUS_TYPE_STRING,  &dr->name);
+    success = success && dbus_message_iter_append_basic(&sub_iter, DBUS_TYPE_STRING,  &dr->bus_name);
+    success = success && dbus_message_iter_append_basic(&sub_iter, DBUS_TYPE_STRING,  &dr->node_name);
+    success = success && dbus_message_iter_append_basic(&sub_iter, DBUS_TYPE_BOOLEAN, &dr->early);
+    success = success && dbus_message_iter_append_basic(&sub_iter, DBUS_TYPE_BOOLEAN, &dr->complete);
+    success = success && dbus_message_iter_append_basic(&sub_iter, DBUS_TYPE_UINT16 , &dr->state);
+
+    success = success && dbus_message_iter_close_container(&iter, &sub_iter);
+
+    success = success && dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING , &dbus_name);
+    success = success && dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING , &dbus_path);
+    success = success && dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING , &dbus_if);
+
     if (!success) {
         pa_log("%s: Failed to build D-Bus message to register", __FILE__);
         goto getout;
@@ -1197,7 +1204,7 @@ bool pa_routerif_domain_complete(struct userdata *u, uint16_t domain)
     }
 
     success = dbus_message_append_args(msg,
-                                       DBUS_TYPE_INT32,  &id32,
+                                       DBUS_TYPE_UINT16,  &id32,
                                        DBUS_TYPE_INVALID);
     if (!success) {
         pa_log("%s: Failed to build D-Bus message for '%s'",
@@ -1389,6 +1396,7 @@ bool pa_routerif_register_node(struct userdata *u,
     DBusMessage     *msg;
     DBusMessageIter  mit;
     DBusMessageIter  cit;
+    DBusMessageIter  dit;
     bool        success = false;
 
     pa_assert(u);
@@ -1406,57 +1414,67 @@ bool pa_routerif_register_node(struct userdata *u,
         goto getout;
     }
 
-
 #define MSG_APPEND(t,v)  dbus_message_iter_append_basic(&mit, t, v)
 #define CONT_OPEN(t,s)   dbus_message_iter_open_container(&mit, t, s, &cit)
 #define CONT_APPEND(t,v) dbus_message_iter_append_basic(&cit, t, v)
 #define CONT_CLOSE       dbus_message_iter_close_container(&mit, &cit)
 
+#define CONT_OPEN_1(t,s)   dbus_message_iter_open_container(&cit, t, s, &dit)
+#define CONT_APPEND_1(t,v) dbus_message_iter_append_basic(&dit, t, v)
+#define CONT_CLOSE_1       dbus_message_iter_close_container(&cit, &dit)
+
     dbus_message_iter_init_append(msg, &mit);
 
     if ((!strcmp(method, AUDIOMGR_REGISTER_SINK) &&
-         (! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->id          ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_STRING , &rd->name        ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->domain      ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->class       ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_INT16  , &rd->volume      ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_BOOLEAN, &rd->visible     ) ||
-          ! CONT_OPEN   ( DBUS_TYPE_STRUCT ,  NULL            ) ||
-          ! CONT_APPEND ( DBUS_TYPE_INT16  , &rd->avail.status) ||
-          ! CONT_APPEND ( DBUS_TYPE_INT16  , &rd->avail.reason) ||
-          ! CONT_CLOSE                                          ||
-          ! MSG_APPEND  ( DBUS_TYPE_INT16  , &rd->mute        ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_INT16  , &rd->mainvol     ) ||
-          ! build_sound_properties(&mit, rd)                    ||
-          ! build_connection_formats(&mit, rd)                  ||
-          ! build_sound_properties(&mit, rd)                      )) ||
+         (! CONT_OPEN   ( DBUS_TYPE_STRUCT ,  NULL            ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_UINT16 , &rd->id          ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_STRING , &rd->name        ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_UINT16 , &rd->domain      ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_UINT16 , &rd->class       ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_INT16  , &rd->volume      ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_BOOLEAN, &rd->visible     ) ||
+          ! CONT_OPEN_1   ( DBUS_TYPE_STRUCT ,  NULL            ) ||
+          ! CONT_APPEND_1 ( DBUS_TYPE_INT16  , &rd->avail.status) ||
+          ! CONT_APPEND_1 ( DBUS_TYPE_INT16  , &rd->avail.reason) ||
+          ! CONT_CLOSE_1                                          ||
+          ! CONT_APPEND  ( DBUS_TYPE_INT16  , &rd->mute        ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_INT16  , &rd->mainvol     ) ||
+          ! build_sound_properties(&cit, rd)                    ||
+          ! build_connection_formats(&cit, rd)                  ||
+          ! build_sound_properties(&cit, rd)                    ||  
+          ! CONT_CLOSE                                          )) ||
         (!strcmp(method, AUDIOMGR_REGISTER_SOURCE) &&
-         (! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->id          ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->domain      ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_STRING , &rd->name        ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->class       ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->state       ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_INT16  , &rd->volume      ) ||
-          ! MSG_APPEND  ( DBUS_TYPE_BOOLEAN, &rd->visible     ) ||
-          ! CONT_OPEN   ( DBUS_TYPE_STRUCT ,  NULL            ) ||
-          ! CONT_APPEND ( DBUS_TYPE_INT16  , &rd->avail.status) ||
-          ! CONT_APPEND ( DBUS_TYPE_INT16  , &rd->avail.reason) ||
-          ! CONT_CLOSE                                          ||
-          ! MSG_APPEND  ( DBUS_TYPE_UINT16 , &rd->interrupt   ) ||
-          ! build_sound_properties(&mit, rd)                    ||
-          ! build_connection_formats(&mit, rd)                  ||
-          ! build_sound_properties(&mit, rd)                      )))
+         (! CONT_OPEN   ( DBUS_TYPE_STRUCT ,  NULL            ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_UINT16 , &rd->id          ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_UINT16 , &rd->domain      ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_STRING , &rd->name        ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_UINT16 , &rd->class       ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_UINT16 , &rd->state       ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_INT16  , &rd->volume      ) ||
+          ! CONT_APPEND  ( DBUS_TYPE_BOOLEAN, &rd->visible     ) ||
+          ! CONT_OPEN_1   ( DBUS_TYPE_STRUCT ,  NULL            ) ||
+          ! CONT_APPEND_1 ( DBUS_TYPE_INT16  , &rd->avail.status) ||
+          ! CONT_APPEND_1 ( DBUS_TYPE_INT16  , &rd->avail.reason) ||
+          ! CONT_CLOSE_1                                          ||
+          ! CONT_APPEND  ( DBUS_TYPE_UINT16 , &rd->interrupt   ) ||
+          ! build_sound_properties(&cit, rd)                    ||
+          ! build_connection_formats(&cit, rd)                  ||
+          ! build_sound_properties(&cit, rd)                    ||  
+          ! CONT_CLOSE                                          )))
     {        
         pa_log("%s: failed to build message for AudioManager '%s'",
                __FILE__, method);
         goto getout;
     }
-    
+
 #undef CONT_CLOSE
 #undef CONT_APPEND
 #undef CONT_OPEN
 #undef MSG_APPEND
 
+#undef CONT_CLOSE_1
+#undef CONT_APPEND_1
+#undef CONT_OPEN_1
 
     success = send_message_with_reply(u, conn, msg,
                                       audiomgr_register_node_cb, rd);
@@ -1545,7 +1563,7 @@ bool pa_routerif_unregister_node(struct userdata *u,
     }
 
     success = dbus_message_append_args(msg,
-                                       DBUS_TYPE_INT16, &ud->id,
+                                       DBUS_TYPE_UINT16, &ud->id,
                                        DBUS_TYPE_INVALID);
 
     success = send_message_with_reply(u, conn, msg,
