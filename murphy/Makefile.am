@@ -52,6 +52,10 @@ if BUILD_WITH_MURPHYIF
 CONDITIONAL_CFLAGS += -DWITH_MURPHYIF
 endif
 
+if HAVE_AUL
+CONDITIONAL_CFLAGS += -DWITH_AUL
+endif
+
 
 module_murphy_ivi_la_LDFLAGS = -module -avoid-version -Wl,--no-undefined
 

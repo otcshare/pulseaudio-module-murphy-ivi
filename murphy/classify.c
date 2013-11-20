@@ -34,8 +34,10 @@ ot, write to the
 #include <pulsecore/device-port.h>
 #include <pulsecore/core-util.h>
 
+#ifdef WITH_AUL
 #include <aul.h>
 #include <bundle.h>
+#endif
 
 #include "classify.h"
 #include "node.h"
@@ -313,6 +315,7 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
                 if (!pid)
                     break;
 
+#ifdef WITH_AUL
                 if (aul_app_get_appid_bypid(pid, buf, sizeof(buf)) < 0 &&
                     pid2exe(pid, buf, sizeof(buf)) < 0)
                 {
@@ -320,7 +323,13 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
                            "(pid %d)", bin, pid);
                     break;
                 }
-
+#else
+                if (pid2exe(pid, buf, sizeof(buf)) < 0) {
+                    pa_log("can't obtain real application name for wrt '%s' "
+                           "(pid %d)", bin, pid);
+                    break;
+                }
+#endif
                 if ((name = strrchr(buf, '.')))
                     name++;
                 else

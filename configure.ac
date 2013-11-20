@@ -83,9 +83,14 @@ PKG_CHECK_MODULES(LUA, lua >= 5.1.1)
 AC_SUBST(LUA_CFLAGS)
 AC_SUBST(LUA_LIBS)
 
-PKG_CHECK_MODULES(AUL, aul)
+PKG_CHECK_MODULES(AUL, aul, [have_aul=yes], [have_aul=no])
+if test "$have_aul" = "no" -a "$enable_aul" = "yes"; then
+   AC_MSG_ERROR([AUL development headers not found.])
+fi
 AC_SUBST(AUL_CFLAGS)
 AC_SUBST(AUL_LIBS)
+
+AM_CONDITIONAL(HAVE_AUL,  [ test x$have_aul = "xyes" ])
 
 # D-Bus
 AC_ARG_WITH([dbus],
