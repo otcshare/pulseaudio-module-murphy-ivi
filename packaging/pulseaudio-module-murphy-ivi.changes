@@ -1,3 +1,7 @@
+* Fri Nov 22 17:53:12 EEST 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.23
+- sanitize for out of tizen compilation
+- add and fix initial audiomanager support
+
 * Thu Oct 17 17:53:12 EEST 2013 Janos Kovacs <jankovac503@gmail.com> - 0.9.22
 - get ready for pulse 4+ release
 
