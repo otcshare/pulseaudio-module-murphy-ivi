@@ -152,7 +152,8 @@ struct scripting_apclass {
 
 typedef enum {
     vollim_class = 1,
-    vollim_generic
+    vollim_generic,
+    vollim_maximum
 } vollim_type;
 
 typedef struct {
@@ -2099,17 +2100,17 @@ static int vollim_create(lua_State *L)
 
     if (!name)
         luaL_error(L, "missing name field");
-    if (type != vollim_class && type != vollim_generic)
+    if (type != vollim_class && type != vollim_generic && type != vollim_maximum)
         luaL_error(L, "missing or invalid type");
-    if (type == vollim_class && !classes)
-        luaL_error(L, "missing or invalid node_type for class volume limit");
+    if ((type == vollim_class || type == vollim_maximum) && !classes)
+        luaL_error(L, "missing or invalid node_type for class/maximum limit");
     if (type == vollim_generic && classes)
         luaL_error(L, "can't specify node_type for generic volume limit");
     if (!limit)
         luaL_error(L, "missing or invalid limit");
-    if (!calculate)
+    if (type != vollim_maximum && !calculate)
         luaL_error(L, "missing calculate field");
-    if (calculate->type == MRP_C_FUNCTION) {
+    if (type != vollim_maximum && calculate->type == MRP_C_FUNCTION) {
         if (strcmp(calculate->c.signature, "odo"))
             luaL_error(L, "invalid calculate field (mismatching signature)");
         if (calculate->c.data == mir_volume_suppress) {
@@ -2192,13 +2193,22 @@ static int vollim_create(lua_State *L)
         memcpy(vlim->args, &limit->value, sizeof(limit->value));
     }
 
-    if (type == vollim_generic)
+    switch (type) {
+    case vollim_generic:
         mir_volume_add_generic_limit(u, vollim_calculate, vlim->args);
-    else {
+        break;
+    case vollim_class:
         for (i = 0;  i < classes->nint;  i++) {
             mir_volume_add_class_limit(u, classes->ints[i], vollim_calculate,
                                        vlim->args);
         }
+        break;
+    case vollim_maximum:
+        mir_volume_add_maximum_limit(u, *(vlim->limit->value),
+                                     classes->nint, classes->ints);
+        break;
+    default:
+        break;
     }
 
     MRP_LUA_LEAVE(1);
@@ -3083,6 +3093,7 @@ static bool define_constants(lua_State *L)
     static const_def_t vollim_const[] = {
         { "class"            , vollim_class         },
         { "generic"          , vollim_generic       },
+        { "maximum"          , vollim_maximum       },
         {       NULL         ,         0            }
     };
 
