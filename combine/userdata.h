@@ -22,6 +22,8 @@ struct output {
     pa_atomic_t max_request;
     pa_atomic_t requested_latency;
 
+    uint32_t original_rate;
+
     PA_LLIST_FIELDS(struct output);
 };
 

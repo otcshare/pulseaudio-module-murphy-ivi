@@ -99,9 +99,9 @@ enum {
 };
 
 static void output_disable(struct output *o);
-static void output_enable(struct output *o);
+static void output_enable(struct userdata *u, struct output *o);
 static void output_free(struct output *o);
-static int output_create_sink_input(struct output *o);
+static int output_create_sink_input(struct userdata *u, struct output *o);
 static pa_sink_input *add_slave(struct userdata *u, pa_sink *sink);
 static void remove_slave(struct userdata *u, pa_sink_input *i, pa_sink *s);
 static int move_slave(struct userdata *u, pa_sink_input *i, pa_sink *s);
@@ -160,6 +160,7 @@ static void adjust_rates(struct userdata *u) {
 
     base_rate = u->sink->sample_spec.rate;
 
+    
     PA_IDXSET_FOREACH(o, u->outputs, idx) {
         uint32_t new_rate = base_rate;
         uint32_t current_rate;
@@ -167,7 +168,7 @@ static void adjust_rates(struct userdata *u) {
         if (!o->sink_input || !PA_SINK_IS_OPENED(pa_sink_get_state(o->sink)))
             continue;
 
-	current_rate = o->sink_input->sample_spec.rate;
+	    current_rate = o->sink_input->sample_spec.rate;
 
         if (o->total_latency != target_latency)
             new_rate += (uint32_t) (((double) o->total_latency - (double) target_latency) / (double) u->adjust_time * (double) new_rate);
@@ -198,7 +199,10 @@ static void time_callback(pa_mainloop_api *a, pa_time_event *e, const struct tim
     pa_assert(a);
     pa_assert(u->time_event == e);
 
-    adjust_rates(u);
+    if (pa_idxset_size(u->outputs) > 1) {
+        pa_log_info("adjusting rates because combine has more than 1 output");
+        adjust_rates(u);
+    }
 
     pa_core_rttime_restart(u->core, e, pa_rtclock_now() + u->adjust_time);
 }
@@ -552,7 +556,7 @@ static void unsuspend(struct userdata *u) {
 
     /* Let's resume */
     PA_IDXSET_FOREACH(o, u->outputs, idx)
-        output_enable(o);
+        output_enable(u, o);
 
     pa_log_info("Resumed successfully...");
 }
@@ -789,7 +793,7 @@ static void update_description(struct userdata *u) {
     pa_xfree(t);
 }
 
-static int output_create_sink_input(struct output *o) {
+static int output_create_sink_input(struct userdata *u, struct output *o) {
     pa_sink_input_new_data data;
 
     pa_assert(o);
@@ -806,6 +810,7 @@ static int output_create_sink_input(struct output *o) {
     pa_sink_input_new_data_set_channel_map(&data, &o->userdata->sink->channel_map);
     data.module = o->userdata->module;
     data.resample_method = o->userdata->resample_method;
+
     data.flags = PA_SINK_INPUT_VARIABLE_RATE|PA_SINK_INPUT_DONT_MOVE|PA_SINK_INPUT_NO_CREATE_ON_SUSPEND;
 
     pa_sink_input_new(&o->sink_input, o->userdata->core, &data);
@@ -893,7 +898,7 @@ static void output_free(struct output *o) {
 }
 
 /* Called from main context */
-static void output_enable(struct output *o) {
+static void output_enable(struct userdata *u, struct output *o) {
     pa_assert(o);
 
     if (o->sink_input)
@@ -905,7 +910,10 @@ static void output_enable(struct output *o) {
      * for this output don't cause this loop by setting a flag here */
     o->ignore_state_change = true;
 
-    if (output_create_sink_input(o) >= 0) {
+    if (output_create_sink_input(u, o) >= 0) {
+
+        /* set original rate for restoring it after stream split */
+        o->original_rate = o->sink_input->sample_spec.rate;
 
         if (pa_sink_get_state(o->sink) != PA_SINK_INIT) {
 
@@ -951,11 +959,11 @@ static void output_disable(struct output *o) {
 }
 
 /* Called from main context */
-static void output_verify(struct output *o) {
+static void output_verify(struct userdata *u, struct output *o) {
     pa_assert(o);
 
     if (PA_SINK_IS_OPENED(pa_sink_get_state(o->userdata->sink)))
-        output_enable(o);
+        output_enable(u, o);
     else
         output_disable(o);
 }
@@ -1014,7 +1022,7 @@ static pa_hook_result_t sink_put_hook_cb(pa_core *c, pa_sink *s, struct userdata
         return PA_HOOK_OK;
     }
 
-    output_verify(o);
+    output_verify(u, o);
 
     return PA_HOOK_OK;
 }
@@ -1073,7 +1081,7 @@ static pa_hook_result_t sink_state_changed_hook_cb(pa_core *c, pa_sink *s, struc
     if (o->ignore_state_change)
         return PA_HOOK_OK;
 
-    output_verify(o);
+    output_verify(u, o);
 
     return PA_HOOK_OK;
 }
@@ -1299,7 +1307,7 @@ int pa__init(pa_module*m) {
     pa_sink_put(u->sink);
 
     PA_IDXSET_FOREACH(o, u->outputs, idx)
-        output_verify(o);
+        output_verify(u, o);
 
     if (u->adjust_time > 0)
         u->time_event = pa_core_rttime_new(m->core, pa_rtclock_now() + u->adjust_time, time_callback, u);
@@ -1383,13 +1391,16 @@ static pa_sink_input *add_slave(struct userdata *u, pa_sink *sink) {
         return NULL;
     }
 
-    output_verify(o);
+    output_verify(u, o);
 
     return o->sink_input;
 }
 
 static void remove_slave(struct userdata *u, pa_sink_input *i, pa_sink *s) {
     struct output *o;
+    pa_sink_input *si;
+    uint32_t idx;
+    uint32_t orig_rate;
 
     pa_assert(u);
     pa_assert(i || s);
@@ -1406,6 +1417,17 @@ static void remove_slave(struct userdata *u, pa_sink_input *i, pa_sink *s) {
 
     output_disable(o);
     output_free(o);
+
+    if (pa_idxset_size(u->outputs) == 1) {
+        o = pa_idxset_first(u->outputs, &idx);
+        if (o) {
+            si = o->sink_input;
+            if (si) {
+                pa_log_info("set input rate to original %d because there's only 1 output", o->original_rate);
+                pa_sink_input_set_rate(si, o->original_rate);
+            }
+        }
+    }
 }
 
 static int move_slave(struct userdata *u, pa_sink_input *i, pa_sink *s) {
