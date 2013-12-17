@@ -159,6 +159,8 @@ pa_routerif *pa_routerif_init(struct userdata *u,
     unsigned int    flags;
     char            nambuf[128];
     char            pathbuf[128];
+    char            ctlnambuf[128];
+    char            ctlpathbuf[128];
     char           *amrnam;
     char           *amrpath;
     char           *amcnam;
@@ -216,9 +218,9 @@ pa_routerif *pa_routerif_init(struct userdata *u,
         snprintf(pathbuf, sizeof(pathbuf), "%s%s" AUDIOMGR_DBUS_ROUTE_PATH,
                  ampath, slash);
         amrpath = pathbuf;
-        snprintf(pathbuf, sizeof(pathbuf), "%s%s" AUDIOMGR_DBUS_CONTROL_PATH,
+        snprintf(ctlpathbuf, sizeof(ctlpathbuf), "%s%s" AUDIOMGR_DBUS_CONTROL_PATH,
                  ampath, slash);
-        amcpath = pathbuf;
+        amcpath = ctlpathbuf;
     }
     else {
         ampath  = AUDIOMGR_DBUS_PATH;
@@ -231,14 +233,14 @@ pa_routerif *pa_routerif_init(struct userdata *u,
         snprintf(nambuf, sizeof(nambuf), "%s%s" AUDIOMGR_DBUS_ROUTE_NAME,
                  amnam, dot);
         amrnam = nambuf;
-        snprintf(nambuf, sizeof(nambuf), "%s%s" AUDIOMGR_DBUS_CONTROL_NAME,
+        snprintf(ctlnambuf, sizeof(ctlnambuf), "%s%s" AUDIOMGR_DBUS_CONTROL_NAME,
                  amnam, dot);
-        amcnam = nambuf;
+        amcnam = ctlnambuf;
     }
     else {
         amnam  = AUDIOMGR_DBUS_INTERFACE;
         amrnam = AUDIOMGR_DBUS_INTERFACE "." AUDIOMGR_DBUS_ROUTE_NAME;
-        amcnam = AUDIOMGR_DBUS_INTERFACE "." AUDIOMGR_DBUS_ROUTE_NAME;
+        amcnam = AUDIOMGR_DBUS_INTERFACE "." AUDIOMGR_DBUS_CONTROL_NAME;
     }
 
     snprintf(admarule, sizeof(admarule), "type='signal',sender='%s',path='%s',"
@@ -259,8 +261,8 @@ pa_routerif *pa_routerif_init(struct userdata *u,
     routerif->amnam    = pa_xstrdup(amnam);
     routerif->amrpath  = pa_xstrdup(amrpath);
     routerif->amrnam   = pa_xstrdup(amrnam);
-    routerif->amcpath  = pa_xstrdup(amrpath);
-    routerif->amcnam   = pa_xstrdup(amrnam);
+    routerif->amcpath  = pa_xstrdup(amcpath);
+    routerif->amcnam   = pa_xstrdup(amcnam);
     routerif->admarule = pa_xstrdup(admarule);
 
     u->routerif = routerif; /* Argh.. */
@@ -1093,7 +1095,6 @@ bool pa_routerif_register_implicit_connection(struct userdata *u,
     dbus_message_set_no_reply(msg, true);
 
     success = dbus_message_append_args(msg,
-                                       DBUS_TYPE_UINT16, &cd->connection,
                                        DBUS_TYPE_INT16 , &cd->format,
                                        DBUS_TYPE_UINT16, &cd->source,
                                        DBUS_TYPE_UINT16, &cd->sink,

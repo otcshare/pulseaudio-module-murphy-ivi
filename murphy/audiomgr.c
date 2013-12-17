@@ -478,30 +478,38 @@ void pa_audiomgr_connect(struct userdata *u, am_connect_data *cd)
     mir_node       *from = NULL;
     mir_node       *to   = NULL;
     int             err  = E_OK;
+    bool            autoconn = false;
 
     pa_assert(u);
     pa_assert(cd);
     pa_assert_se((am = u->audiomgr));
 
-    if ((from = pa_hashmap_get(am->nodes, node_hash(mir_input, cd->source))) &&
-        (to   = pa_hashmap_get(am->nodes, node_hash(mir_output, cd->sink))))
-    {
-        cid = cd->connection;
-
-        pa_log_debug("routing '%s' => '%s'", from->amname, to->amname);
-
-        if (!(conn = mir_router_add_explicit_route(u, cid, from, to)))
-            err = E_NOT_POSSIBLE;
-        else {
-            pa_log_debug("registering connection (%u/%p)",
-                         cd->connection, conn);
-            pa_hashmap_put(am->conns, conn_hash(cid), conn);
-        }
+    if (cd->format == CF_AUTO) {
+        autoconn = true;
+        pa_log_debug("automatic connection request received");
     }
-    else {
-        pa_log_debug("failed to connect: can't find node for %s %u",
-                     from ? "sink" : "source", from ? cd->sink : cd->source);
-        err = E_NON_EXISTENT;
+
+    if (autoconn == false) {
+        if ((from = pa_hashmap_get(am->nodes, node_hash(mir_input, cd->source))) &&
+            (to   = pa_hashmap_get(am->nodes, node_hash(mir_output, cd->sink))))
+            {
+                cid = cd->connection;
+                
+                pa_log_debug("routing '%s' => '%s'", from->amname, to->amname);
+                
+                if (!(conn = mir_router_add_explicit_route(u, cid, from, to)))
+                    err = E_NOT_POSSIBLE;
+                else {
+                    pa_log_debug("registering connection (%u/%p)",
+                                 cd->connection, conn);
+                    pa_hashmap_put(am->conns, conn_hash(cid), conn);
+                }
+            }
+        else {
+            pa_log_debug("failed to connect: can't find node for %s %u",
+                         from ? "sink" : "source", from ? cd->sink : cd->source);
+            err = E_NON_EXISTENT;
+        }
     }
 
     memset(&ad, 0, sizeof(ad));
