@@ -50,9 +50,10 @@ struct vlim_table {
 };
 
 struct pa_mir_volume {
-    int          classlen;   /**< class table length  */
-    vlim_table  *classlim;   /**< class indexed table */
-    vlim_table   genlim;     /**< generic limit */
+    int          classlen;       /**< class table length  */
+    vlim_table  *classlim;       /**< class indexed table */
+    vlim_table   genlim;         /**< generic limit */
+    double       maxlim[mir_application_class_end];  /**< per class max. limit */
 };
 
 
@@ -68,8 +69,12 @@ static void add_volume_limit(struct userdata *, mir_node *, int);
 pa_mir_volume *pa_mir_volume_init(struct userdata *u)
 {
     pa_mir_volume *volume = pa_xnew0(pa_mir_volume, 1);
+    int i;
 
     (void)u;
+
+    for (i = 0;  i < mir_application_class_end;  i++)
+        volume->maxlim[i] = MIR_VOLUME_MAX_ATTENUATION;
 
     return volume;
 }
@@ -145,6 +150,25 @@ void mir_volume_add_generic_limit(struct userdata  *u,
 }
 
 
+void mir_volume_add_maximum_limit(struct userdata *u,
+                                  double maxlim,
+                                  size_t nclass,
+                                  int *classes)
+{
+    pa_mir_volume *volume;
+    int class;
+    size_t i;
+
+    pa_assert(u);
+    pa_assert_se((volume = u->volume));
+
+    for (i = 0;  i < nclass;  i++) {
+        if ((class = classes[i]) < mir_application_class_end)
+            volume->maxlim[class] = maxlim;
+    }
+}
+
+
 void mir_volume_make_limiting(struct userdata *u)
 {
     uint32_t stamp;
@@ -184,13 +208,18 @@ double mir_volume_apply_limits(struct userdata *u,
     double devlim, classlim;
     vlim_table *tbl;
     uint32_t clmask;
+    double maxlim;
 
     pa_assert(u);
     pa_assert_se((volume = u->volume));
 
     if (class < 0 || class >= volume->classlen) {
         if (class < 0 || class >= mir_application_class_end)
-            attenuation = -90.0;
+            attenuation = maxlim = MIR_VOLUME_MAX_ATTENUATION;
+        else {
+            attenuation = apply_table(0.0, &volume->genlim,
+                                      u,class,node, "device");
+        }
     }
     else {
         devlim = apply_table(0.0, &volume->genlim, u,class,node, "device");
@@ -200,10 +229,16 @@ double mir_volume_apply_limits(struct userdata *u,
             pa_assert(class >= mir_application_class_begin);
             pa_assert(class <  mir_application_class_end);
 
+            maxlim = volume->maxlim[class];
             clmask = (uint32_t)1 << (class - mir_application_class_begin);
-            
+
             if (class < volume->classlen && (tbl = volume->classlim + class))
                 classlim = apply_table(classlim, tbl, u, class, node, "class");
+
+            if (classlim <= MIR_VOLUME_MAX_ATTENUATION)
+                classlim = MIR_VOLUME_MAX_ATTENUATION;
+            else if (classlim < maxlim)
+                classlim = maxlim;
         }
 
         attenuation = devlim + classlim;

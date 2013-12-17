@@ -178,11 +178,34 @@ volume_limit {
 }
 
 volume_limit {
-    name = "suppress",
+    name = "phone_suppress",
     type = volume_limit.class,
-    limit = -20;
+    limit = -20,
     node_type = { node.phone },
     calculate = builtin.method.volume_supress
+}
+
+
+volume_limit {
+    name = "navi_suppress",
+    type = volume_limit.class,
+    limit = -20,
+    node_type = { node.navigator, node.phone },
+    calculate = builtin.method.volume_supress
+}
+
+volume_limit {
+    name = "navi_maxlim",
+    type = volume_limit.maximum,
+    limit = -10,
+    node_type = { node.navigator }
+}
+
+volume_limit {
+    name = "player_maxlim",
+    type = volume_limit.maximum,
+    limit = -20,
+    node_type = { node.player }
 }
 
 volume_limit {

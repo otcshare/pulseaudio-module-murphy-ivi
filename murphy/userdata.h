@@ -54,6 +54,8 @@
 
 #define PA_RESOURCE_SET_ID_PID         "pid"
 
+#define MIR_VOLUME_MAX_ATTENUATION      -120 /* dB */
+
 typedef enum   pa_value_type            pa_value_type;
 typedef struct pa_value                 pa_value;
 typedef struct pa_null_sink             pa_null_sink;
