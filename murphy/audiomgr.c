@@ -113,7 +113,7 @@ struct pa_audiomgr *pa_audiomgr_init(struct userdata *u)
     pa_audiomgr *am;
 
     pa_assert(u);
-    
+
     am = pa_xnew0(pa_audiomgr, 1);
 
     am->domain.id = AM_ID_INVALID;
@@ -165,7 +165,7 @@ void pa_audiomgr_register_domain(struct userdata *u)
 
 void pa_audiomgr_domain_registered(struct userdata   *u,
                                    uint16_t           id,
-                                   uint16_t           state, 
+                                   uint16_t           state,
                                    am_domainreg_data *dr)
 {
     pa_audiomgr *am;
@@ -180,9 +180,9 @@ void pa_audiomgr_domain_registered(struct userdata   *u,
     am->domain.state = state;
 
     pa_log_debug("start domain registration for '%s' domain", dr->name);
-    
+
     pa_discover_domain_up(u);
-    
+
     pa_log_debug("domain registration for '%s' domain is complete", dr->name);
 
     pa_routerif_domain_complete(u, id);
@@ -238,18 +238,18 @@ void pa_audiomgr_register_node(struct userdata *u, mir_node *node)
             rd->avail.status = AS_AVAILABLE;
             rd->avail.reason = 0;
             rd->mainvol = 32767;
-            
+
             if (node->direction == mir_input) {
                 rd->interrupt = IS_OFF;
                 method = audiomgr_register_source;
-            } 
+            }
             else {
                 rd->mute = MS_UNMUTED;
                 method = audiomgr_register_sink;
             }
-            
+
             success = pa_routerif_register_node(u, method, rd);
-            
+
             if (success) {
                 pa_log_debug("initiate registration node '%s' (%p)"
                              "to audio manager", rd->name, node);
@@ -333,16 +333,16 @@ void pa_audiomgr_unregister_node(struct userdata *u, mir_node *node)
                 pa_log("%s: confused with data structures: node %u (%p)"
                        "is not in the hash table", __FILE__, node->amid, node);
         }
-        
-        
+
+
         if (node->direction == mir_input)
             method = audiomgr_deregister_source;
         else
             method = audiomgr_deregister_sink;
-        
-        
+
+
         success = pa_routerif_unregister_node(u, method, ud);
-        
+
         if (success) {
             pa_log_debug("sucessfully unregistered node '%s' (%p/%p)"
                          "from audio manager", node->amname, key, node);
@@ -405,7 +405,7 @@ void pa_audiomgr_add_default_route(struct userdata *u,
 
         if (defrts->nlink >= defrts->maxlink) {
             defrts->maxlink += 16;
-            
+
             size = sizeof(link_t) * defrts->maxlink;
             defrts->links = realloc(defrts->links, size);
             pa_assert(defrts->links);
@@ -478,30 +478,38 @@ void pa_audiomgr_connect(struct userdata *u, am_connect_data *cd)
     mir_node       *from = NULL;
     mir_node       *to   = NULL;
     int             err  = E_OK;
+    bool            autoconn = false;
 
     pa_assert(u);
     pa_assert(cd);
     pa_assert_se((am = u->audiomgr));
 
-    if ((from = pa_hashmap_get(am->nodes, node_hash(mir_input, cd->source))) &&
-        (to   = pa_hashmap_get(am->nodes, node_hash(mir_output, cd->sink))))
-    {
-        cid = cd->connection;
-
-        pa_log_debug("routing '%s' => '%s'", from->amname, to->amname);
-
-        if (!(conn = mir_router_add_explicit_route(u, cid, from, to)))
-            err = E_NOT_POSSIBLE;
-        else {
-            pa_log_debug("registering connection (%u/%p)",
-                         cd->connection, conn);
-            pa_hashmap_put(am->conns, conn_hash(cid), conn);
-        }
+    if (cd->format == CF_AUTO) {
+        autoconn = true;
+        pa_log_debug("automatic connection request received");
     }
-    else {
-        pa_log_debug("failed to connect: can't find node for %s %u",
-                     from ? "sink" : "source", from ? cd->sink : cd->source);
-        err = E_NON_EXISTENT;
+
+    if (autoconn == false) {
+        if ((from = pa_hashmap_get(am->nodes, node_hash(mir_input, cd->source))) &&
+            (to   = pa_hashmap_get(am->nodes, node_hash(mir_output, cd->sink))))
+            {
+                cid = cd->connection;
+
+                pa_log_debug("routing '%s' => '%s'", from->amname, to->amname);
+
+                if (!(conn = mir_router_add_explicit_route(u, cid, from, to)))
+                    err = E_NOT_POSSIBLE;
+                else {
+                    pa_log_debug("registering connection (%u/%p)",
+                                 cd->connection, conn);
+                    pa_hashmap_put(am->conns, conn_hash(cid), conn);
+                }
+            }
+        else {
+            pa_log_debug("failed to connect: can't find node for %s %u",
+                         from ? "sink" : "source", from ? cd->sink : cd->source);
+            err = E_NON_EXISTENT;
+        }
     }
 
     memset(&ad, 0, sizeof(ad));
@@ -538,7 +546,7 @@ void pa_audiomgr_disconnect(struct userdata *u, am_connect_data *cd)
     ad.param1 = cd->connection;
     ad.error  = err;
 
-    pa_routerif_acknowledge(u, audiomgr_disconnect, &ad);
+    pa_routerif_acknowledge(u, audiomgr_disconnect_ack, &ad);
 }
 
 static bool find_default_route(struct userdata *u,
@@ -600,4 +608,3 @@ static void *conn_hash(uint16_t connid)
  * End:
  *
  */
-
