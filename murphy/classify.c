@@ -311,7 +311,7 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
         }
 
         if ((bin = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_BINARY))) {
-            if (!strcmp(bin, "threaded-ml") || !strcmp(bin, "WebProcess")) {
+            if (!strcmp(bin, "threaded-ml") || !strcmp(bin, "WebProcess") || !strcmp(bin,"wrt_launchpad_daemon")) {
                 if (!pid)
                     break;
 
