@@ -1,3 +1,7 @@
+* Tue Jan 31 17:54:13 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.25
+- fixes for genivi audio manager interfacing
+- fix for web app identification
+
 * Tue Jan 7 17:53:13 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.24
 - fix gear shift value from amb
 - add max volume limit
