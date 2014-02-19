@@ -454,6 +454,7 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, bool route)
     pa_source         *ns;
     mir_node           data;
     mir_node_type      type;
+    bool               add_to_hash;
 
     pa_assert(u);
     pa_assert(sink);
@@ -515,6 +516,8 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, bool route)
         }
     }
     else if (!module || !pa_streq(module->name, "module-combine-sink")) {
+        add_to_hash = false;
+
         memset(&data, 0, sizeof(data));
         data.key = pa_xstrdup(sink->name);
         data.direction = mir_output;
@@ -536,6 +539,8 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, bool route)
             data.amname = pa_xstrdup(mir_node_type_str(data.type));
             data.amid = AM_ID_INVALID;
             data.paname = pa_xstrdup(sink->name);
+
+            add_to_hash = true;
         }
         else {
             pa_xfree(data.key); /* for now */
@@ -544,7 +549,10 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, bool route)
             return;
         }
 
-        create_node(u, &data, NULL);
+        node = create_node(u, &data, NULL);
+
+        if (add_to_hash)
+            pa_discover_add_node_to_ptr_hash(u, sink, node);
     }
 }
 
@@ -838,6 +846,7 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
     pa_muxnode        *mux;
     pa_nodeset_resdef *resdef;
     bool               loopback;
+    bool               remap;
 
     pa_assert(u);
     pa_assert(data);
@@ -865,6 +874,7 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
     }
     else {
         loopback = pa_streq(mnam, "module-loopback");
+        remap = false;
 
         if (loopback) {
             if (!(node = pa_utils_get_node_from_data(u, mir_input, data))) {
@@ -884,6 +894,7 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
             type = pa_classify_guess_stream_node_type(u, pl, NULL);
         }
         else {
+            remap = pa_streq(mnam, "module-remap-sink");
             type = pa_classify_guess_stream_node_type(u, pl, &resdef);
 
             pa_utils_set_resource_properties(pl, resdef);
@@ -931,6 +942,10 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
         }
     }
 
+    if (remap) {
+        /* no ramp needed */
+        return true;
+    }
     if (loopback && data->sink && data->sink->module) {
         /* no ramp needed */
         if (pa_streq(data->sink->module->name, "module-combine-sink"))
