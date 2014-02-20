@@ -907,12 +907,13 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
         pa_utils_set_stream_routing_properties(pl, type, data->sink);
     }
 
+    memset(&fake, 0, sizeof(fake));
+    fake.direction = mir_input;
+    fake.implement = mir_stream;
+    fake.type      = type;
+
     if (!data->sink) {
-        memset(&fake, 0, sizeof(fake));
-        fake.direction = mir_input;
-        fake.implement = mir_stream;
         fake.channels  = data->channel_map.channels;
-        fake.type      = type;
         fake.zone      = pa_utils_get_zone(data->proplist);
         fake.visible   = true;
         fake.available = true;
@@ -952,8 +953,10 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
             return true;
     }
 
-    pa_log_debug("set sink-input ramp-muted");
-    data->flags |= PA_SINK_INPUT_START_RAMP_MUTED;
+    if (pa_classify_ramping_stream(&fake)) {
+        pa_log_debug("set sink-input ramp-muted");
+        data->flags |= PA_SINK_INPUT_START_RAMP_MUTED;
+    }
 
     return true;
 }

@@ -616,6 +616,29 @@ bool pa_classify_multiplex_stream(mir_node *node)
     return false;
 }
 
+bool pa_classify_ramping_stream(mir_node *node)
+{
+    static bool ramping[mir_application_class_end] = {
+        [ mir_player  ] = true,
+    };
+    
+    mir_node_type class;
+
+    pa_assert(node);
+
+    if (node->implement == mir_stream && node->direction == mir_input) {
+        class = node->type;
+
+        if (class > mir_application_class_begin &&
+            class < mir_application_class_end)
+        {
+            return ramping[class];
+        }
+    }
+
+    return false;
+}
+
 const char *pa_classify_loopback_stream(mir_node *node)
 {
     const char *role[mir_device_class_end - mir_device_class_begin] = {

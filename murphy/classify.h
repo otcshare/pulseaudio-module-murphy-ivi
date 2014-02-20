@@ -35,6 +35,7 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *,
 mir_node_type pa_classify_guess_application_class(mir_node *);
 
 bool pa_classify_multiplex_stream(mir_node *);
+bool pa_classify_ramping_stream(mir_node *);
 
 const char *pa_classify_loopback_stream(mir_node *);
 
