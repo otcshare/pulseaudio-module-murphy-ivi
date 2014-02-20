@@ -2110,23 +2110,41 @@ static int vollim_create(lua_State *L)
         luaL_error(L, "missing or invalid limit");
     if (type != vollim_maximum && !calculate)
         luaL_error(L, "missing calculate field");
-    if (type != vollim_maximum && calculate->type == MRP_C_FUNCTION) {
-        if (strcmp(calculate->c.signature, "odo"))
-            luaL_error(L, "invalid calculate field (mismatching signature)");
-        if (calculate->c.data == mir_volume_suppress) {
-            if (type != vollim_class)
-                luaL_error(L, "attempt to make generic volume supression");
-            suppress = true;
-            arglgh = sizeof(mir_volume_suppress_arg);
-        }
-        else if (calculate->c.data == mir_volume_correction) {
-            if (type != vollim_generic)
-                luaL_error(L, "attempt to make class based volume correction");
-            correct = true;
-            arglgh = sizeof(double *);
+    if (type != vollim_maximum) {
+        if (calculate->type == MRP_C_FUNCTION) {
+            if (strcmp(calculate->c.signature, "odo"))
+                luaL_error(L,"invalid calculate field (mismatching signature)");
+            if (calculate->c.data == mir_volume_suppress) {
+                if (type != vollim_class)
+                    luaL_error(L, "attempt to make generic volume supression");
+                suppress = true;
+                arglgh = sizeof(mir_volume_suppress_arg);
+            }
+            else if (calculate->c.data == mir_volume_correction) {
+                if (type != vollim_generic) {
+                    luaL_error(L, "attempt to make class based volume"
+                               "correction");
+                }
+                correct = true;
+                arglgh = sizeof(double *);
+            }
+            else {
+                luaL_error(L, "invalid builtin.method for calculate");
+            }
         }
         else {
-            luaL_error(L, "invalid builtin.method for calculate");
+            switch (type) {
+            case vollim_class:
+                suppress = true;
+                arglgh = sizeof(mir_volume_suppress_arg);
+                break;
+            case vollim_generic:
+                correct = true;
+                arglgh = sizeof(double *);
+                break;
+            default:
+                break;
+            }
         }
     }
 
@@ -2361,6 +2379,7 @@ static bool calculate_bridge(lua_State *L, void *data, const char *signature,
         else {
             success = true;
             *ret_type = MRP_FUNCBRIDGE_FLOATING;
+            /* TODO: check the vollim type vs. c function */
             ret_val->floating = calculate(u, class, node, vlim->args);
         }
     }
