@@ -191,9 +191,15 @@ static void sink_input_block(struct userdata *u,
             if (sinp->send_event) {
                 if (block)
                     event = PA_STREAM_EVENT_REQUEST_CORK;
-                else
+                else {
                     event = PA_STREAM_EVENT_REQUEST_UNCORK;
-                
+                    /* Do this because webkit might set */
+                    /* stream to mute. This hack might  */ 
+                    /* cause issues if web app user has */
+                    /* set explicit mute. */
+                    pa_sink_input_set_mute(sinp, false, false);
+                }
+
                 pl = pa_proplist_new();
                 
                 sinp->send_event(sinp, event, pl);
