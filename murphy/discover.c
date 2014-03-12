@@ -2382,7 +2382,8 @@ static void set_bluetooth_profile(struct userdata *u,
             else {
                 pa_log_debug("Set profile %s", make_active->name);
 
-                if (pa_card_set_profile(card, make_active->name, false) < 0) {
+                if ((prof = pa_hashmap_get(card->profiles, make_active->name)) != NULL && 
+                    pa_card_set_profile(card, prof, false) < 0) {
                     pa_log_debug("Failed to change profile to %s",
                                  make_active->name);
                 }

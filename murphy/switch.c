@@ -691,7 +691,8 @@ static bool set_profile(struct userdata *u, mir_node *node)
 
             u->state.profile = node->pacard.profile;
 
-            pa_card_set_profile(card, node->pacard.profile, false);
+            if ((prof = pa_hashmap_get(card->profiles, node->pacard.profile)) != NULL)
+                pa_card_set_profile(card, prof, false);
 
             u->state.profile = NULL;            
         }
