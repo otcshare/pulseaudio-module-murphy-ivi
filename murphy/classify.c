@@ -603,6 +603,7 @@ bool pa_classify_multiplex_stream(mir_node *node)
 
     pa_assert(node);
 
+    /*
     if (node->implement == mir_stream && node->direction == mir_input) {
         class = node->type;
 
@@ -612,6 +613,7 @@ bool pa_classify_multiplex_stream(mir_node *node)
             return multiplex[class];
         }
     }
+    */
 
     return false;
 }
