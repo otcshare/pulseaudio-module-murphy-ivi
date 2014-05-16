@@ -40,6 +40,7 @@ char *pa_utils_get_source_output_name(pa_source_output *);
 char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data *);
 
 char *pa_utils_get_zone(pa_proplist *);
+char *pa_utils_get_appid(pa_proplist *);
 
 bool pa_utils_set_stream_routing_properties(pa_proplist *, int, void *);
 bool pa_utils_unset_stream_routing_properties(pa_proplist *);
