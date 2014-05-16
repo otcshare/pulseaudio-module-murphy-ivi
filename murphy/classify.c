@@ -213,14 +213,16 @@ bool pa_classify_node_by_property(mir_node *node, pa_proplist *pl)
     } type_mapping_t;
 
     static type_mapping_t  map[] = {
-        {"speakers"      , mir_speakers         },
-        {"front-speakers", mir_front_speakers   },
-        {"rear-speakers" , mir_rear_speakers    },
-        {"microphone"    , mir_microphone       },
-        {"jack"          , mir_jack             },
-        {"hdmi"          , mir_hdmi             },
-        {"spdif"         , mir_spdif            },
-        { NULL           , mir_node_type_unknown}
+        {"speakers"       , mir_speakers         },
+        {"front-speakers" , mir_front_speakers   },
+        {"rear-speakers"  , mir_rear_speakers    },
+        {"microphone"     , mir_microphone       },
+        {"jack"           , mir_jack             },
+        {"hdmi"           , mir_hdmi             },
+        {"gateway_source" , mir_gateway_source   },
+        {"gateway_sink"   , mir_gateway_sink     },
+        {"spdif"          , mir_spdif            },
+        { NULL            , mir_node_type_unknown}
     };
 
     const char *type;
@@ -311,7 +313,10 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
         }
 
         if ((bin = pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_BINARY))) {
-            if (!strcmp(bin, "threaded-ml") || !strcmp(bin, "WebProcess") || !strcmp(bin,"wrt_launchpad_daemon")) {
+            if (!strcmp(bin, "threaded-ml") ||
+                !strcmp(bin, "WebProcess")  ||
+                !strcmp(bin,"wrt_launchpad_daemon"))
+            {
                 if (!pid)
                     break;
 

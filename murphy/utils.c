@@ -227,6 +227,16 @@ char *pa_utils_get_zone(pa_proplist *pl)
     return (char *)zone;
 }
 
+const char *pa_utils_get_appid(pa_proplist *pl)
+{
+    const char *appid;
+
+    if (pl && (appid = pa_proplist_gets(pl, PA_PROP_RESOURCE_SET_APPID)))
+        return appid;
+
+    return "<unknown>";
+}
+
 bool pa_utils_set_stream_routing_properties(pa_proplist *pl,
                                                  int          styp,
                                                  void        *target)

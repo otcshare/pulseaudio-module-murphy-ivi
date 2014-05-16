@@ -118,6 +118,7 @@ static pa_source *make_input_prerouting(struct userdata *, mir_node *,
                                         const char *, mir_node **);
 
 static mir_node_type get_stream_routing_class(pa_proplist *);
+static char *get_stream_amname(mir_node_type, char *, pa_proplist *);
 
 static void set_bluetooth_profile(struct userdata *, pa_card *, pa_direction_t);
 
@@ -179,7 +180,9 @@ void pa_discover_domain_up(struct userdata *u)
     PA_HASHMAP_FOREACH(node, discover->nodes.byname, state) {
         node->amid = AM_ID_INVALID;
 
-        if (node->visible && node->available) {
+        if ((node->visible && node->available) ||
+            (node->type == mir_gateway_sink ||
+             node->type == mir_gateway_source)) {
             pa_audiomgr_register_node(u, node);
             extapi_signal_node_change(u);
         }
@@ -536,11 +539,20 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, bool route)
             data.paname = pa_xstrdup(sink->name);
         }
         else if (pa_classify_node_by_property(&data, sink->proplist)) {
-            data.privacy = mir_public;
-            data.visible = true;
-            data.amname = pa_xstrdup(mir_node_type_str(data.type));
-            data.amid = AM_ID_INVALID;
-            data.paname = pa_xstrdup(sink->name);
+            if (data.type == mir_gateway_sink) {
+                data.privacy = mir_private;
+                data.visible = false;
+                data.amname = pa_xstrdup(sink->name);
+                data.amid = AM_ID_INVALID;
+                data.paname = pa_xstrdup(sink->name);
+            }
+            else {
+                data.privacy = mir_public;
+                data.visible = true;
+                data.amname = pa_xstrdup(mir_node_type_str(data.type));
+                data.amid = AM_ID_INVALID;
+                data.paname = pa_xstrdup(sink->name);
+            }
 
             add_to_hash = true;
         }
@@ -685,10 +697,20 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
             data.paidx = source->index;
         }
         else if (pa_classify_node_by_property(&data, source->proplist)) {
-            data.visible = true;
-            data.amname = pa_xstrdup(mir_node_type_str(data.type));
-            data.amid   = AM_ID_INVALID;
-            data.paname = pa_xstrdup(source->name);
+            if (data.type == mir_gateway_source) {
+                data.privacy = mir_private;
+                data.visible = false;
+                data.amname = pa_xstrdup(source->name);
+                data.amid = AM_ID_INVALID;
+                data.paname = pa_xstrdup(source->name);
+            }
+            else {
+                data.privacy = mir_public;
+                data.visible = true;
+                data.amname = pa_xstrdup(mir_node_type_str(data.type));
+                data.amid   = AM_ID_INVALID;
+                data.paname = pa_xstrdup(source->name);
+            }
         }
         else {
             pa_xfree(data.key); /* for now */
@@ -700,7 +722,6 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
         create_node(u, &data, NULL);
     }
 }
-
 
 void pa_discover_remove_source(struct userdata *u, pa_source *source)
 {
@@ -798,7 +819,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     data.zone      = pa_utils_get_zone(sinp->proplist);
     data.visible   = true;
     data.available = true;
-    data.amname    = name;
+    data.amname    = get_stream_amname(type, name, pl);
     data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
     data.amid      = AM_ID_INVALID;
     data.paname    = name;
@@ -1059,7 +1080,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         data.zone      = pa_utils_get_zone(pl);
         data.visible   = true;
         data.available = true;
-        data.amname    = name;
+        data.amname    = get_stream_amname(type, name, pl);
         data.amdescr   = (char *)pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
         data.amid      = AM_ID_INVALID;
         data.paname    = name;
@@ -1112,7 +1133,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
 
         /* FIXME: register explicit routes */
         /* else pa_audiomgr_add/register_explicit_route() */
-        
+
 
         pa_fader_apply_volume_limits(u, pa_utils_get_stamp());
     }
@@ -1723,7 +1744,7 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
                 output = false;
             else if (len >= 7 && !strcmp("-output", port->name + (len-7)))
                 input  = false;
-            
+
 
             PA_HASHMAP_FOREACH(prof, port->profiles, state1) {
                 data.pacard.profile = prof->name;
@@ -2308,6 +2329,40 @@ static mir_node_type get_stream_routing_class(pa_proplist *pl)
     return mir_node_type_unknown;
 }
 
+static char *get_stream_amname(mir_node_type type, char *name, pa_proplist *pl)
+{
+    const char *appid;
+
+    switch (type) {
+
+    case mir_radio:
+        return "radio";
+
+    case mir_player:
+    case mir_game:
+    case mir_browser:
+    case mir_camera:
+        appid = pa_utils_get_appid(pl);
+
+        if (!strcmp(appid, "threaded-ml")         ||
+            !strcmp(appid, "WebProcess")          ||
+            !strcmp(appid,"wrt_launchpad_daemon")  )
+        {
+            return "wrtApplication";
+        }
+        return "icoApplication";
+
+    case mir_navigator:
+        return "navigator";
+
+    case mir_phone:
+        return "phone";
+
+    default:
+        return name;
+    }
+}
+
 
 static void set_bluetooth_profile(struct userdata *u,
                                   pa_card *card,
@@ -2387,7 +2442,7 @@ static void set_bluetooth_profile(struct userdata *u,
             else {
                 pa_log_debug("Set profile %s", make_active->name);
 
-                if ((prof = pa_hashmap_get(card->profiles, make_active->name)) != NULL && 
+                if ((prof = pa_hashmap_get(card->profiles, make_active->name)) != NULL &&
                     pa_card_set_profile(card, prof, false) < 0) {
                     pa_log_debug("Failed to change profile to %s",
                                  make_active->name);

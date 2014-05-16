@@ -213,53 +213,90 @@ void pa_audiomgr_unregister_domain(struct userdata *u, bool send_state)
     am->domain.state = DS_DOWN;
 }
 
+void fill_am_data_and_register(struct userdata *u, mir_node *node, pa_audiomgr *am)
+{
+    am_nodereg_data  *rd;
+    am_method         method;
+    bool              success;
+
+    rd = pa_xnew0(am_nodereg_data, 1);
+    rd->key     = pa_xstrdup(node->key);
+    rd->name    = pa_xstrdup(node->amname);
+    rd->domain  = am->domain.id;
+    rd->class   = 0x43;
+    rd->volume  = 32767;
+    rd->visible = node->visible;
+    rd->avail.status = AS_AVAILABLE;
+    rd->avail.reason = 0;
+    rd->mainvol = 32767;
+
+    if (node->direction == mir_input) {
+        rd->interrupt = IS_OFF;
+        method = audiomgr_register_source;
+    }
+    else {
+        rd->mute = MS_UNMUTED;
+        method = audiomgr_register_sink;
+    }
+
+    success = pa_routerif_register_node(u, method, rd);
+
+    if (success) {
+        pa_log_debug("initiate registration node '%s' (%p)"
+                     "to audio manager", rd->name, node);
+    }
+    else {
+        pa_log("%s: failed to register node '%s' (%p)"
+               "to audio manager", __FILE__, rd->name, node);
+    }
+
+    return;
+}
 
 void pa_audiomgr_register_node(struct userdata *u, mir_node *node)
 {
+    static const char *classes_to_register[] = {
+        "wrtApplication",
+        "icoApplication",
+        "navigator",
+        "phone",
+        "radio",
+        NULL
+    };
+
     pa_audiomgr      *am;
-    am_nodereg_data  *rd;
-    am_method         method;
-    bool         success;
+    bool              success;
+    const char       *class_to_register;
+    int               i;
 
     pa_assert(u);
     pa_assert_se((am = u->audiomgr));
 
-    if (am->domain.state == DS_DOWN || am->domain.state == DS_RUNDOWN)
+    if (am->domain.state == DS_DOWN || am->domain.state == DS_RUNDOWN) {
         pa_log_debug("skip registering nodes while the domain is down");
-    else {
-        if (node->direction == mir_input || node->direction == mir_output) {
-            rd = pa_xnew0(am_nodereg_data, 1);
-            rd->key     = pa_xstrdup(node->key);
-            rd->name    = pa_xstrdup(node->amname);
-            rd->domain  = am->domain.id;
-            rd->class   = 0x43;
-            rd->volume  = 32767;
-            rd->visible = node->visible;
-            rd->avail.status = AS_AVAILABLE;
-            rd->avail.reason = 0;
-            rd->mainvol = 32767;
-
-            if (node->direction == mir_input) {
-                rd->interrupt = IS_OFF;
-                method = audiomgr_register_source;
-            }
-            else {
-                rd->mute = MS_UNMUTED;
-                method = audiomgr_register_sink;
-            }
-
-            success = pa_routerif_register_node(u, method, rd);
-
-            if (success) {
-                pa_log_debug("initiate registration node '%s' (%p)"
-                             "to audio manager", rd->name, node);
-            }
-            else {
-                pa_log("%s: failed to register node '%s' (%p)"
-                       "to audio manager", __FILE__, rd->name, node);
-            }
-        }
+        return;
     }
+
+    for (i = 0;   (class_to_register = classes_to_register[i]);   i++) {
+        if (!strcmp(node->amname, class_to_register)) {
+            if (node->direction == mir_input || node->direction == mir_output){
+                fill_am_data_and_register(u, node, am);
+            }
+
+            return;
+        }
+    } /* for classes_to_register */
+
+    /* ok, register also the gateways */
+    if (strncmp(node->amname, "gw", 2) == 0) {
+        if (node->direction == mir_input || node->direction == mir_output){
+            fill_am_data_and_register(u, node, am);
+        }
+        return;
+    }
+
+    pa_log_debug("skip registration of node '%s' (%p): "
+                 "not known by audio manager", node->amname, node);
 }
 
 void pa_audiomgr_node_registered(struct userdata *u,
@@ -289,8 +326,13 @@ void pa_audiomgr_node_registered(struct userdata *u,
 
         pa_hashmap_put(am->nodes, key, node);
 
+        /* we don't want implicit connections register and confuse */
+        /* audio manager. Implicit connections are handled by      */
+        /* creating a resource through murphy */
+        /*
         if (find_default_route(u, node, &cd))
             pa_routerif_register_implicit_connection(u, &cd);
+        */
     }
 
     pa_xfree((void *)rd->key);
@@ -463,8 +505,13 @@ void pa_audiomgr_send_default_routes(struct userdata *u)
         cd->format = link->channels >= 2 ? CF_STEREO : CF_MONO;
     }
 
+    /* we don't want implicit connections register and confuse */
+    /* audio manager. Implicit connections are handled by      */
+    /* creating a resource through murphy */
+    /*
     if (ncd > 0)
         pa_routerif_register_implicit_connections(u, ncd, cds);
+    */
 
 #undef MAX_DEFAULT_ROUTES
 }

@@ -84,6 +84,8 @@ enum mir_node_type {
     mir_bluetooth_carkit,
     mir_bluetooth_source,
     mir_bluetooth_sink,
+    mir_gateway_sink,
+    mir_gateway_source,
     mir_device_class_end,
 
     /* extensions */
@@ -138,10 +140,10 @@ struct mir_node {
     mir_privacy    privacy;   /**< mir_public | mir_private */
     mir_node_type  type;      /**< mir_speakers | mir_headset | ...  */
     char          *zone;      /**< zone where the node belong */
-    bool      visible;   /**< internal or can appear on UI  */
-    bool      available; /**< eg. is the headset connected?  */
-    bool      ignore;    /**< do not consider it while routing  */
-    bool      localrset; /**< locally generated resource set */
+    bool           visible;   /**< internal or can appear on UI  */
+    bool           available; /**< eg. is the headset connected?  */
+    bool           ignore;    /**< do not consider it while routing  */
+    bool           localrset; /**< locally generated resource set */
     char          *amname;    /**< audiomanager name */
     char          *amdescr;   /**< UI description */
     uint16_t       amid;      /**< handle to audiomanager, if any */
