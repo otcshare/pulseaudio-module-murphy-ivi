@@ -242,6 +242,7 @@ void pa_audiomgr_register_node(struct userdata *u, mir_node *node)
 
     for (i = 0;   (class_to_register = classes_to_register[i]);   i++) {
         if (!strcmp(node->amname, class_to_register)) {
+register_gw:
             if (node->direction == mir_input || node->direction == mir_output){
                 rd = pa_xnew0(am_nodereg_data, 1);
                 rd->key     = pa_xstrdup(node->key);
@@ -278,6 +279,10 @@ void pa_audiomgr_register_node(struct userdata *u, mir_node *node)
             return;
         }
     } /* for classes_to_register */
+
+    if (strncmp(node->amname, "gw", 2) == 0) {
+        goto register_gw;
+    }
 
     pa_log_debug("skip registration of node '%s' (%p): "
                  "not known by audio manager", node->amname, node);
