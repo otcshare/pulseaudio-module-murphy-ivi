@@ -159,7 +159,7 @@ static void sink_input_block(struct userdata *u,
             sinp->flags |= flag_mask;
     }
 
-    muted = pa_sink_input_get_mute(sinp);
+    muted = sinp->muted;
     corked = (sinp->flags & PA_SINK_INPUT_START_CORKED);
 
     if (corked && !block)
