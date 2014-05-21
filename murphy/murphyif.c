@@ -307,7 +307,7 @@ pa_murphyif *pa_murphyif_init(struct userdata *u,
             if (resource_transport_connect(rif) == DISCONNECTED)
                 schedule_connect(u, rif);
         }
-    }    
+    }
 
     rif->seqno.request = 1;
     rif->nodes.rsetid = pa_hashmap_new(pa_idxset_string_hash_func,
@@ -419,7 +419,7 @@ void pa_murphyif_add_table(struct userdata *u,
     mrp_domctl_table_t *t;
     size_t size;
     size_t idx;
-    
+
     pa_assert(u);
     pa_assert(table);
     pa_assert(columns);
@@ -447,7 +447,7 @@ int pa_murphyif_add_watch(struct userdata *u,
     mrp_domctl_watch_t *w;
     size_t size;
     size_t idx;
-    
+
     pa_assert(u);
     pa_assert(table);
     pa_assert(columns);
@@ -969,7 +969,7 @@ static mrp_msg_t *resource_create_request(uint32_t seqno,
 
     if (!msg)
         pa_log("can't to create new resource message");
- 
+
     return msg;
 }
 
@@ -1396,7 +1396,7 @@ static bool resource_push_attributes(mrp_msg_t *msg,
             if (!PUSH_VALUE(msg, ATTRIBUTE_VALUE, SINT8, *v.i32))
                 return false;
             break;
-            
+
         case mqi_unsignd:
             if (sts < 0)
                 v.u32 = &attr->def.value.unsignd;
@@ -1405,7 +1405,7 @@ static bool resource_push_attributes(mrp_msg_t *msg,
             if (!PUSH_VALUE(msg, ATTRIBUTE_VALUE, SINT8, *v.u32))
                 return false;
             break;
-            
+
         case mqi_floating:
             if (sts < 0)
                 v.dbl = &attr->def.value.floating;
@@ -1465,12 +1465,12 @@ static void resource_recvfrom_msg(mrp_transport_t *transp, mrp_msg_t *msg,
     PA_LLIST_FOREACH_SAFE(req, n, rif->reqs) {
         if (req->seqno <= seqno) {
             nodidx = req->nodidx;
-            
+
             if (req->reqid == reqid) {
                 PA_LLIST_REMOVE(resource_request, rif->reqs, req);
                 pa_xfree(req);
             }
-            
+
             if (!(node = mir_node_find_by_index(u, nodidx))) {
                 if (reqid != RESPROTO_DESTROY_RESOURCE_SET) {
                     pa_log("got response (reqid:%u seqno:%u) but can't "
@@ -1486,7 +1486,7 @@ static void resource_recvfrom_msg(mrp_transport_t *transp, mrp_msg_t *msg,
                     pa_log_debug("got response (reqid:%u seqno:%u "
                                  "node:'%s')", reqid, seqno,
                                  node ? node->amname : "<unknown>");
-                    
+
                     switch (reqid) {
                     case RESPROTO_CREATE_RESOURCE_SET:
                         resource_set_create_response(u, node, msg, &curs);
@@ -1530,7 +1530,7 @@ static void resource_set_create_response(struct userdata *u, mir_node *node,
     }
 
     node->rsetid = pa_sprintf_malloc("%d", rsetid);
-    
+
     if (pa_murphyif_add_node(u, node) == 0) {
         pa_log_debug("resource set was successfully created");
         mir_node_print(node, buf, sizeof(buf));
@@ -1738,7 +1738,7 @@ static void connect_attempt(pa_mainloop_api *a,
     struct userdata *u = (struct userdata *)data;
     pa_murphyif *murphyif;
     resource_interface *rif;
-    
+
     int state;
 
     pa_assert(u);
@@ -1761,7 +1761,7 @@ static void connect_attempt(pa_mainloop_api *a,
         case CONNECTED:
             cancel_schedule(u, rif);
             break;
-            
+
         case DISCONNECTED:
             schedule_connect(u, rif);
             break;
@@ -1862,7 +1862,7 @@ static void node_enforce_resource_policy(struct userdata *u,
     pa_assert(node);
     pa_assert(rset);
     pa_assert(rset->policy);
-    
+
 
     if (pa_streq(rset->policy, "relaxed"))
         req = PA_STREAM_RUN;
@@ -1976,7 +1976,7 @@ static int pid_hashmap_put(struct userdata *u, const char *pid,
     pa_assert(pid);
     pa_assert(node || rset);
     pa_assert_se((murphyif = u->murphyif));
-    
+
     rif = &murphyif->resource;
 
     ph = pa_xnew0(pid_hash, 1);
@@ -2001,7 +2001,7 @@ static mir_node *pid_hashmap_get_node(struct userdata *u, const char *pid)
     pa_assert(u);
     pa_assert(pid);
     pa_assert(murphyif = u->murphyif);
-    
+
     rif = &murphyif->resource;
 
     if ((ph = pa_hashmap_get(rif->nodes.pid, pid)))
@@ -2019,7 +2019,7 @@ static rset_data *pid_hashmap_get_rset(struct userdata *u, const char *pid)
     pa_assert(u);
     pa_assert(pid);
     pa_assert(murphyif = u->murphyif);
-    
+
     rif = &murphyif->resource;
 
     if ((ph = pa_hashmap_get(rif->nodes.pid, pid)))
@@ -2104,7 +2104,7 @@ static rset_hash *rset_hashmap_put(struct userdata *u,
     pa_assert(rsetid);
     pa_assert(node);
     pa_assert_se((murphyif = u->murphyif));
-    
+
     rif = &murphyif->resource;
 
     if ((rh = pa_hashmap_get(rif->nodes.rsetid, rsetid))) {
@@ -2149,7 +2149,7 @@ static rset_hash *rset_hashmap_get(struct userdata *u, const char *rsetid)
     pa_assert(u);
     pa_assert(rsetid);
     pa_assert(murphyif = u->murphyif);
-    
+
     rif = &murphyif->resource;
 
     if ((rh = pa_hashmap_get(rif->nodes.rsetid, rsetid)))
@@ -2207,7 +2207,7 @@ static pa_proplist *get_node_proplist(struct userdata *u, mir_node *node)
     pa_assert(u);
     pa_assert(node);
     pa_assert_se((core = u->core));
-    
+
     if (node->implement == mir_stream && node->paidx != PA_IDXSET_INVALID) {
         if (node->direction == mir_input) {
             if ((i = pa_idxset_get_by_index(core->sink_inputs, node->paidx)))
@@ -2227,7 +2227,7 @@ static const char *get_node_pid(struct userdata *u, mir_node *node)
     pa_proplist *pl;
 
     pa_assert(u);
- 
+
     if (node && (pl = get_node_proplist(u, node)))
         return pa_proplist_gets(pl, PA_PROP_APPLICATION_PROCESS_ID);
 

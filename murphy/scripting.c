@@ -278,6 +278,9 @@ static bool accept_bridge(lua_State *, void *, const char *,
 static bool compare_bridge(lua_State *, void *, const char *,
                            mrp_funcbridge_value_t *, char *,
                            mrp_funcbridge_value_t *);
+static bool change_bridge(lua_State *, void *, const char *,
+                           mrp_funcbridge_value_t *, char *,
+                           mrp_funcbridge_value_t *);
 
 static int  apclass_create(lua_State *);
 static int  apclass_getfield(lua_State *);
@@ -668,7 +671,7 @@ static int import_setfield(lua_State *L)
 
     f = luaL_checkstring(L, 2);
     luaL_error(L, "attempt to set '%s' field of read-only mdb.import", f);
-    
+
     MRP_LUA_LEAVE(0);
 }
 
@@ -787,7 +790,7 @@ static void import_data_changed(struct userdata *u,
         pa_assert(imp->update);
         pa_assert_se((ptval = imp->values));
         pa_assert_se((prow = ptval->array));
-        
+
         maxrow = -ptval->type;
         maxcol = imp->columns->nstring;
 
@@ -938,10 +941,10 @@ static int array_getfield(lua_State *L)
     arr = (pa_value *)luaL_checkudata(L, 1, ARRAY_CLASSID);
 
     pa_assert(arr->type < 0);
-    
+
     dimension = -arr->type;
     key_type = lua_type(L, 2);
-    
+
     switch (key_type) {
     case LUA_TNUMBER:
         idx = lua_tointeger(L, 2) - 1;
@@ -1006,7 +1009,7 @@ static int array_getlength(lua_State *L)
 #if 0
 static void array_destroy(void *data)
 {
-    pa_value *value = (pa_value *)data; 
+    pa_value *value = (pa_value *)data;
 
     MRP_LUA_ENTER;
 
@@ -1054,7 +1057,7 @@ void pa_scripting_node_destroy(struct userdata *u, mir_node *node)
 
     pa_assert(u);
     pa_assert(node);
-    
+
     pa_assert_se((scripting = u->scripting));
     pa_assert_se((L = scripting->L));
 
@@ -1115,7 +1118,7 @@ static int node_setfield(lua_State *L)
     const char *f;
 
     MRP_LUA_ENTER;
-    
+
     f = luaL_checkstring(L, 2);
     luaL_error(L, "attempt to set '%s' field of read-only node", f);
 
@@ -1229,7 +1232,7 @@ static int zone_setfield(lua_State *L)
 
     f = luaL_checkstring(L, 2);
     luaL_error(L, "attempt to set '%s' field of read-only zone", f);
-    
+
     MRP_LUA_LEAVE(0);
 }
 
@@ -1240,7 +1243,7 @@ static void zone_destroy(void *data)
     MRP_LUA_ENTER;
 
     pa_xfree((void *)zone->name);
-    
+
     zone->name = NULL;
 
     MRP_LUA_LEAVE_NOARG;
@@ -1362,7 +1365,7 @@ static int resource_setfield(lua_State *L)
 
     f = luaL_checkstring(L, 2);
     luaL_error(L, "attempt to set '%s' field of read-only resource_class", f);
-    
+
     MRP_LUA_LEAVE(0);
 }
 
@@ -1374,7 +1377,7 @@ static void resource_destroy(void *data)
 
     resource_names_destroy(res->name);
     attributes_destroy(res->attributes);
-    
+
     res->name = NULL;
     res->attributes = NULL;
 
@@ -1478,7 +1481,7 @@ static int rtgroup_setfield(lua_State *L)
 
     f = luaL_checkstring(L, 2);
     luaL_error(L, "attempt to set '%s' field of read-only routing_group", f);
-    
+
     MRP_LUA_LEAVE(0);
 }
 
@@ -1689,6 +1692,49 @@ static bool compare_bridge(lua_State *L, void *data,
 }
 
 
+static bool change_bridge(lua_State *L, void *data,
+                          const char *signature, mrp_funcbridge_value_t *args,
+                          char *ret_type, mrp_funcbridge_value_t *ret_val)
+{
+    mir_change_value_t change;
+    scripting_import *imp;
+    struct userdata *u;
+    bool success;
+    const char *s = "default";
+
+    (void)L;
+
+    pa_assert(signature);
+    pa_assert(args);
+    pa_assert(ret_type);
+    pa_assert(ret_val);
+
+    pa_assert_se((change = (mir_change_value_t)data));
+
+    if (strcmp(signature, "o"))
+        success = false;
+    else {
+        pa_assert_se((imp = args[0].pointer));
+        pa_assert_se((u = imp->userdata));
+
+        /* FIXME: is this how it is supposed to be done?! */
+
+        if (imp->values && imp->values->array && imp->values->array[0] &&
+              imp->values->array[0]->array &&
+              imp->values->array[0]->array[0] &&
+              imp->values->array[0]->array[0]->type == pa_value_string)
+            pa_assert_se((s = imp->values->array[0]->array[0]->string));
+
+        success = true;
+        *ret_type = MRP_FUNCBRIDGE_NO_DATA;
+        memset(ret_val, 0, sizeof(mrp_funcbridge_value_t));
+        change(u, s);
+    }
+
+    return success;
+}
+
+
 static int apclass_create(lua_State *L)
 {
     struct userdata *u;
@@ -1743,7 +1789,7 @@ static int apclass_create(lua_State *L)
 
     make_id(name, sizeof(name), "%s", mir_node_type_str(type));
 
-    mir_router_assign_class_priority(u, type, priority); 
+    mir_router_assign_class_priority(u, type, priority);
 
     ir = or = true;
 
@@ -1848,7 +1894,7 @@ static int apclass_setfield(lua_State *L)
 
     f = luaL_checkstring(L, 2);
     luaL_error(L,"attempt to set '%s' field of read-only application class",f);
-    
+
     MRP_LUA_LEAVE(0);
 }
 
@@ -2034,7 +2080,7 @@ static int route_push(lua_State *L, route_t *rt)
             route_definition_push(L, rt->input);
             lua_settable(L, -3);
         }
-        
+
         if (rt->output) {
             lua_pushstring(L, "output");
             route_definition_push(L, rt->output);
@@ -2207,7 +2253,7 @@ static int vollim_create(lua_State *L)
     }
     else if (correct) {
         /* *(double **)vlim->args = limit->value; */
-    
+
         memcpy(vlim->args, &limit->value, sizeof(limit->value));
     }
 
@@ -2265,7 +2311,7 @@ static int vollim_setfield(lua_State *L)
 
     f = luaL_checkstring(L, 2);
     luaL_error(L, "attempt to set '%s' field of read-only volume_limit", f);
-    
+
     MRP_LUA_LEAVE(0);
 }
 
@@ -2470,14 +2516,14 @@ static intarray_t *intarray_check(lua_State *L, int idx, int min, int max)
         for (i = 0;  i < len;  i++) {
             lua_pushnumber(L, (int)(i+1));
             lua_gettable(L, idx);
-            
+
             val = luaL_checkint(L, -1);
-            
+
             lua_pop(L, 1);
-            
+
             if (val < min || val >= max)
-                luaL_error(L, "array [%u]: out of range value (%d)", i, val); 
-            
+                luaL_error(L, "array [%u]: out of range value (%d)", i, val);
+
             arr->ints[i] = val;
         }
     }
@@ -2576,7 +2622,7 @@ static attribute_t *attributes_check(lua_State *L, int tbl)
         def = lua_gettop(L);
 
         attr->def.name = pa_xstrdup(fldnam);
-        
+
         if ((len = luaL_getn(L, def)) != 3)
             luaL_error(L, "invalid attribute definition '%s'", fldnam);
 
@@ -2671,7 +2717,7 @@ static map_t *map_check(lua_State *L, int tbl)
             m->needres = FALSE;
             m->role = mrp_strdup(lua_tostring(L, def));
             break;
-            
+
         case LUA_TTABLE:
             m->needres = true;
 
@@ -2950,14 +2996,14 @@ static field_t field_name_to_type(const char *name, size_t len)
     case 10:
         if (!strcmp(name, "attributes"))
             return ATTRIBUTES;
-        break;        
+        break;
 
     case 11:
         if (!strcmp(name, "autorelease"))
             return AUTORELEASE;
         if (!strcmp(name, "description"))
             return DESCRIPTION;
-        break;        
+        break;
 
     default:
         break;
@@ -3180,6 +3226,7 @@ static bool register_methods(lua_State *L)
         {"compare_phone"  ,"ooo", compare_bridge  ,mir_router_phone_compare  },
         {"volume_supress" ,"odo", calculate_bridge,mir_volume_suppress       },
         {"volume_correct" ,"odo", calculate_bridge,mir_volume_correction     },
+        {"change_volume_context","o",change_bridge,mir_volume_change_context},
         {       NULL      , NULL,      NULL       ,         NULL             }
     };
 
@@ -3226,7 +3273,7 @@ static int panic(lua_State *L)
     return 0;
 }
 
-                                  
+
 /*
  * Local Variables:
  * c-basic-offset: 4

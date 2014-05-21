@@ -170,6 +170,14 @@ mdb.import {
     update = builtin.method.make_volumes
 }
 
+mdb.import {
+    table = "volume_context",
+    columns = {"value"},
+    condition = "id = 1",
+    maxrow = 1,
+    update = builtin.method.change_volume_context
+}
+
 volume_limit {
     name = "speed_adjust",
     type = volume_limit.generic,

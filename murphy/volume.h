@@ -27,7 +27,7 @@
 
 
 typedef double (*mir_volume_func_t)(struct userdata *, int, mir_node *, void*);
-
+typedef void (*mir_change_value_t)(struct userdata *, const char *);
 
 struct mir_vlim {
     size_t         maxentry;    /**< length of the class table  */
@@ -61,6 +61,8 @@ double mir_volume_apply_limits(struct userdata *, mir_node *, int, uint32_t);
 
 double mir_volume_suppress(struct userdata *, int, mir_node *, void *);
 double mir_volume_correction(struct userdata *, int, mir_node *, void *);
+
+void mir_volume_change_context(struct userdata *u, const char *volume_class);
 
 #endif  /* foomirvolumefoo */
 

@@ -24,6 +24,8 @@
 
 #include <pulsecore/pulsecore-config.h>
 
+#include <pulsemodule/modules/main-volume-policy/main-volume-policy.h>
+
 #include <pulse/proplist.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/module.h>
@@ -246,7 +248,7 @@ double mir_volume_apply_limits(struct userdata *u,
 
     return attenuation;
 }
-                               
+
 
 double mir_volume_suppress(struct userdata *u, int class, mir_node *node,
                            void *arg)
@@ -291,6 +293,32 @@ double mir_volume_correction(struct userdata *u, int class, mir_node *node,
     return 0.0;
 }
 
+void mir_volume_change_context(struct userdata *u, const char *volume_class)
+{
+    pa_main_volume_policy *policy;
+    pa_main_volume_context *ctx;
+
+    pa_assert(u);
+
+    if (!volume_class) {
+        pa_log_error("no volume class set");
+        return;
+    }
+
+    policy = pa_main_volume_policy_get(u->core);
+
+    /* see if there is a context available that maps to the volume class */
+
+    ctx = (pa_main_volume_context *) pa_hashmap_get(policy->main_volume_contexts, volume_class);
+
+    if (ctx) {
+        pa_main_volume_policy_set_active_main_volume_context(policy, ctx);
+        pa_log_debug("volume context changed to: '%s'", volume_class);
+    }
+
+    /* TODO: change volume class here */
+}
+
 static void add_to_table(vlim_table *tbl, mir_volume_func_t func, void *arg)
 {
     size_t      size;
@@ -314,7 +342,7 @@ static void add_to_table(vlim_table *tbl, mir_volume_func_t func, void *arg)
 static void destroy_table(vlim_table *tbl)
 {
     pa_assert(tbl);
-    
+
     free(tbl->entries);
 }
 
@@ -404,7 +432,7 @@ static void add_volume_limit(struct userdata *u, mir_node *node, int class)
     }
     else {
         mask = ((uint32_t)1) << (class - mir_application_class_begin);
-        
+
         if (class < volume->classlen && volume->classlim[class].nentry > 0) {
             if (!(vlim->clmask & mask)) {
 

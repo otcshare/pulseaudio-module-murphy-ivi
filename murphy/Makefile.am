@@ -63,7 +63,7 @@ module_murphy_ivi_la_LIBADD = $(AM_LIBADD) $(CONDITIONAL_LIBS)              \
                               $(LIBPULSE_LIBS) $(PULSEDEVEL_LIBS)           \
                               $(MURPHYCOMMON_LIBS) $(MURPHYDOMCTL_LIBS)     \
                               $(LUAUTILS_LIBS) $(LUA_LIBS)                  \
-                              $(AUL_LIBS)
+                              $(AUL_LIBS) -lmain-volume-policy
 module_murphy_ivi_la_CFLAGS = $(AM_CFLAGS) $(CONDITIONAL_CFLAGS)            \
                               $(LIBPULSE_CFLAGS) $(PULSEDEVEL_CFLAGS)       \
                               $(MURPHYCOMMON_CFLAGS) $(MURPHYDOMCTL_CFLAGS) \
