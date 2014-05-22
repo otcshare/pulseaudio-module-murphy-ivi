@@ -11,6 +11,8 @@ ROUTERIF = socketif.c
 AM_CFLAGS = -I..
 endif
 
+CONDITIONAL_CFLAGS += -Wl,-rpath -Wl,/usr/lib/pulse-5.0/modules
+
 modlibexec_LTLIBRARIES = module-murphy-ivi.la
 
 module_murphy_ivi_la_SOURCES = \

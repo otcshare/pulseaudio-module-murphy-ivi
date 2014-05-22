@@ -1,3 +1,7 @@
+* Thu May 22 17:53:12 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.27
+- update to pulse 5.0
+- initial volume api policy
+
 * Thu Mar 6 17:53:12 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.26
 - fix for web app muting in preemtion
 - fix for not muting sink inputs tp implicit sinks
