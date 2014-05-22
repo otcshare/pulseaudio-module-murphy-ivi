@@ -56,6 +56,7 @@ struct pa_mir_volume {
     vlim_table  *classlim;       /**< class indexed table */
     vlim_table   genlim;         /**< generic limit */
     double       maxlim[mir_application_class_end];  /**< per class max. limit */
+    pa_main_volume_policy *main_volume_policy;
 };
 
 
@@ -78,6 +79,8 @@ pa_mir_volume *pa_mir_volume_init(struct userdata *u)
     for (i = 0;  i < mir_application_class_end;  i++)
         volume->maxlim[i] = MIR_VOLUME_MAX_ATTENUATION;
 
+    volume->main_volume_policy = pa_main_volume_policy_get(u->core);
+
     return volume;
 }
 
@@ -87,6 +90,9 @@ void pa_mir_volume_done(struct userdata *u)
     int i;
 
     if (u && (volume = u->volume)) {
+        if (volume->main_volume_policy)
+            pa_main_volume_policy_unref(volume->main_volume_policy);
+
         for (i = 0;   i < volume->classlen;   i++) {
             destroy_table(volume->classlim + i);
         }
@@ -305,7 +311,7 @@ void mir_volume_change_context(struct userdata *u, const char *volume_class)
         return;
     }
 
-    policy = pa_main_volume_policy_get(u->core);
+    policy = u->volume->main_volume_policy;
 
     /* see if there is a context available that maps to the volume class */
 
