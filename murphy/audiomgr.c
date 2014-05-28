@@ -554,7 +554,7 @@ static bool find_default_route(struct userdata *u,
                                am_connect_data *cd)
 {
     pa_audiomgr *am;
-    routes_t    *defrts = &am->defrts;
+    routes_t    *defrts;
     link_t      *link;
     mir_node    *pair;
     int          i;
