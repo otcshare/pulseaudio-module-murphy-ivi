@@ -1086,7 +1086,8 @@ static bool resource_set_create_node(struct userdata *u,
 
     priority = (resdef ? resdef->priority : 0);
 
-    msg = resource_create_request(seqno, reqid);
+    if (!(msg = resource_create_request(seqno, reqid)))
+        return false;
 
     if (PUSH_VALUE(msg,   RESOURCE_FLAGS   , UINT32, rset_flags)  &&
         PUSH_VALUE(msg,   RESOURCE_PRIORITY, UINT32, priority)    &&
