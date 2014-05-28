@@ -372,9 +372,9 @@ void pa_discover_port_available_changed(struct userdata *u,
     pa_assert_se((core = u->core));
 
     switch (port->available) {
-    case PA_PORT_AVAILABLE_NO:    state = "not available";  break;
-    case PA_PORT_AVAILABLE_YES:   state = "available";      break;
-    default:                      state = "unknown";        break;
+    case PA_AVAILABLE_NO:    state = "not available";  break;
+    case PA_AVAILABLE_YES:   state = "available";      break;
+    default:                 state = "unknown";        break;
     }
 
     pa_log_debug("port '%s' availabilty changed to %s. Updating",
@@ -396,9 +396,9 @@ void pa_discover_port_available_changed(struct userdata *u,
         set_bluetooth_profile(u, port->card, direction);
     else {
         switch (port->available) {
-        case PA_PORT_AVAILABLE_NO:    available = false;    break;
-        case PA_PORT_AVAILABLE_YES:   available = true;     break;
-        default:                      /* do nothing */      return;
+        case PA_AVAILABLE_NO:    available = false;    break;
+        case PA_AVAILABLE_YES:   available = true;     break;
+        default:                 /* do nothing */      return;
         }
 
         if (port->direction == PA_DIRECTION_OUTPUT) {
@@ -1778,7 +1778,7 @@ static bool get_bluetooth_port_availability(mir_node *node,
         if (!strcmp(prof, "hfgw")        ||
             !strcmp(prof, "a2dp_source") ||
             !strcmp(prof, "a2dp_sink"))
-            available = (port->available != PA_PORT_AVAILABLE_NO);
+            available = (port->available != PA_AVAILABLE_NO);
         else
             available = true;
     }
@@ -1894,7 +1894,7 @@ static void handle_card_ports(struct userdata *u, mir_node *data,
                 snprintf(key, sizeof(key), "%s@%s", data->paname, port->name);
 
                 data->key       = key;
-                data->available = (port->available != PA_PORT_AVAILABLE_NO);
+                data->available = (port->available != PA_AVAILABLE_NO);
                 data->type      = 0;
                 data->amname    = amname;
                 data->paport    = port->name;
@@ -2341,7 +2341,7 @@ static void set_bluetooth_profile(struct userdata *u,
                 if ((direction & port->direction) &&
                     pa_hashmap_get(port->profiles, prof->name))
                 {
-                    port_available = (port->available != PA_PORT_AVAILABLE_NO);
+                    port_available = (port->available != PA_AVAILABLE_NO);
                     break;
                 }
             }
