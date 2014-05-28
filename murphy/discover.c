@@ -846,7 +846,7 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
     pa_muxnode        *mux;
     pa_nodeset_resdef *resdef;
     bool               loopback;
-    bool               remap;
+    bool               remap = false;
 
     pa_assert(u);
     pa_assert(data);
