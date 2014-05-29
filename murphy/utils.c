@@ -154,6 +154,8 @@ char *pa_utils_get_card_bus(pa_card *card)
         if (!strncmp(name, "alsa_card.", 10)) {
             if (!strncmp(name + 10, "pci-", 4))
                 bus = "pci";
+	    else if (!strncmp(name + 10, "platform-", 9))
+		bus = "platform";
             else if (!strncmp(name + 10, "usb-", 4))
                 bus = "usb";
         }

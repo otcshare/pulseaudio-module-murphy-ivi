@@ -203,7 +203,7 @@ void pa_discover_add_card(struct userdata *u, pa_card *card)
         return;
     }
 
-    if (pa_streq(bus, "pci") || pa_streq(bus, "usb")) {
+    if (pa_streq(bus, "pci") || pa_streq(bus, "usb") || pa_streq(bus, "platform")) {
         handle_alsa_card(u, card);
         return;
     }
@@ -235,7 +235,7 @@ void pa_discover_remove_card(struct userdata *u, pa_card *card)
         if (node->implement == mir_device &&
             node->pacard.index == card->index)
         {
-            if (pa_streq(bus, "pci") || pa_streq(bus, "usb"))
+            if (pa_streq(bus, "pci") || pa_streq(bus, "usb") || pa_streq(bus, "platform"))
                 mir_constrain_destroy(u, node->paname);
 
             destroy_node(u, node);
@@ -257,6 +257,7 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
     bool        pci;
     bool        usb;
     bool        bluetooth;
+    bool	platform;
     uint32_t         stamp;
     mir_node        *node;
     void            *state;
@@ -279,8 +280,9 @@ void pa_discover_profile_changed(struct userdata *u, pa_card *card)
     pci = pa_streq(bus, "pci");
     usb = pa_streq(bus, "usb");
     bluetooth = pa_streq(bus, "bluetooth");
+    platform = pa_streq(bus, "platform");
 
-    if (!pci && !usb && !bluetooth) {
+    if (!pci && !usb && !bluetooth && !platform) {
         pa_log_debug("ignoring profile change on card '%s' due to unsupported "
                      "bus type '%s'", pa_utils_get_card_name(card), bus);
         u->state.sink = u->state.source = PA_IDXSET_INVALID;
@@ -2136,6 +2138,7 @@ static char *node_key(struct userdata *u, mir_direction direction,
     bool        pci;
     bool        usb;
     bool        bluetooth;
+    bool        platform;
     char            *type;
     char            *name;
     const char      *profile_name;
@@ -2185,9 +2188,10 @@ static char *node_key(struct userdata *u, mir_direction direction,
 
     pci = pa_streq(bus, "pci");
     usb = pa_streq(bus, "usb");
+    platform = pa_streq(bus, "platform");
     bluetooth = pa_streq(bus, "bluetooth");
 
-    if (!pci && !usb && !bluetooth) {
+    if (!pci && !usb && !bluetooth && !platform) {
         pa_log_debug("ignoring %s '%s' due to unsupported bus type '%s' "
                      "of its card", type, name, bus);
         return NULL;
