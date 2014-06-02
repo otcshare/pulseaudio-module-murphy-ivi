@@ -18,10 +18,11 @@ BuildRequires: pkgconfig(glib-2.0)
 BuildRequires: libtool-ltdl-devel
 Buildrequires: pkgconfig(json)
 BuildRequires: config(pulseaudio)
+BuildRequires: pulseaudio >= 5.0
 BuildRequires: pkgconfig(murphy-pulse)
 BuildRequires: murphy-pulse
 BuildRequires: pkgconfig(aul)
-Requires: pulseaudio
+Requires: pulseaudio >= 5.0
 Requires: aul
 Conflicts: pulseaudio-module-combine-sink
 Conflicts: pulseaudio-module-augment-properties
