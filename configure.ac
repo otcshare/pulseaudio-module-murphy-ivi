@@ -70,6 +70,8 @@ AC_SUBST(LIBPULSE_LIBS)
 PKG_CHECK_MODULES(PULSEDEVEL, [pulseaudio-module-devel])
 AC_SUBST(PULSEDEVEL_CFLAGS)
 AC_SUBST(PULSEDEVEL_LIBS)
+PKG_CHECK_VAR([modlibexecdir], [pulseaudio-module-devel], [modlibexecdir])
+AC_SUBST([modlibexecdir])
 
 PKG_CHECK_MODULES(MURPHYCOMMON, [murphy-common])
 AC_SUBST(MURPHYCOMMON_CFLAGS)
@@ -130,19 +132,6 @@ AM_CONDITIONAL(BUILD_WITH_MURPHYIF,  [ test "x$build_with_murphyif" = "xyes" ])
 PKG_CHECK_MODULES(MURPHYDOMCTL, [murphy-domain-controller murphy-pulse])
 AC_SUBST(MURPHYDOMCTL_CFLAGS)
 AC_SUBST(MURPHYDOMCTL_LIBS)
-
-
-
-
-# module directory
-AC_ARG_WITH([module-dir],
-            [AS_HELP_STRING([--with-module-dir], [Directory where to install the modules to (defaults to ${LIBDIR}/pulse-${PA_MAJORMINOR}/modules/])],
-            [modlibexecdir=$withval],
-            [modlibexecdir=${LIBDIR}/pulse-${PA_MAJORMINOR}/modules]
-)
-
-AC_SUBST(modlibexecdir)
-
 
 # documentation
 AC_ARG_WITH([documentation],
