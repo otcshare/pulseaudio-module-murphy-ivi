@@ -2714,7 +2714,7 @@ static map_t *map_check(lua_State *L, int tbl)
             break;
 
         case LUA_TSTRING:
-            m->needres = FALSE;
+            m->needres = false;
             m->role = mrp_strdup(lua_tostring(L, def));
             break;
 

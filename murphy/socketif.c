@@ -152,7 +152,7 @@ bool pa_routerif_unregister_node(struct userdata *u,
     return success;
 }
 
-pa_bool_t pa_routerif_register_implicit_connections(struct userdata *u,
+bool pa_routerif_register_implicit_connections(struct userdata *u,
                                                     int              nconn,
                                                     am_connect_data *conns)
 {

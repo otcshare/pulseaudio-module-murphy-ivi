@@ -186,7 +186,7 @@ void pa_fader_ramp_volume(struct userdata *u,
                             PA_VOLUME_RAMP_TYPE_LINEAR,
                             time, newvol);
 
-        pa_sink_input_set_volume_ramp(sinp, &rampvol, TRUE, FALSE);
+        pa_sink_input_set_volume_ramp(sinp, &rampvol, true, false);
     }
 }
 
@@ -211,7 +211,7 @@ void pa_fader_set_volume(struct userdata *u,
                             PA_VOLUME_RAMP_TYPE_LINEAR,
                             0, newvol);
 
-        pa_sink_input_set_volume_ramp(sinp, &rampvol, TRUE, FALSE);
+        pa_sink_input_set_volume_ramp(sinp, &rampvol, true, false);
     }
 }
 

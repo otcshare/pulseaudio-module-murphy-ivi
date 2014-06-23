@@ -181,7 +181,7 @@ static void sink_input_block(struct userdata *u,
                 pa_fader_ramp_volume(u, sinp, oldvol);
             }
 
-            pa_sink_input_set_mute(sinp, block, FALSE);
+            pa_sink_input_set_mute(sinp, block, false);
         }
     }
     else {
