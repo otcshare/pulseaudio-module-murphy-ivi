@@ -178,7 +178,7 @@ char *pa_utils_get_sink_input_name(pa_sink_input *sinp)
 {
     char *name;
 
-    if (sinp && (name = stream_name(sinp->proplist)))
+    if (sinp && sinp->proplist && (name = stream_name(sinp->proplist)))
         return name;
 
     return "<unknown>";
@@ -199,7 +199,7 @@ char *pa_utils_get_source_output_name(pa_source_output *sout)
 {
     char *name;
 
-    if (sout && (name = stream_name(sout->proplist)))
+    if (sout && sout->proplist && (name = stream_name(sout->proplist)))
         return name;
 
     return "<unknown>";
