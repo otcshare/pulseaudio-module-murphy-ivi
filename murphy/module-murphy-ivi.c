@@ -88,6 +88,7 @@ PA_MODULE_USAGE(
     "config_file=<policy configuration file> "
     "fade_out=<stream fade-out time in msec> "
     "fade_in=<stream fade-in time in msec> "
+    "enable_multiplex=<boolean for disabling combine creation> "
 #ifdef WITH_DOMCTL
     "murphy_domain_controller=<address of Murphy's domain controller service> "
 #endif
@@ -114,6 +115,7 @@ static const char* const valid_modargs[] = {
     "config_file",
     "fade_out",
     "fade_in",
+    "enable_multiplex",
 #ifdef WITH_DOMCTL
     "murphy_domain_controller",
 #endif
@@ -165,6 +167,7 @@ int pa__init(pa_module *m) {
     const char      *nsnam;
     const char      *cfgpath;
     char             buf[4096];
+    bool             enable_multiplex = true;
 
     
     pa_assert(m);
@@ -178,6 +181,10 @@ int pa__init(pa_module *m) {
     cfgfile  = pa_modargs_get_value(ma, "config_file", DEFAULT_CONFIG_FILE);
     fadeout  = pa_modargs_get_value(ma, "fade_out", NULL);
     fadein   = pa_modargs_get_value(ma, "fade_in", NULL);
+
+    if (pa_modargs_get_value_boolean(ma, "enable_multiplex", &enable_multiplex) < 0)
+        enable_multiplex = true;
+
 #ifdef WITH_DOMCTL
     ctladdr  = pa_modargs_get_value(ma, "murphy_domain_controller", NULL);
 #endif
@@ -225,6 +232,8 @@ int pa__init(pa_module *m) {
 
     u->state.sink   = PA_IDXSET_INVALID;
     u->state.source = PA_IDXSET_INVALID;
+
+    u->enable_multiplex = enable_multiplex;
 
     if (u->nullsink == NULL || u->routerif == NULL  ||
         u->audiomgr == NULL || u->discover == NULL  ||

@@ -2265,14 +2265,16 @@ static pa_sink *make_output_prerouting(struct userdata *u,
         if (!(sink = pa_idxset_get_by_index(core->sinks, target->paidx)))
             pa_log("no route to default '%s': sink is gone", target->amname);
         else {
-            if (pa_classify_multiplex_stream(data)) {
-                data->mux = pa_multiplex_create(u->multiplex, core,
-                                                sink->index, chmap, NULL,
-                                                media_role, data->type);
-                if (data->mux) {
-                    sink = pa_idxset_get_by_index(core->sinks,
-                                                  data->mux->sink_index);
-                    pa_assert(sink);
+            if (u->enable_multiplex == true) {
+                if (pa_classify_multiplex_stream(data)) {
+                    data->mux = pa_multiplex_create(u->multiplex, core,
+                                                    sink->index, chmap, NULL,
+                                                    media_role, data->type);
+                    if (data->mux) {
+                        sink = pa_idxset_get_by_index(core->sinks,
+                                                      data->mux->sink_index);
+                        pa_assert(sink);
+                    }
                 }
             }
         }

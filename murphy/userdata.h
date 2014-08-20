@@ -169,6 +169,7 @@ struct userdata {
     pa_extapi     *extapi;
     pa_native_protocol *protocol;
     pa_murphyif   *murphyif;
+    bool           enable_multiplex;
 };
 
 #endif
