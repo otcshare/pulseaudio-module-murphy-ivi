@@ -1,3 +1,7 @@
+* Thu Aug 28 14:53:11 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.28
+- general fixes
+- some fixes to work with genivi audio manager
+
 * Thu May 22 17:53:12 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.27
 - update to pulse 5.0
 - initial volume api policy
