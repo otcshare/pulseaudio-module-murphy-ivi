@@ -1,3 +1,6 @@
+* Tue Sep 16 14:54:11 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.29
+- fix changes in genivi audio manager 6.0 routing dbus interface
+
 * Thu Aug 28 14:53:11 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.28
 - general fixes
 - some fixes to work with genivi audio manager
