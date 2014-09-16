@@ -224,6 +224,7 @@ void fill_am_data_and_register(struct userdata *u, mir_node *node, pa_audiomgr *
     rd->name    = pa_xstrdup(node->amname);
     rd->domain  = am->domain.id;
     rd->class   = 0x43;
+    rd->state   = 1;
     rd->volume  = 32767;
     rd->visible = node->visible;
     rd->avail.status = AS_AVAILABLE;

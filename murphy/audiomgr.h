@@ -71,7 +71,7 @@ struct am_nodereg_data {
     const char    *name;
     am_uint16_t  domain;
     am_uint16_t  class;
-    am_uint16_t  state;      /* 1=on, 2=off */
+    am_int32_t   state;      /* 1=on, 2=off */
     am_int16_t   volume;
     am_bool_t    visible;
     struct {
@@ -94,7 +94,7 @@ struct am_connect_data {
     am_uint16_t  connection;
     am_uint16_t  source;
     am_uint16_t  sink;
-    am_int16_t   format;
+    am_int32_t   format;
 };
 
 struct am_ack_data {
