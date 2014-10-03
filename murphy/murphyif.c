@@ -398,6 +398,8 @@ void pa_murphyif_done(struct userdata *u)
         PA_LLIST_FOREACH_SAFE(req, r, rif->reqs)
             pa_xfree(req);
 
+        cancel_schedule(u, rif);
+
         pa_xfree((void *)rif->addr);
         pa_xfree((void *)rif->inpres.name);
         pa_xfree((void *)rif->outres.name);
