@@ -59,7 +59,6 @@ bool pa_stream_state_start_corked(struct userdata *u,
 void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
 {
     pa_loopnode *loop;
-    uint32_t idx;
     pa_sink_input *sinp;
     pa_source_output *sout;
     pa_core *core;

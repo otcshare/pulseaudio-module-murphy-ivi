@@ -23,10 +23,10 @@
 #define MIR_DIM(a)  (sizeof(a)/sizeof((a)[0]))
 
 #define MIR_OFFSET(structure, member)                                   \
-    ((int)((void *)((&((structure *)0)->member)) - (void *)0))
+    ((int)((char *)((&((structure *)0)->member)) - (char *)0))
 
 #define MIR_LIST_RELOCATE(structure, member, ptr)                       \
-    ((structure *)((void *)ptr - MIR_OFFSET(structure, member)))
+    ((structure *)((char *)ptr - MIR_OFFSET(structure, member)))
 
 
 #define MIR_DLIST_HEAD(name)   mir_dlist name = { &(name), &(name) }

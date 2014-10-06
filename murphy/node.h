@@ -49,6 +49,7 @@ enum mir_location {
 };
 
 enum mir_node_type {
+    mir_force_gcc_to_signed_enum_type = -1,
     mir_node_type_unknown = 0,
 
     /* application classes */

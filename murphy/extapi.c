@@ -29,7 +29,7 @@
 #include <pulsecore/tagstruct.h>
 #include <pulsecore/pstream-util.h>
 
-#include "userdata.h"
+#include "extapi.h"
 #include "node.h"
 #include "router.h"
 
@@ -331,7 +331,7 @@ void extapi_signal_node_change(struct userdata *u) {
 
 static void *conn_hash(uint32_t connid)
 {
-    return NULL + connid;
+    return (char *)NULL + connid;
 }
 
 /*

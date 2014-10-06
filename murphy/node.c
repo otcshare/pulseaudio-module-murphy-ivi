@@ -42,8 +42,6 @@ struct pa_nodeset {
     const char     *class_name[APCLASS_DIM];
 };
 
-
-static void free_map_cb(void *);
 static int print_map(pa_hashmap *, const char *, char *, int);
 
 pa_nodeset *pa_nodeset_init(struct userdata *u)
@@ -525,17 +523,6 @@ const char *mir_privacy_str(mir_privacy privacy)
     case mir_private:          return "private";
     default:                   return "< ??? >";
     }
-}
-
-
-static void free_map_cb(void *void_map)
-{
-    pa_nodeset_map  *map = (pa_nodeset_map *)void_map;
-
-    pa_xfree((void *)map->name);
-    pa_xfree((void *)map->resdef);
-
-    pa_xfree(map);
 }
 
 static int print_map(pa_hashmap *map, const char *name, char *buf, int len)
