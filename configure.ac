@@ -32,13 +32,6 @@ fi
 
 AC_SUBST(ACLOCAL_AMFLAGS, "-I m4")
 
-#dnl Compiler flags
-#DESIRED_FLAGS="-Wall -W -Wextra -pedantic -pipe -Wno-long-long -Wvla -Wno-overlength-strings -Wconversion -Wundef -Wformat -Wlogical-op -Wpacked -Wformat-security -Wmissing-include-dirs -Wformat-nonliteral -Wold-style-definition -Wdeclaration-after-statement -Wfloat-equal -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls -Wmissing-noreturn -Wshadow -Wendif-labels -Wpointer-arith -Wcast-align -Wwrite-strings -Wno-unused-parameter -ffast-math"
-
-#for flag in $DESIRED_FLAGS ; do
-#  CC_CHECK_CFLAGS([$flag], [CFLAGS="$CFLAGS $flag"])
-#done
-
 AC_LTDL_ENABLE_INSTALL
 AC_LIBLTDL_INSTALLABLE
 AC_LIBTOOL_DLOPEN
