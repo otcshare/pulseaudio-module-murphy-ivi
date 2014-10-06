@@ -1,3 +1,8 @@
+* Tue Oct 6 8:54:11 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.30
+- fix crashing without murphy
+- spec file cleaning for yocto
+- remove hardcoded paths
+
 * Tue Sep 16 14:54:11 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.29
 - fix changes in genivi audio manager 6.0 routing dbus interface
 
