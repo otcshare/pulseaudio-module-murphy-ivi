@@ -147,7 +147,7 @@ static void sink_input_block(struct userdata *u,
     const char *event;
     pa_proplist *pl;
     bool block_by_mute;
-    bool muted, corked;
+    bool corked;
     pa_volume_t oldvol;
 
     pa_assert(sinp);
@@ -159,7 +159,6 @@ static void sink_input_block(struct userdata *u,
             sinp->flags |= flag_mask;
     }
 
-    muted = sinp->muted;
     corked = (sinp->flags & PA_SINK_INPUT_START_CORKED);
 
     if (corked && !block)
@@ -171,17 +170,18 @@ static void sink_input_block(struct userdata *u,
                  block_by_mute ? "muting":"corking");
 
     if (block_by_mute) {
-        if ((muted && !block) || (!muted && block)) {
-            if (!block) {
-                oldvol = pa_fader_get_volume(u, sinp);
-
-                pa_log_debug("fading in to %u", oldvol);
-
-                pa_fader_set_volume(u, sinp, 0);
-                pa_fader_ramp_volume(u, sinp, oldvol);
-            }
-
-            pa_sink_input_set_mute(sinp, block, false);
+        if (block) {
+            pa_cvolume vol;
+            pa_cvolume_set(&vol, sinp->sample_spec.channels, PA_VOLUME_MUTED);
+            /* check we didn't already put the item, because pulse will abort then */
+            if (pa_hashmap_get(sinp->volume_factor_items, "internal_mute") == NULL)
+                pa_sink_input_add_volume_factor(sinp, "internal_mute", &vol);
+        }
+        else {
+            oldvol = pa_fader_get_volume(u, sinp);
+            pa_fader_set_volume(u, sinp, 0);
+            pa_fader_ramp_volume(u, sinp, oldvol);
+            pa_sink_input_remove_volume_factor(sinp, "internal_mute");
         }
     }
     else {
