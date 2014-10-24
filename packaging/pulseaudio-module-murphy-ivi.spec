@@ -1,6 +1,6 @@
 Summary:  Pulseaudio module for enforcing policy decisions in the audio domain
 Name:     pulseaudio-module-murphy-ivi
-Version:  0.9.30
+Version:  0.9.31
 Release:  0
 License:  LGPL-2.1
 Group:    Automotive/Resource Policy
