@@ -1,4 +1,7 @@
-* Tue Oct 24 7:53:12 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.31
+* Wed Oct 24 11:20:12 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.32
+- fix ramping for ongoing streams, with mute fix should fix TC-1600
+
+* Fri Oct 24 7:53:12 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.31
 - fix mute race between this and volume module
 
 * Tue Oct 6 8:54:11 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.30
