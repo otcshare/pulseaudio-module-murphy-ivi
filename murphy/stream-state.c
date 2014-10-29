@@ -87,12 +87,12 @@ void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
                 pa_log_debug("mute '%s'", node->amname);
                 pa_sink_input_set_mute(sinp, true, false);
                 break;
-                
+
             case PA_STREAM_RUN:
                 pa_log_debug("unmute '%s'", node->amname);
                 pa_sink_input_set_mute(sinp, false, false);
                 break;
-                
+
             default:
                 pa_assert_not_reached();
                 break;
@@ -115,17 +115,17 @@ void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
                 pa_log_debug("killing '%s'", node->amname);
                 sinp->kill(sinp);
                 break;
-                
+
             case PA_STREAM_BLOCK:
                 pa_log_debug("blocking '%s'", node->amname);
                 sink_input_block(u, sinp, true);
                 break;
-                
+
             case PA_STREAM_RUN:
                 pa_log_debug("unblock '%s'", node->amname);
                 sink_input_block(u, sinp, false);
                 break;
-                
+
             default:
                 pa_assert_not_reached();
                 break;
@@ -179,9 +179,10 @@ static void sink_input_block(struct userdata *u,
         }
         else {
             oldvol = pa_fader_get_volume(u, sinp);
-            pa_fader_set_volume(u, sinp, 0);
-            pa_fader_ramp_volume(u, sinp, oldvol);
-            pa_sink_input_remove_volume_factor(sinp, "internal_mute");
+            if (pa_sink_input_remove_volume_factor(sinp, "internal_mute") == 0) {
+                pa_fader_set_volume(u, sinp, 0);
+                pa_fader_ramp_volume(u, sinp, oldvol);
+            }
         }
     }
     else {
@@ -194,16 +195,16 @@ static void sink_input_block(struct userdata *u,
                 else {
                     event = PA_STREAM_EVENT_REQUEST_UNCORK;
                     /* Do this because webkit might set */
-                    /* stream to mute. This hack might  */ 
+                    /* stream to mute. This hack might  */
                     /* cause issues if web app user has */
                     /* set explicit mute. */
                     pa_sink_input_set_mute(sinp, false, false);
                 }
 
                 pl = pa_proplist_new();
-                
+
                 sinp->send_event(sinp, event, pl);
-                
+
                 pa_proplist_free(pl);
             }
         }
