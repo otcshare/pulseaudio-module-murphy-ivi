@@ -322,6 +322,25 @@ int pa_utils_get_stream_class(pa_proplist *pl)
     return (int)clid;
 }
 
+char *pa_utils_get_rsetid(pa_proplist *pl, char *buf, int length)
+{
+    const char *prop;
+
+    if (buf && length >= 2) {
+        if ((prop = pa_proplist_gets(pl, PA_PROP_RESOURCE_SET_NAME))) {
+            snprintf(buf, length, "#%s", prop);
+            return buf;
+        }
+
+        if ((prop = pa_proplist_gets(pl, PA_PROP_RESOURCE_SET_ID))) {
+            strncpy(buf, prop, length);
+            buf[length-1] = '\0';
+            return buf;
+        }
+    }
+
+    return NULL;
+}
 
 bool pa_utils_set_resource_properties(pa_proplist *pl,
                                            pa_nodeset_resdef *resdef)

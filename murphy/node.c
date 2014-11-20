@@ -90,7 +90,7 @@ void pa_nodeset_done(struct userdata *u)
             pa_xfree((void *)ns->class_name[i]);
 
         free(ns);
-    }    
+    }
 }
 
 
@@ -98,7 +98,7 @@ void pa_nodeset_done(struct userdata *u)
 int pa_nodeset_add_class(struct userdata *u, mir_node_type t,const char *clnam)
 {
     pa_nodeset *ns;
-    
+
     pa_assert(u);
     pa_assert(t >= mir_application_class_begin &&
               t <  mir_application_class_end);
@@ -196,7 +196,7 @@ pa_nodeset_map *pa_nodeset_get_map_by_role(struct userdata *u,
         map = pa_hashmap_get(ns->roles, role);
     else
         map = NULL;
-        
+
 
     return map;
 }
@@ -258,7 +258,7 @@ pa_nodeset_map *pa_nodeset_get_map_by_binary(struct userdata *u,
         map = pa_hashmap_get(ns->binaries, bin);
     else
         map = NULL;
-        
+
 
     return map;
 }
@@ -311,7 +311,7 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     pa_assert_se((ns = u->nodeset));
     pa_assert(data->key);
     pa_assert(data->paname);
-    
+
     node = pa_xnew0(mir_node, 1);
 
     pa_idxset_put(ns->nodes, node, &node->index);
@@ -339,7 +339,7 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     MIR_DLIST_INIT(node->rtentries);
     MIR_DLIST_INIT(node->rtprilist);
     MIR_DLIST_INIT(node->constrains);
-    
+
     if (node->implement == mir_device) {
         node->pacard.index = data->pacard.index;
         if (data->pacard.profile)
@@ -480,7 +480,7 @@ const char *mir_location_str(mir_location location)
     case mir_external:          return "external";
     default:                    return "< ??? >";
     }
-} 
+}
 
 
 const char *mir_node_type_str(mir_node_type type)
@@ -566,12 +566,12 @@ static int print_map(pa_hashmap *map, const char *name, char *buf, int len)
             }
         }
     }
-    
+
     return p - buf;
 
 #undef PRINT
 }
-                                  
+
 /*
  * Local Variables:
  * c-basic-offset: 4

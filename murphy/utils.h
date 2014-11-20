@@ -47,6 +47,7 @@ bool pa_utils_unset_stream_routing_properties(pa_proplist *);
 void      pa_utils_set_stream_routing_method_property(pa_proplist *,bool);
 bool pa_utils_stream_has_default_route(pa_proplist *);
 int       pa_utils_get_stream_class(pa_proplist *);
+char     *pa_utils_get_rsetid(pa_proplist *, char *, int);
 
 
 #ifdef foomurphyuserdatafoo  /* argh ... */
