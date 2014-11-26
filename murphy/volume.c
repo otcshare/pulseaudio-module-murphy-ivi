@@ -215,7 +215,6 @@ double mir_volume_apply_limits(struct userdata *u,
     double attenuation = 0.0;
     double devlim, classlim;
     vlim_table *tbl;
-    uint32_t clmask;
     double maxlim;
 
     pa_assert(u);
@@ -238,7 +237,6 @@ double mir_volume_apply_limits(struct userdata *u,
             pa_assert(class <  mir_application_class_end);
 
             maxlim = volume->maxlim[class];
-            clmask = (uint32_t)1 << (class - mir_application_class_begin);
 
             if (class < volume->classlen && (tbl = volume->classlim + class))
                 classlim = apply_table(classlim, tbl, u, class, node, "class");

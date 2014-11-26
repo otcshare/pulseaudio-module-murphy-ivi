@@ -62,13 +62,6 @@ static int volume_class(mir_node *);
 
 static int print_routing_table(pa_hashmap *, const char *, char *, int);
 
-
-static void pa_hashmap_rtgroup_free(void *rtg, void *u)
-{
-    rtgroup_destroy(u, rtg);
-}
-
-
 pa_router *pa_router_init(struct userdata *u)
 {
     size_t num_classes = mir_application_class_end;
@@ -601,12 +594,7 @@ bool mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
 bool mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
                                   mir_node *node)
 {
-    pa_core *core;
-    pa_sink *sink;
-    pa_source *source;
-    pa_proplist *pl;
     mir_node_type class;
-    const char *role, *expected_role;
 
     pa_assert(u);
     pa_assert(rtg);

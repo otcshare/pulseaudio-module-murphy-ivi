@@ -61,7 +61,12 @@ void pa_classify_node_by_card(mir_node        *node,
     pa_assert(node);
     pa_assert(card);
 
-    bus  = pa_utils_get_card_bus(card);
+    bus = pa_utils_get_card_bus(card);
+
+    /* bus might be null */
+    if (!bus)
+        bus = " ";
+
     form = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_FORM_FACTOR);
     /*
     desc = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_DESCRIPTION);
@@ -373,7 +378,7 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
     return map ? map->type : mir_player;
 }
 
-static char *get_tag(pid_t pid, char *tag, char *buf, size_t size)
+static char *get_tag(pid_t pid, const char *tag, char *buf, size_t size)
 {
     char path[PATH_MAX];
     char data[8192], *p, *q;
@@ -518,7 +523,7 @@ static char *pid2appid(pid_t pid, char *buf, size_t size)
 {
     char binary[PATH_MAX];
     char path[PATH_MAX], *dir, *p, *base;
-    int  len;
+    unsigned int  len;
 
     if (!pid || !get_binary(pid, binary, sizeof(binary)))
         return NULL;

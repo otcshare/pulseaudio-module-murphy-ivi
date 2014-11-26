@@ -74,7 +74,7 @@ pa_loopnode *pa_loopback_create(pa_loopback      *loopback,
                                 uint32_t          resource_set_flags,
                                 uint32_t          resource_audio_flags)
 {
-    static char *modnam = "module-loopback";
+    static const char *modnam = "module-loopback";
 
     pa_loopnode       *loop;
     pa_source         *source;

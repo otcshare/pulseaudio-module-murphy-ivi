@@ -230,10 +230,14 @@ static bool  resource_fetch_seqno(mrp_msg_t *, void **, uint32_t *);
 static bool  resource_fetch_request(mrp_msg_t *, void **, uint16_t *);
 static bool  resource_fetch_status(mrp_msg_t *, void **, int *);
 static bool  resource_fetch_rset_id(mrp_msg_t *, void **, uint32_t*);
+
+/*
 static bool  resource_fetch_rset_state(mrp_msg_t *, void **,
                                             mrp_resproto_state_t *);
+
 static bool  resource_fetch_rset_mask(mrp_msg_t *, void **,
                                            mrp_resproto_state_t *);
+*/
 
 static bool  resource_transport_create(struct userdata *, pa_murphyif *);
 static void       resource_transport_destroy(pa_murphyif *);
@@ -696,7 +700,6 @@ int pa_murphyif_add_node(struct userdata *u, mir_node *node)
 {
 #ifdef WITH_RESOURCES
     pa_murphyif *murphyif;
-    resource_interface *rif;
     const char *pid;
     rset_data *rset;
     rset_hash *rh;
@@ -707,8 +710,6 @@ int pa_murphyif_add_node(struct userdata *u, mir_node *node)
     pa_assert(node);
 
     pa_assert_se((murphyif = u->murphyif));
-
-    rif = &murphyif->resource;
 
     if (!node->rsetid) {
         pa_log("can't register resource set for node %u '%s'.: missing rsetid",
@@ -770,16 +771,12 @@ void pa_murphyif_delete_node(struct userdata *u, mir_node *node)
 {
 #ifdef WITH_RESOURCES
     pa_murphyif *murphyif;
-    resource_interface *rif;
     const char *pid;
-    mir_node *deleted;
 
     pa_assert(u);
     pa_assert(node);
 
     pa_assert_se((murphyif = u->murphyif));
-
-    rif = &murphyif->resource;
 
     if (node->rsetid) {
         if (pa_streq(node->rsetid, PA_RESOURCE_SET_ID_PID)) {
@@ -1029,7 +1026,6 @@ static bool resource_set_create_node(struct userdata *u,
     pa_core *core;
     pa_murphyif *murphyif;
     resource_interface *rif;
-    resource_request *req;
     mrp_msg_t *msg;
     uint16_t reqid;
     uint32_t seqno;
@@ -1323,17 +1319,17 @@ static void resource_set_notification(struct userdata *u,
         rset.name    = name;
         rset.pid     = pid;
 
-        if (rset.autorel != 0 && rset.autorel != 1) {
+        if (cautorel->s32 < 0 || cautorel->s32 > 1) {
             pa_log_debug("invalid autorel %d in table '%s'",
-                         rset.autorel, table);
+                         cautorel->s32, table);
             continue;
         }
         if (rset.state != RSET_RELEASE && rset.state != RSET_ACQUIRE) {
             pa_log_debug("invalid state %d in table '%s'", rset.state, table);
             continue;
         }
-        if (rset.grant != 0 && rset.grant != 1) {
-            pa_log_debug("invalid grant %d in table '%s'", rset.grant, table);
+        if (cgrant->s32 < 0 || cgrant->s32 > 1) {
+            pa_log_debug("invalid grant %d in table '%s'", cgrant->s32, table);
             continue;
         }
         if (!rset.policy) {
@@ -1750,6 +1746,7 @@ static bool resource_fetch_rset_id(mrp_msg_t *msg,
     return true;
 }
 
+#if 0
 static bool resource_fetch_rset_state(mrp_msg_t *msg,
                                            void **pcursor,
                                            mrp_resproto_state_t *pstate)
@@ -1770,7 +1767,6 @@ static bool resource_fetch_rset_state(mrp_msg_t *msg,
     return true;
 }
 
-
 static bool resource_fetch_rset_mask(mrp_msg_t *msg,
                                           void **pcursor,
                                           mrp_resproto_state_t *pmask)
@@ -1790,6 +1786,7 @@ static bool resource_fetch_rset_mask(mrp_msg_t *msg,
     *pmask = value.u32;
     return true;
 }
+#endif
 
 static bool resource_transport_create(struct userdata *u,
                                            pa_murphyif *murphyif)
@@ -1910,9 +1907,9 @@ static void cancel_schedule(struct userdata *u, resource_interface *rif)
 static rset_hash *node_put_rset(struct userdata *u, mir_node *node, rset_data *rset)
 {
     pa_murphyif *murphyif;
-    resource_interface *rif;
     pa_proplist *pl;
     rset_hash *rh;
+    resource_interface *rif;
     int type;
 
     pa_assert(u);
@@ -1924,6 +1921,7 @@ static rset_hash *node_put_rset(struct userdata *u, mir_node *node, rset_data *r
     pa_assert(node->direction == mir_input || node->direction == mir_output);
 
     pa_assert_se((murphyif = u->murphyif));
+
     rif = &murphyif->resource;
     type = (node->direction == mir_input) ? RSET_INPUT : RSET_OUTPUT;
 
@@ -2004,8 +2002,6 @@ static rset_data *rset_data_dup(rset_data *orig)
 
 static void rset_data_copy(rset_data *dst, rset_data *src)
 {
-    rset_data *dup;
-
     pa_assert(dst);
     pa_assert(src);
     pa_assert(src->id);
@@ -2024,8 +2020,6 @@ static void rset_data_copy(rset_data *dst, rset_data *src)
 
 static void rset_data_update(rset_data *dst, rset_data *src)
 {
-    rset_data *dup;
-
     pa_assert(dst);
     pa_assert(dst->id);
     pa_assert(src);

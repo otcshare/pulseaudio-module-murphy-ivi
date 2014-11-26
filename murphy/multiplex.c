@@ -70,7 +70,7 @@ pa_muxnode *pa_multiplex_create(pa_multiplex   *multiplex,
                                 const char     *media_role,
                                 int             type)
 {
-    static char *modnam = "module-combine-sink";
+    static const char *modnam = "module-combine-sink";
 
     struct userdata *u;         /* combine's userdata! */
     struct output   *o;
@@ -189,7 +189,7 @@ bool pa_multiplex_sink_input_remove(pa_multiplex  *multiplex,
                                          pa_sink_input *sinp)
 {
     pa_muxnode *mux;
-    char *name;
+    const char *name;
 
     pa_assert(multiplex);
     pa_assert(sinp);

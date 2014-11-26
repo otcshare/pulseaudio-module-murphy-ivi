@@ -139,15 +139,15 @@ pa_source *pa_utils_get_null_source(struct userdata *u)
 
 
 
-char *pa_utils_get_card_name(pa_card *card)
+const char *pa_utils_get_card_name(pa_card *card)
 {
     return (card && card->name) ? card->name : "<unknown>";
 }
 
-char *pa_utils_get_card_bus(pa_card *card)
+const char *pa_utils_get_card_bus(pa_card *card)
 {
     const char *bus = NULL;
-    char       *name;
+    const char *name;
 
     if (card && !(bus = pa_proplist_gets(card->proplist,PA_PROP_DEVICE_BUS))) {
         name = pa_utils_get_card_name(card);
@@ -164,17 +164,17 @@ char *pa_utils_get_card_bus(pa_card *card)
     return (char *)bus;
 }
 
-char *pa_utils_get_sink_name(pa_sink *sink)
+const char *pa_utils_get_sink_name(pa_sink *sink)
 {
     return (sink && sink->name) ? sink->name : "<unknown>";
 }
 
-char *pa_utils_get_source_name(pa_source *source)
+const char *pa_utils_get_source_name(pa_source *source)
 {
     return (source && source->name) ? source->name : "<unknown>";
 }
 
-char *pa_utils_get_sink_input_name(pa_sink_input *sinp)
+const char *pa_utils_get_sink_input_name(pa_sink_input *sinp)
 {
     char *name;
 
@@ -184,7 +184,7 @@ char *pa_utils_get_sink_input_name(pa_sink_input *sinp)
     return "<unknown>";
 }
 
-char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *data)
+const char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *data)
 {
     char *name;
 
@@ -195,7 +195,7 @@ char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *data)
 }
 
 
-char *pa_utils_get_source_output_name(pa_source_output *sout)
+const char *pa_utils_get_source_output_name(pa_source_output *sout)
 {
     char *name;
 
@@ -205,7 +205,7 @@ char *pa_utils_get_source_output_name(pa_source_output *sout)
     return "<unknown>";
 }
 
-char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data*data)
+const char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data*data)
 {
     char *name;
 
@@ -387,10 +387,10 @@ bool pa_utils_unset_resource_properties(pa_proplist *pl)
 pa_nodeset_resdef *pa_utils_get_resource_properties(pa_proplist *pl,
                                                     pa_nodeset_resdef *rd)
 {
+    int success;
+
     pa_assert(pl);
     pa_assert(rd);
-
-    int success;
 
     memset(rd, 0, sizeof(pa_nodeset_resdef));
 

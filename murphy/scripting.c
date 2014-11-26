@@ -545,7 +545,7 @@ bool pa_scripting_dofile(struct userdata *u, const char *file)
 
 static int import_create(lua_State *L)
 {
-    struct userdata *u;
+    struct userdata *u = NULL;
     pa_scripting *scripting;
     size_t fldnamlen;
     const char *fldnam;
@@ -553,12 +553,12 @@ static int import_create(lua_State *L)
     const char *table = NULL;
     mrp_lua_strarray_t *columns = NULL;
     const char *condition = NULL;
-    int maxrow = 0;
+    unsigned int maxrow = 0;
     mrp_funcbridge_t *update = NULL;
     size_t maxcol;
     pa_value **rows;
     pa_value **cols;
-    int i,j;
+    unsigned int i,j;
     int top;
 
     MRP_LUA_ENTER;
@@ -735,7 +735,8 @@ static int import_link(lua_State *L)
         }
     }
 
-    pa_log_debug("userdata: type:%d", col->type);
+    if(col)
+        pa_log_debug("userdata: type:%d", col->type);
 
     lua_pushlightuserdata(L, col);
 
@@ -927,7 +928,7 @@ static pa_value *array_create(lua_State *L, int dimension,
 static int array_getfield(lua_State *L)
 {
     pa_value *arr, *value;
-    int dimension;
+    unsigned int dimension;
     int key_type;
     const char *key;
     mrp_lua_strarray_t *names;
@@ -969,7 +970,7 @@ static int array_getfield(lua_State *L)
     }
 
 
-    if (idx < 0 || idx >= dimension || !(value = arr->array[idx]))
+    if (idx < 0 || (unsigned int)idx >= dimension || !(value = arr->array[idx]))
         lua_pushnil(L);
     else if (value->type < 0)
         lua_rawgeti(L, 1, 1 - value->type);
@@ -1163,7 +1164,7 @@ static int zone_create(lua_State *L)
     const char *fldnam;
     scripting_zone *zone;
     const char *name = NULL;
-    attribute_t *attributes = NULL;
+    /* attribute_t *attributes = NULL; */
 
     MRP_LUA_ENTER;
 
@@ -1177,7 +1178,7 @@ static int zone_create(lua_State *L)
 
         switch (field_name_to_type(fldnam, fldnamlen)) {
         case NAME:         name = luaL_checkstring(L, -1);           break;
-        case ATTRIBUTES:   attributes = attributes_check(L, -1);     break;
+            /* case ATTRIBUTES:   attributes = attributes_check(L, -1);     break; */
         default:           luaL_error(L, "bad field '%s'", fldnam);  break;
         }
 
@@ -1255,7 +1256,6 @@ static int resource_create(lua_State *L)
     struct userdata *u;
     size_t fldnamlen;
     const char *fldnam;
-    mir_rtgroup *rtg;
     scripting_resource *res;
     resource_name_t *name = NULL;
     attribute_t *attributes = NULL;
@@ -1332,15 +1332,14 @@ static int resource_create(lua_State *L)
 
 static int resource_getfield(lua_State *L)
 {
-    scripting_resource *res;
-    field_t fld;
+    /* field_t fld; */
 
     MRP_LUA_ENTER;
 
-    fld = field_check(L, 2, NULL);
+    /* fld = field_check(L, 2, NULL);*/
     lua_pop(L, 1);
 
-    if (!(res = (scripting_resource*)mrp_lua_check_object(L,RESOURCE_CLASS,1)))
+    if (!mrp_lua_check_object(L,RESOURCE_CLASS,1))
         lua_pushnil(L);
     else {
 #if 0
@@ -1748,7 +1747,6 @@ static int apclass_create(lua_State *L)
     route_t *route = NULL;
     map_t *roles = NULL;
     map_t *binaries = NULL;
-    bool needs_resource = false;
     pa_nodeset_resdef *resdef;
     map_t *r, *b;
     size_t i;
@@ -1916,7 +1914,6 @@ static void apclass_destroy(void *data)
     scripting_apclass *ac = (scripting_apclass *)data;
     struct userdata *u;
     map_t *r, *b;
-    size_t i;
 
     MRP_LUA_ENTER;
 
@@ -2026,6 +2023,7 @@ static int route_definition_push(lua_State *L, const char **defs)
 }
 
 
+#if 0
 static void route_definition_free(const char **defs)
 {
     int i;
@@ -2036,7 +2034,7 @@ static void route_definition_free(const char **defs)
         pa_xfree((void *)defs);
     }
 }
-
+#endif
 
 static route_t *route_check(lua_State *L, int idx)
 {
@@ -2208,7 +2206,7 @@ static int vollim_create(lua_State *L)
     vlim->calculate = calculate;
 
     if (suppress) {
-        mir_volume_suppress_arg *args = (mir_volume_suppress_arg *)vlim->args;
+        mir_volume_suppress_arg *args = (mir_volume_suppress_arg *)(void *)vlim->args;
         size_t size = sizeof(int) * classes->nint;
         size_t n = mir_application_class_end - mir_application_class_begin;
 
@@ -2362,7 +2360,7 @@ static double vollim_calculate(struct userdata *u, int class, mir_node *node,
                          class <  mir_application_class_end)     );
     pa_assert(node);
 
-    vlim = (scripting_vollim *)(data - offset);
+    vlim = (scripting_vollim *)(void*)((char *)data - offset);
 
     pa_assert(u == vlim->userdata);
 
@@ -2437,7 +2435,7 @@ static limit_data_t *limit_data_check(lua_State *L, int idx)
 {
     static double nolimit = 0.0;
 
-    limit_data_t *ld;
+    limit_data_t *ld = NULL;
     double value;
     pa_value *v;
 
@@ -2462,6 +2460,7 @@ static limit_data_t *limit_data_check(lua_State *L, int idx)
         }
         break;
     default:
+        ld = pa_xnew0(limit_data_t, 1);
         ld->mallocd = false;
         ld->value = &nolimit;
         break;
@@ -2684,7 +2683,6 @@ static map_t *map_check(lua_State *L, int tbl)
     size_t namlen;
     const char *name;
     const char *option;
-    const char *role;
     map_t *m, *map = NULL;
     size_t n = 0;
     size_t i, len;
@@ -2724,7 +2722,7 @@ static map_t *map_check(lua_State *L, int tbl)
             if ((len = luaL_getn(L, def)) < 1)
                 luaL_error(L, "invalid resource definition '%s'", name);
 
-            for (i = 1;  i <= len;  i++) {
+            for (i = 1;  i < len+1;  i++) {
                 lua_pushnumber(L, (int)i);
                 lua_gettable(L, def);
 

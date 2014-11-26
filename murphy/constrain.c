@@ -41,13 +41,6 @@ static mir_constr_link *cstrlink_create(struct userdata *, mir_constr_def *,
                                         mir_node *);
 static void cstrlink_destroy(struct userdata *, mir_constr_link *);
 
-
-static void pa_hashmap_constrdef_free(void *cd, void *u)
-{
-    cstrdef_destroy(u, cd);
-}
-
-
 pa_constrain *pa_constrain_init(struct userdata *u)
 {
     pa_constrain *constrain = pa_xnew0(pa_constrain, 1);
@@ -223,7 +216,8 @@ int mir_constrain_print(mir_node *node, char *buf, int len)
 {
     mir_constr_def  *cd;
     mir_constr_link *cl;
-    char *p, *e, *s;
+    char *p, *e;
+    const char *s;
 
     pa_assert(node);
     pa_assert(buf);

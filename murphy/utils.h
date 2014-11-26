@@ -30,14 +30,14 @@ void pa_utils_destroy_null_sink(struct userdata *);
 pa_sink   *pa_utils_get_null_sink(struct userdata *);
 pa_source *pa_utils_get_null_source(struct userdata *);
 
-char *pa_utils_get_card_name(pa_card *);
-char *pa_utils_get_card_bus(pa_card *);
-char *pa_utils_get_sink_name(pa_sink *);
-char *pa_utils_get_source_name(pa_source *);
-char *pa_utils_get_sink_input_name(pa_sink_input *);
-char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *);
-char *pa_utils_get_source_output_name(pa_source_output *);
-char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data *);
+const char *pa_utils_get_card_name(pa_card *);
+const char *pa_utils_get_card_bus(pa_card *);
+const char *pa_utils_get_sink_name(pa_sink *);
+const char *pa_utils_get_source_name(pa_source *);
+const char *pa_utils_get_sink_input_name(pa_sink_input *);
+const char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *);
+const char *pa_utils_get_source_output_name(pa_source_output *);
+const char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data *);
 
 char *pa_utils_get_zone(pa_proplist *);
 const char *pa_utils_get_appid(pa_proplist *);

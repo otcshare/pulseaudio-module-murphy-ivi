@@ -59,7 +59,6 @@ bool pa_stream_state_start_corked(struct userdata *u,
 void pa_stream_state_change(struct userdata *u, mir_node *node, int req)
 {
     pa_loopnode *loop;
-    uint32_t idx;
     pa_sink_input *sinp;
     pa_source_output *sout;
     pa_core *core;
@@ -186,7 +185,12 @@ static void sink_input_block(struct userdata *u,
         }
     }
     else {
+#if 0
+        /* this should be taken back if the block by mute goes away */
         if ((corked && !block) || (!corked &&  block)) {
+#else
+        if (corked && !block) {
+#endif
             pa_sink_input_cork_internal(sinp, block);
 
             if (sinp->send_event) {

@@ -161,10 +161,10 @@ pa_routerif *pa_routerif_init(struct userdata *u,
     char            pathbuf[128];
     char            ctlnambuf[128];
     char            ctlpathbuf[128];
-    char           *amrnam;
-    char           *amrpath;
-    char           *amcnam;
-    char           *amcpath;
+    const char     *amrnam;
+    const char     *amrpath;
+    const char     *amcnam;
+    const char     *amcpath;
     char            admarule[512];
     int             result;
     
@@ -214,7 +214,7 @@ pa_routerif *pa_routerif_init(struct userdata *u,
     }
 
     if (ampath && *ampath) {
-        char *slash = ampath[strlen(ampath)-1] == '/' ? "" : "/";
+        const char *slash = ampath[strlen(ampath)-1] == '/' ? "" : "/";
         snprintf(pathbuf, sizeof(pathbuf), "%s%s" AUDIOMGR_DBUS_ROUTE_PATH,
                  ampath, slash);
         amrpath = pathbuf;
@@ -229,7 +229,7 @@ pa_routerif *pa_routerif_init(struct userdata *u,
     }
 
     if (amnam && *amnam){
-        char *dot = amnam[strlen(amnam)-1] == '.' ? "" : ".";
+        const char *dot = amnam[strlen(amnam)-1] == '.' ? "" : ".";
         snprintf(nambuf, sizeof(nambuf), "%s%s" AUDIOMGR_DBUS_ROUTE_NAME,
                  amnam, dot);
         amrnam = nambuf;

@@ -100,12 +100,14 @@ struct pa_audiomgr {
 };
 
 
+/*
 static bool find_default_route(struct userdata *, mir_node *,
                                am_connect_data *);
+*/
 
 static void *node_hash(mir_direction, uint16_t);
 static void *conn_hash(uint16_t);
-
+static void fill_am_data_and_register(struct userdata *, mir_node *, pa_audiomgr *);
 
 struct pa_audiomgr *pa_audiomgr_init(struct userdata *u)
 {
@@ -266,7 +268,6 @@ void pa_audiomgr_register_node(struct userdata *u, mir_node *node)
     };
 
     pa_audiomgr      *am;
-    bool              success;
     const char       *class_to_register;
     int               i;
 
@@ -308,7 +309,6 @@ void pa_audiomgr_node_registered(struct userdata *u,
     pa_audiomgr     *am;
     mir_node        *node;
     void            *key;
-    am_connect_data  cd;
 
     pa_assert(u);
     pa_assert(rd);
@@ -597,6 +597,7 @@ void pa_audiomgr_disconnect(struct userdata *u, am_connect_data *cd)
     pa_routerif_acknowledge(u, audiomgr_disconnect_ack, &ad);
 }
 
+#if 0
 static bool find_default_route(struct userdata *u,
                                mir_node        *node,
                                am_connect_data *cd)
@@ -636,15 +637,16 @@ static bool find_default_route(struct userdata *u,
 
     return false;
 }
+#endif
 
 static void *node_hash(mir_direction direction, uint16_t amid)
 {
-    return NULL + ((uint32_t)direction << 16 | (uint32_t)amid);
+    return (char *)NULL + ((uint32_t)direction << 16 | (uint32_t)amid);
 }
 
 static void *conn_hash(uint16_t connid)
 {
-    return NULL + (uint32_t)connid;
+    return (char *)NULL + (uint32_t)connid;
 }
 
 
