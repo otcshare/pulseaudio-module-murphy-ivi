@@ -50,7 +50,7 @@ typedef struct {
 } classmap_def;
 
 typedef struct {
-    char          *id;
+    const char    *id;
     mir_node_type  type;
 } typemap_def;
 
@@ -62,12 +62,12 @@ typedef struct {
 
 
 static zone_def zones[] = {
-    "driver",
-    "passanger1",
-    "passanger2",
-    "passanger3",
-    "passanger4",
-    NULL
+    {"driver"},
+    {"passanger1"},
+    {"passanger2"},
+    {"passanger3"},
+    {"passanger4"},
+    {NULL}
 };
 
 static rtgroup_def  rtgroups[] = {
@@ -144,7 +144,7 @@ static double speedvol;
 static double supprvol = -20.0;
 static int exception_classes[] = {mir_phone, mir_navigator};
 static mir_volume_suppress_arg suppress = {
-    &supprvol, {DIM(exception_classes), exception_classes}
+    &supprvol, {DIM(exception_classes), exception_classes, 0}
 };
 
 
@@ -200,7 +200,7 @@ bool pa_mir_config_parse_file(struct userdata *u, const char *path)
     }
 
     pa_nodeset_print_maps(u, buf, sizeof(buf));
-    pa_log_debug(buf);
+    pa_log_debug("maps %s", buf);
 
     return success;
 }
@@ -216,7 +216,7 @@ static bool use_default_configuration(struct userdata *u)
     pa_assert(u);
 
     for (z = zones;  z->name;  z++)
-        pa_zoneset_add_zone(u, z->name, z - zones);
+        pa_zoneset_add_zone(u, z->name, (uint32_t)(z - zones));
 
     for (r = rtgroups;  r->name;   r++)
         mir_router_create_rtgroup(u, r->type, r->name, r->accept, r->compare);

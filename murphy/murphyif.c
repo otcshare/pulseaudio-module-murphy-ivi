@@ -230,10 +230,14 @@ static bool  resource_fetch_seqno(mrp_msg_t *, void **, uint32_t *);
 static bool  resource_fetch_request(mrp_msg_t *, void **, uint16_t *);
 static bool  resource_fetch_status(mrp_msg_t *, void **, int *);
 static bool  resource_fetch_rset_id(mrp_msg_t *, void **, uint32_t*);
+
+/*
 static bool  resource_fetch_rset_state(mrp_msg_t *, void **,
                                             mrp_resproto_state_t *);
+
 static bool  resource_fetch_rset_mask(mrp_msg_t *, void **,
                                            mrp_resproto_state_t *);
+*/
 
 static bool  resource_transport_create(struct userdata *, pa_murphyif *);
 static void       resource_transport_destroy(pa_murphyif *);
@@ -434,7 +438,7 @@ void pa_murphyif_add_table(struct userdata *u,
     domctl_interface *dif;
     mrp_domctl_table_t *t;
     size_t size;
-    size_t idx;
+    int idx;
 
     pa_assert(u);
     pa_assert(table);
@@ -444,7 +448,7 @@ void pa_murphyif_add_table(struct userdata *u,
     dif = &murphyif->domctl;
 
     idx = dif->ntable++;
-    size = sizeof(mrp_domctl_table_t) * dif->ntable;
+    size = sizeof(mrp_domctl_table_t) * (size_t)(dif->ntable);
     t = (dif->tables = pa_xrealloc(dif->tables, size)) + idx;
 
     t->table = pa_xstrdup(table);
@@ -462,7 +466,7 @@ int pa_murphyif_add_watch(struct userdata *u,
     domctl_interface *dif;
     mrp_domctl_watch_t *w;
     size_t size;
-    size_t idx;
+    int idx;
 
     pa_assert(u);
     pa_assert(table);
@@ -473,7 +477,7 @@ int pa_murphyif_add_watch(struct userdata *u,
     dif = &murphyif->domctl;
 
     idx = dif->nwatch++;
-    size = sizeof(mrp_domctl_watch_t) * dif->nwatch;
+    size = sizeof(mrp_domctl_watch_t) * (size_t)(dif->nwatch);
     w = (dif->watches = pa_xrealloc(dif->watches, size)) + idx;
 
     w->table = pa_xstrdup(table);
@@ -696,7 +700,6 @@ int pa_murphyif_add_node(struct userdata *u, mir_node *node)
 {
 #ifdef WITH_RESOURCES
     pa_murphyif *murphyif;
-    resource_interface *rif;
     const char *pid;
     rset_data *rset;
     rset_hash *rh;
@@ -707,8 +710,6 @@ int pa_murphyif_add_node(struct userdata *u, mir_node *node)
     pa_assert(node);
 
     pa_assert_se((murphyif = u->murphyif));
-
-    rif = &murphyif->resource;
 
     if (!node->rsetid) {
         pa_log("can't register resource set for node %u '%s'.: missing rsetid",
@@ -770,16 +771,12 @@ void pa_murphyif_delete_node(struct userdata *u, mir_node *node)
 {
 #ifdef WITH_RESOURCES
     pa_murphyif *murphyif;
-    resource_interface *rif;
     const char *pid;
-    mir_node *deleted;
 
     pa_assert(u);
     pa_assert(node);
 
     pa_assert_se((murphyif = u->murphyif));
-
-    rif = &murphyif->resource;
 
     if (node->rsetid) {
         if (pa_streq(node->rsetid, PA_RESOURCE_SET_ID_PID)) {
@@ -868,7 +865,8 @@ static void domctl_dump_data(mrp_domctl_data_t *table)
     int                 i, j;
     char                buf[1024], *p;
     const char         *t;
-    int                 n, l;
+    int                 n;
+    int                 l;
 
     pa_log_debug("Table #%d: %d rows x %d columns", table->id,
            table->nrow, table->ncolumn);
@@ -881,27 +879,27 @@ static void domctl_dump_data(mrp_domctl_data_t *table)
         for (j = 0, t = ""; j < table->ncolumn; j++, t = ", ") {
             switch (row[j].type) {
             case MRP_DOMCTL_STRING:
-                l  = snprintf(p, n, "%s'%s'", t, row[j].str);
+                l  = snprintf(p, (size_t)n, "%s'%s'", t, row[j].str);
                 p += l;
                 n -= l;
                 break;
             case MRP_DOMCTL_INTEGER:
-                l  = snprintf(p, n, "%s%d", t, row[j].s32);
+                l  = snprintf(p, (size_t)n, "%s%d", t, row[j].s32);
                 p += l;
                 n -= l;
                 break;
             case MRP_DOMCTL_UNSIGNED:
-                l  = snprintf(p, n, "%s%u", t, row[j].u32);
+                l  = snprintf(p, (size_t)n, "%s%u", t, row[j].u32);
                 p += l;
                 n -= l;
                 break;
             case MRP_DOMCTL_DOUBLE:
-                l  = snprintf(p, n, "%s%f", t, row[j].dbl);
+                l  = snprintf(p, (size_t)n, "%s%f", t, row[j].dbl);
                 p += l;
                 n -= l;
                 break;
             default:
-                l  = snprintf(p, n, "%s<invalid column 0x%x>",
+                l  = snprintf(p, (size_t)n, "%s<invalid column 0x%x>",
                               t, row[j].type);
                 p += l;
                 n -= l;
@@ -1029,7 +1027,6 @@ static bool resource_set_create_node(struct userdata *u,
     pa_core *core;
     pa_murphyif *murphyif;
     resource_interface *rif;
-    resource_request *req;
     mrp_msg_t *msg;
     uint16_t reqid;
     uint32_t seqno;
@@ -1323,17 +1320,17 @@ static void resource_set_notification(struct userdata *u,
         rset.name    = name;
         rset.pid     = pid;
 
-        if (rset.autorel != 0 && rset.autorel != 1) {
+        if (cautorel->s32 < 0 || cautorel->s32 > 1) {
             pa_log_debug("invalid autorel %d in table '%s'",
-                         rset.autorel, table);
+                         cautorel->s32, table);
             continue;
         }
         if (rset.state != RSET_RELEASE && rset.state != RSET_ACQUIRE) {
             pa_log_debug("invalid state %d in table '%s'", rset.state, table);
             continue;
         }
-        if (rset.grant != 0 && rset.grant != 1) {
-            pa_log_debug("invalid grant %d in table '%s'", rset.grant, table);
+        if (cgrant->s32 < 0 || cgrant->s32 > 1) {
+            pa_log_debug("invalid grant %d in table '%s'", cgrant->s32, table);
             continue;
         }
         if (!rset.policy) {
@@ -1702,7 +1699,7 @@ static bool resource_fetch_request(mrp_msg_t *msg,
     if (!mrp_msg_iterate(msg, pcursor, &tag, &type, &value, &size) ||
         tag != RESPROTO_REQUEST_TYPE || type != MRP_MSG_FIELD_UINT16)
     {
-        *preqtype = INVALID_REQUEST;
+        *preqtype = (uint16_t)INVALID_REQUEST;
         return false;
     }
 
@@ -1750,6 +1747,7 @@ static bool resource_fetch_rset_id(mrp_msg_t *msg,
     return true;
 }
 
+#if 0
 static bool resource_fetch_rset_state(mrp_msg_t *msg,
                                            void **pcursor,
                                            mrp_resproto_state_t *pstate)
@@ -1770,7 +1768,6 @@ static bool resource_fetch_rset_state(mrp_msg_t *msg,
     return true;
 }
 
-
 static bool resource_fetch_rset_mask(mrp_msg_t *msg,
                                           void **pcursor,
                                           mrp_resproto_state_t *pmask)
@@ -1790,6 +1787,7 @@ static bool resource_fetch_rset_mask(mrp_msg_t *msg,
     *pmask = value.u32;
     return true;
 }
+#endif
 
 static bool resource_transport_create(struct userdata *u,
                                            pa_murphyif *murphyif)
@@ -1910,9 +1908,9 @@ static void cancel_schedule(struct userdata *u, resource_interface *rif)
 static rset_hash *node_put_rset(struct userdata *u, mir_node *node, rset_data *rset)
 {
     pa_murphyif *murphyif;
-    resource_interface *rif;
     pa_proplist *pl;
     rset_hash *rh;
+    resource_interface *rif;
     int type;
 
     pa_assert(u);
@@ -1924,6 +1922,7 @@ static rset_hash *node_put_rset(struct userdata *u, mir_node *node, rset_data *r
     pa_assert(node->direction == mir_input || node->direction == mir_output);
 
     pa_assert_se((murphyif = u->murphyif));
+
     rif = &murphyif->resource;
     type = (node->direction == mir_input) ? RSET_INPUT : RSET_OUTPUT;
 
@@ -2004,8 +2003,6 @@ static rset_data *rset_data_dup(rset_data *orig)
 
 static void rset_data_copy(rset_data *dst, rset_data *src)
 {
-    rset_data *dup;
-
     pa_assert(dst);
     pa_assert(src);
     pa_assert(src->id);
@@ -2024,8 +2021,6 @@ static void rset_data_copy(rset_data *dst, rset_data *src)
 
 static void rset_data_update(rset_data *dst, rset_data *src)
 {
-    rset_data *dup;
-
     pa_assert(dst);
     pa_assert(dst->id);
     pa_assert(src);

@@ -29,7 +29,7 @@
 #include <pulsecore/tagstruct.h>
 #include <pulsecore/pstream-util.h>
 
-#include "userdata.h"
+#include "extapi.h"
 #include "node.h"
 #include "router.h"
 
@@ -87,7 +87,7 @@ static const char *mir_node_type_names[512] = {
     [mir_rear_speakers] = "rear_speakers",
     [mir_microphone] = "microphone",
     [mir_jack] = "jack",
-    [mir_spdif] "spdif",
+    [mir_spdif] = "spdif",
     [mir_hdmi] = "hdmi",
     [mir_wired_headset] = "wired_headset",
     [mir_wired_headphone] = "wired_headphone",
@@ -231,7 +231,7 @@ int extension_cb(pa_native_protocol *p, pa_module *m, pa_native_connection *c, u
             goto fail;
         }
 
-        if(!(conn = mir_router_add_explicit_route(u, id, from, to))) {
+        if(!(conn = mir_router_add_explicit_route(u, (uint16_t)id, from, to))) {
             pa_log_debug("explicit connection failed in module-murphy-ivi");
             goto fail;
         }
@@ -331,7 +331,7 @@ void extapi_signal_node_change(struct userdata *u) {
 
 static void *conn_hash(uint32_t connid)
 {
-    return NULL + connid;
+    return (char *)NULL + connid;
 }
 
 /*

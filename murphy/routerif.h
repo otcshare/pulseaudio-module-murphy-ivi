@@ -23,7 +23,7 @@
 #include "userdata.h"
 
 
-enum am_method {
+typedef enum am_method {
     audiomgr_unknown_method = 0,
 
     audiomgr_register_domain,
@@ -52,7 +52,7 @@ enum am_method {
     audiomgr_setsinkprop_ack,
 
     audiomgr_method_dim
-};
+} am_method;
 
 
 #ifdef WITH_DBUS

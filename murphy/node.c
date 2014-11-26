@@ -33,7 +33,7 @@
 #include "scripting.h"
 #include "murphyif.h"
 
-#define APCLASS_DIM  (mir_application_class_end - mir_application_class_begin)
+#define APCLASS_DIM  (mir_application_class_end - mir_application_class_begin + 1)
 
 struct pa_nodeset {
     pa_idxset      *nodes;
@@ -42,8 +42,6 @@ struct pa_nodeset {
     const char     *class_name[APCLASS_DIM];
 };
 
-
-static void free_map_cb(void *);
 static int print_map(pa_hashmap *, const char *, char *, int);
 
 pa_nodeset *pa_nodeset_init(struct userdata *u)
@@ -326,10 +324,10 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
     node->zone      = pa_xstrdup(data->zone);
     node->visible   = data->visible;
     node->available = data->available;
-    node->amname    = pa_xstrdup(data->amname ? data->amname : data->paname);
-    node->amdescr   = pa_xstrdup(data->amdescr ? data->amdescr : "");
+    node->amname    = data->amname ? data->amname : data->paname;
+    node->amdescr   = data->amdescr ? data->amdescr : "";
     node->amid      = data->amid;
-    node->paname    = pa_xstrdup(data->paname);
+    node->paname    = data->paname;
     node->paidx     = data->paidx;
     node->mux       = data->mux;
     node->loop      = data->loop;
@@ -345,7 +343,7 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
         if (data->pacard.profile)
             node->pacard.profile = pa_xstrdup(data->pacard.profile);
         if (data->paport)
-            node->paport = pa_xstrdup(data->paport);
+            node->paport = data->paport;
     }
 
     mir_router_register_node(u, node);
@@ -375,12 +373,8 @@ void mir_node_destroy(struct userdata *u, mir_node *node)
 
         pa_xfree(node->key);
         pa_xfree(node->zone);
-        pa_xfree(node->amname);
-        pa_xfree(node->amdescr);
-        pa_xfree(node->paname);
         pa_xfree(node->pacard.profile);
-        pa_xfree(node->paport);
-        pa_xfree(node->rsetid);
+        pa_xfree(node->rset.id);
 
         pa_xfree(node);
     }
@@ -417,7 +411,7 @@ int mir_node_print(mir_node *node, char *buf, int len)
 
     e = (p = buf) + len;
 
-#define PRINT(f,v) if (p < e) p += snprintf(p, e-p, f "\n", v)
+#define PRINT(f,v) if (p < e) p += snprintf(p, (size_t)(e-p), f "\n", v)
 
     PRINT("   index         : %u"  ,  node->index);
     PRINT("   key           : '%s'",  node->key ? node->key : "");
@@ -527,21 +521,10 @@ const char *mir_privacy_str(mir_privacy privacy)
     }
 }
 
-
-static void free_map_cb(void *void_map)
-{
-    pa_nodeset_map  *map = (pa_nodeset_map *)void_map;
-
-    pa_xfree((void *)map->name);
-    pa_xfree((void *)map->resdef);
-
-    pa_xfree(map);
-}
-
 static int print_map(pa_hashmap *map, const char *name, char *buf, int len)
 {
 #define PRINT(fmt,args...) \
-    do { if (p < e) p += snprintf(p, e-p, fmt "\n", args); } while (0)
+    do { if (p < e) p += snprintf(p, (size_t)(e-p), fmt "\n", args); } while (0)
 
     pa_nodeset_map *m;
     pa_nodeset_resdef *r;

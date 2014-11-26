@@ -154,9 +154,6 @@ int pa__init(pa_module *m) {
 #endif
 #ifdef WITH_DBUS
     const char      *dbustype;
-    const char      *ifnam;
-    const char      *mrppath;
-    const char      *mrpnam;
     const char      *ampath;
     const char      *amnam;
 #else
@@ -193,9 +190,6 @@ int pa__init(pa_module *m) {
 #endif
 #ifdef WITH_DBUS
     dbustype = pa_modargs_get_value(ma, "dbus_bus_type", NULL);
-    ifnam    = pa_modargs_get_value(ma, "dbus_if_name", NULL);
-    mrppath  = pa_modargs_get_value(ma, "dbus_murphy_path", NULL);
-    mrpnam   = pa_modargs_get_value(ma, "dbus_murphy_name", NULL);
     ampath   = pa_modargs_get_value(ma, "dbus_audiomgr_path", NULL);
     amnam    = pa_modargs_get_value(ma, "dbus_audiomgr_name", NULL);
 #else

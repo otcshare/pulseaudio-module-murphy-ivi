@@ -161,10 +161,10 @@ pa_routerif *pa_routerif_init(struct userdata *u,
     char            pathbuf[128];
     char            ctlnambuf[128];
     char            ctlpathbuf[128];
-    char           *amrnam;
-    char           *amrpath;
-    char           *amcnam;
-    char           *amcpath;
+    const char     *amrnam;
+    const char     *amrpath;
+    const char     *amcnam;
+    const char     *amcpath;
     char            admarule[512];
     int             result;
     
@@ -214,7 +214,7 @@ pa_routerif *pa_routerif_init(struct userdata *u,
     }
 
     if (ampath && *ampath) {
-        char *slash = ampath[strlen(ampath)-1] == '/' ? "" : "/";
+        const char *slash = ampath[strlen(ampath)-1] == '/' ? "" : "/";
         snprintf(pathbuf, sizeof(pathbuf), "%s%s" AUDIOMGR_DBUS_ROUTE_PATH,
                  ampath, slash);
         amrpath = pathbuf;
@@ -229,7 +229,7 @@ pa_routerif *pa_routerif_init(struct userdata *u,
     }
 
     if (amnam && *amnam){
-        char *dot = amnam[strlen(amnam)-1] == '.' ? "" : ".";
+        const char *dot = amnam[strlen(amnam)-1] == '.' ? "" : ".";
         snprintf(nambuf, sizeof(nambuf), "%s%s" AUDIOMGR_DBUS_ROUTE_NAME,
                  amnam, dot);
         amrnam = nambuf;
@@ -345,7 +345,7 @@ static void handle_admin_message(struct userdata *u, DBusMessage *msg)
     char        *name;
     char        *before;
     char        *after;
-    int          success;
+    bool         success;
 
     pa_assert(u);
     pa_assert_se((routerif = u->routerif));
@@ -562,7 +562,7 @@ static void audiomgr_register_domain_cb(struct userdata *u,
     const char        *error_descr;
     dbus_uint16_t      domain_id;
     dbus_uint16_t      status;
-    int                success;
+    bool               success;
 
     if (dbus_message_get_type(reply) == DBUS_MESSAGE_TYPE_ERROR) {
         success = dbus_message_get_args(reply, NULL,
@@ -607,7 +607,7 @@ bool pa_routerif_register_domain(struct userdata   *u,
     const char     *dbus_name;
     const char     *dbus_path;
     const char     *dbus_if;
-    int             success;
+    bool             success;
     uint16_t         error = 0;
 
     pa_assert(u);
@@ -676,7 +676,7 @@ bool pa_routerif_domain_complete(struct userdata *u, uint16_t domain)
     pa_routerif    *routerif;
     DBusConnection *conn;
     DBusMessage    *msg;
-    bool       success;
+    bool            success;
 
     pa_assert(u);
     pa_assert_se((routerif = u->routerif));
@@ -723,7 +723,7 @@ bool pa_routerif_unregister_domain(struct userdata *u, uint16_t domain)
     pa_routerif    *routerif;
     DBusConnection *conn;
     DBusMessage    *msg;
-    bool       success;
+    bool            success;
 
     pa_assert(u);
     pa_assert_se((routerif = u->routerif));
@@ -775,7 +775,7 @@ static void audiomgr_register_node_cb(struct userdata *u,
     const char      *error_descr;
     dbus_uint16_t    object_id;
     dbus_uint16_t    status;
-    int              success;
+    bool             success;
     const char      *objtype;
 
     pa_assert(u);
@@ -927,7 +927,7 @@ bool pa_routerif_register_node(struct userdata *u,
     DBusMessageIter  mit;
     DBusMessageIter  cit;
     DBusMessageIter  dit;
-    bool        success = false;
+    bool             success = false;
 
     pa_assert(u);
     pa_assert(rd);
@@ -1029,7 +1029,7 @@ static void audiomgr_unregister_node_cb(struct userdata *u,
 {
     const char      *error_descr;
     dbus_uint16_t    status;
-    int              success;
+    bool            success;
     const char      *objtype;
 
     pa_assert(u);
@@ -1079,7 +1079,7 @@ bool pa_routerif_unregister_node(struct userdata *u,
     pa_routerif    *routerif;
     DBusConnection *conn;
     DBusMessage    *msg;
-    bool       success = false;
+    bool            success = false;
 
     pa_assert(u);
     pa_assert(ud);
@@ -1248,7 +1248,7 @@ bool pa_routerif_register_implicit_connections(struct userdata *u,
 static bool routerif_connect(struct userdata *u, DBusMessage *msg)
 {
     struct am_connect_data ac;
-    int                    success;
+    bool                   success;
 
     pa_assert(u);
     pa_assert(msg);
@@ -1279,7 +1279,7 @@ static bool routerif_connect(struct userdata *u, DBusMessage *msg)
 static bool routerif_disconnect(struct userdata *u, DBusMessage *msg)
 {
     struct am_connect_data ac;
-    int                    success;
+    bool                   success;
 
     pa_assert(u);
     pa_assert(msg);
@@ -1310,7 +1310,7 @@ bool pa_routerif_acknowledge(struct userdata *u, am_method m,
     pa_routerif    *routerif;
     DBusConnection *conn;
     DBusMessage    *msg;
-    bool       success;
+    bool            success;
 
     pa_assert(u);
     pa_assert(method);

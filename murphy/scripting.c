@@ -176,7 +176,6 @@ struct scripting_vollim {
     char              args[0];
 };
 
-
 typedef struct {
     const char *name;
     int value;
@@ -545,7 +544,7 @@ bool pa_scripting_dofile(struct userdata *u, const char *file)
 
 static int import_create(lua_State *L)
 {
-    struct userdata *u;
+    struct userdata *u = NULL;
     pa_scripting *scripting;
     size_t fldnamlen;
     const char *fldnam;
@@ -555,7 +554,7 @@ static int import_create(lua_State *L)
     const char *condition = NULL;
     int maxrow = 0;
     mrp_funcbridge_t *update = NULL;
-    size_t maxcol;
+    int maxcol;
     pa_value **rows;
     pa_value **cols;
     int i,j;
@@ -595,7 +594,7 @@ static int import_create(lua_State *L)
     if (!update)
         luaL_error(L, "missing update function");
 
-    maxcol = columns->nstring;
+    maxcol = (int)columns->nstring;
 
     if (maxcol >= MQI_COLUMN_MAX)
         luaL_error(L, "too many columns (max %d allowed)", MQI_COLUMN_MAX);
@@ -612,8 +611,8 @@ static int import_create(lua_State *L)
     imp->values = array_create(L, maxrow, NULL);
     imp->update = update;
 
-    for (i = 0, rows = imp->values->array;  i < maxrow;   i++) {
-        cols = (rows[i] = array_create(L, maxcol, columns))->array;
+    for (i = 0, rows = imp->values->value.array;  i < maxrow;   i++) {
+        cols = (rows[i] = array_create(L, (int)maxcol, columns))->value.array;
         lua_rawseti(L, -3, i+1); /* we add this to the import */
         for (j = 0;  j < maxcol;  j++)
             cols[j] = pa_xnew0(pa_value, 1);
@@ -727,15 +726,16 @@ static int import_link(lua_State *L)
         for (colidx = 0;   colidx < columns->nstring;   colidx++) {
             if (!strcmp(colnam, columns->strings[colidx])) {
                 pa_assert_se((values = imp->values));
-                pa_assert_se((row = values->array[rowidx]));
+                pa_assert_se((row = values->value.array[rowidx]));
                 pa_assert(colidx < (size_t)-row->type);
-                pa_assert_se((col = row->array[colidx]));
+                pa_assert_se((col = row->value.array[colidx]));
                 break;
             }
         }
     }
 
-    pa_log_debug("userdata: type:%d", col->type);
+    if(col)
+        pa_log_debug("userdata: type:%d", col->type);
 
     lua_pushlightuserdata(L, col);
 
@@ -789,10 +789,10 @@ static void import_data_changed(struct userdata *u,
         pa_assert(imp->columns);
         pa_assert(imp->update);
         pa_assert_se((ptval = imp->values));
-        pa_assert_se((prow = ptval->array));
+        pa_assert_se((prow = ptval->value.array));
 
         maxrow = -ptval->type;
-        maxcol = imp->columns->nstring;
+        maxcol = (int)imp->columns->nstring;
 
         pa_assert(maxrow >= 0);
         pa_assert(nrow <= maxrow);
@@ -801,7 +801,7 @@ static void import_data_changed(struct userdata *u,
 
         for (i = 0; i < maxrow;  i++) {
             pa_assert_se((prval = prow[i]));
-            pa_assert_se((pcol = prval->array));
+            pa_assert_se((pcol = prval->value.array));
             pa_assert(prval->type < 0);
             pa_assert(maxcol == -prval->type);
 
@@ -814,28 +814,28 @@ static void import_data_changed(struct userdata *u,
                 switch (mcol->type) {
                 case MRP_DOMCTL_STRING:
                     pa_assert(!pcval->type || pcval->type == pa_value_string);
-                    pa_xfree((void *)pcval->string);
+                    pa_xfree((void *)pcval->value.string);
                     pcval->type = pa_value_string;
-                    pcval->string = pa_xstrdup(mcol->str);
+                    pcval->value.string = pa_xstrdup(mcol->str);
                     break;
                 case MRP_DOMCTL_INTEGER:
                     pa_assert(!pcval->type || pcval->type == pa_value_integer);
                     pcval->type = pa_value_integer;
-                    pcval->integer = mcol->s32;
+                    pcval->value.integer = mcol->s32;
                     break;
                 case MRP_DOMCTL_UNSIGNED:
                     pa_assert(!pcval->type || pcval->type == pa_value_unsignd);
                     pcval->type = pa_value_unsignd;
-                    pcval->unsignd = mcol->u32;
+                    pcval->value.unsignd = mcol->u32;
                     break;
                 case MRP_DOMCTL_DOUBLE:
                     pa_assert(!pcval->type || pcval->type ==pa_value_floating);
                     pcval->type = pa_value_floating;
-                    pcval->floating = mcol->dbl;
+                    pcval->value.floating = mcol->dbl;
                     break;
                 default:
                     if (pcval->type == pa_value_string)
-                        pa_xfree((void *)pcval->string);
+                        pa_xfree((void *)pcval->value.string);
                     memset(pcval, 0, sizeof(pa_value));
                     break;
                 }
@@ -911,10 +911,10 @@ static pa_value *array_create(lua_State *L, int dimension,
     pa_assert(dimension >= 0);
     pa_assert(dimension < MQI_QUERY_RESULT_MAX);
 
-    array = pa_xnew0(pa_value *, dimension + 1);
+    array = pa_xnew0(pa_value *, (size_t)(dimension + 1));
     value = lua_newuserdata(L, sizeof(pa_value));
     value->type = -dimension;
-    value->array = array;
+    value->value.array = array;
 
     array[dimension] = (pa_value *)names;
 
@@ -932,7 +932,7 @@ static int array_getfield(lua_State *L)
     const char *key;
     mrp_lua_strarray_t *names;
     int idx;
-    size_t i;
+    int i;
 
     MRP_LUA_ENTER;
 
@@ -951,8 +951,8 @@ static int array_getfield(lua_State *L)
         break;
     case LUA_TSTRING:
         idx = -1;
-        if ((names = (mrp_lua_strarray_t *)arr->array[dimension])) {
-            pa_assert(dimension == names->nstring);
+        if ((names = (mrp_lua_strarray_t *)arr->value.array[dimension])) {
+            pa_assert(dimension == (int)names->nstring);
             key = lua_tostring(L, 2);
             pa_assert(key);
             for (i = 0;  i < dimension;  i++) {
@@ -969,16 +969,16 @@ static int array_getfield(lua_State *L)
     }
 
 
-    if (idx < 0 || idx >= dimension || !(value = arr->array[idx]))
+    if (idx < 0 || idx >= dimension || !(value = arr->value.array[idx]))
         lua_pushnil(L);
     else if (value->type < 0)
         lua_rawgeti(L, 1, 1 - value->type);
     else {
         switch (value->type) {
-        case pa_value_string:   lua_pushstring(L, value->string);   break;
-        case pa_value_integer:  lua_pushinteger(L, value->integer); break;
-        case pa_value_unsignd:  lua_pushinteger(L, value->unsignd); break;
-        case pa_value_floating: lua_pushnumber(L, value->floating); break;
+        case pa_value_string:   lua_pushstring(L, value->value.string);   break;
+        case pa_value_integer:  lua_pushinteger(L, value->value.integer); break;
+        case pa_value_unsignd:  lua_pushinteger(L, (int)(value->value.unsignd)); break;
+        case pa_value_floating: lua_pushnumber(L, value->value.floating); break;
         default:                lua_pushnil(L);                     break;
         }
     }
@@ -1015,7 +1015,7 @@ static void array_destroy(void *data)
 
     if (value) {
         pa_assert(value->type < 0);
-        pa_xfree(value->array);
+        pa_xfree(value->value.array);
     }
 
     MRP_LUA_LEAVE_NOARG;
@@ -1096,17 +1096,17 @@ static int node_getfield(lua_State *L)
         pa_assert_se((node = sn->node));
 
         switch (fld) {
-        case NAME:           lua_pushstring(L, node->amname);         break;
-        case DESCRIPTION:    lua_pushstring(L, node->amdescr);        break;
-        case DIRECTION:      lua_pushinteger(L, node->direction);     break;
-        case IMPLEMENT:      lua_pushinteger(L, node->implement);     break;
-        case CHANNELS:       lua_pushinteger(L, node->channels);      break;
-        case LOCATION:       lua_pushinteger(L, node->location);      break;
-        case PRIVACY:        lua_pushinteger(L, node->privacy);       break;
-        case ZONE:           lua_pushstring(L, node->zone);           break;
-        case TYPE:           lua_pushinteger(L, node->type);          break;
-        case AVAILABLE:      lua_pushboolean(L, node->available);     break;
-        default:             lua_pushnil(L);                          break;
+        case NAME:           lua_pushstring(L, node->amname);           break;
+        case DESCRIPTION:    lua_pushstring(L, node->amdescr);          break;
+        case DIRECTION:      lua_pushinteger(L, node->direction);       break;
+        case IMPLEMENT:      lua_pushinteger(L, node->implement);       break;
+        case CHANNELS:       lua_pushinteger(L, (int)(node->channels)); break;
+        case LOCATION:       lua_pushinteger(L, node->location);        break;
+        case PRIVACY:        lua_pushinteger(L, node->privacy);         break;
+        case ZONE:           lua_pushstring(L, node->zone);             break;
+        case TYPE:           lua_pushinteger(L, node->type);            break;
+        case AVAILABLE:      lua_pushboolean(L, node->available);       break;
+        default:             lua_pushnil(L);                            break;
         }
     }
 
@@ -1163,7 +1163,7 @@ static int zone_create(lua_State *L)
     const char *fldnam;
     scripting_zone *zone;
     const char *name = NULL;
-    attribute_t *attributes = NULL;
+    /* attribute_t *attributes = NULL; */
 
     MRP_LUA_ENTER;
 
@@ -1177,7 +1177,7 @@ static int zone_create(lua_State *L)
 
         switch (field_name_to_type(fldnam, fldnamlen)) {
         case NAME:         name = luaL_checkstring(L, -1);           break;
-        case ATTRIBUTES:   attributes = attributes_check(L, -1);     break;
+            /* case ATTRIBUTES:   attributes = attributes_check(L, -1);     break; */
         default:           luaL_error(L, "bad field '%s'", fldnam);  break;
         }
 
@@ -1255,7 +1255,6 @@ static int resource_create(lua_State *L)
     struct userdata *u;
     size_t fldnamlen;
     const char *fldnam;
-    mir_rtgroup *rtg;
     scripting_resource *res;
     resource_name_t *name = NULL;
     attribute_t *attributes = NULL;
@@ -1332,15 +1331,14 @@ static int resource_create(lua_State *L)
 
 static int resource_getfield(lua_State *L)
 {
-    scripting_resource *res;
-    field_t fld;
+    /* field_t fld; */
 
     MRP_LUA_ENTER;
 
-    fld = field_check(L, 2, NULL);
+    /* fld = field_check(L, 2, NULL);*/
     lua_pop(L, 1);
 
-    if (!(res = (scripting_resource*)mrp_lua_check_object(L,RESOURCE_CLASS,1)))
+    if (!mrp_lua_check_object(L,RESOURCE_CLASS,1))
         lua_pushnil(L);
     else {
 #if 0
@@ -1600,7 +1598,7 @@ static int rtgroup_compare(struct userdata *u,
             if (rt != MRP_FUNCBRIDGE_FLOATING)
                 pa_log("compare function returned invalid type");
             else
-                result = rv.floating;
+                result = (int)(rv.floating);
         }
     }
 
@@ -1627,7 +1625,7 @@ static bool accept_bridge(lua_State *L, void *data,
     pa_assert(ret_type);
     pa_assert(ret_val);
 
-    pa_assert_se((accept = (mir_rtgroup_accept_t)data));
+    pa_assert((accept = (mir_rtgroup_accept_t)data));
 
     if (strcmp(signature, "oo"))
         success = false;
@@ -1719,11 +1717,11 @@ static bool change_bridge(lua_State *L, void *data,
 
         /* FIXME: is this how it is supposed to be done?! */
 
-        if (imp->values && imp->values->array && imp->values->array[0] &&
-              imp->values->array[0]->array &&
-              imp->values->array[0]->array[0] &&
-              imp->values->array[0]->array[0]->type == pa_value_string)
-            pa_assert_se((s = imp->values->array[0]->array[0]->string));
+        if (imp->values && imp->values->value.array && imp->values->value.array[0] &&
+            imp->values->value.array[0]->value.array &&
+              imp->values->value.array[0]->value.array[0] &&
+              imp->values->value.array[0]->value.array[0]->type == pa_value_string)
+            pa_assert_se((s = imp->values->value.array[0]->value.array[0]->value.string));
 
         success = true;
         *ret_type = MRP_FUNCBRIDGE_NO_DATA;
@@ -1748,7 +1746,6 @@ static int apclass_create(lua_State *L)
     route_t *route = NULL;
     map_t *roles = NULL;
     map_t *binaries = NULL;
-    bool needs_resource = false;
     pa_nodeset_resdef *resdef;
     map_t *r, *b;
     size_t i;
@@ -1916,7 +1913,6 @@ static void apclass_destroy(void *data)
     scripting_apclass *ac = (scripting_apclass *)data;
     struct userdata *u;
     map_t *r, *b;
-    size_t i;
 
     MRP_LUA_ENTER;
 
@@ -2026,6 +2022,7 @@ static int route_definition_push(lua_State *L, const char **defs)
 }
 
 
+#if 0
 static void route_definition_free(const char **defs)
 {
     int i;
@@ -2036,7 +2033,7 @@ static void route_definition_free(const char **defs)
         pa_xfree((void *)defs);
     }
 }
-
+#endif
 
 static route_t *route_check(lua_State *L, int idx)
 {
@@ -2118,7 +2115,7 @@ static int vollim_create(lua_State *L)
     bool suppress = false;
     bool correct = false;
     size_t arglgh = 0;
-    size_t i;
+    int i;
     int class;
     uint32_t mask, clmask;
     char id[256];
@@ -2208,11 +2205,11 @@ static int vollim_create(lua_State *L)
     vlim->calculate = calculate;
 
     if (suppress) {
-        mir_volume_suppress_arg *args = (mir_volume_suppress_arg *)vlim->args;
+        mir_volume_suppress_arg *args = (mir_volume_suppress_arg *)(void *)vlim->args;
         size_t size = sizeof(int) * classes->nint;
         size_t n = mir_application_class_end - mir_application_class_begin;
 
-        for (i = 0, clmask = 0;   i < classes->nint;   i++) {
+        for (i = 0, clmask = 0;   i < (int)(classes->nint);   i++) {
             class = classes->ints[i];
 
             if (class <= mir_application_class_begin ||
@@ -2262,7 +2259,7 @@ static int vollim_create(lua_State *L)
         mir_volume_add_generic_limit(u, vollim_calculate, vlim->args);
         break;
     case vollim_class:
-        for (i = 0;  i < classes->nint;  i++) {
+        for (i = 0;  i < (int)(classes->nint);  i++) {
             mir_volume_add_class_limit(u, classes->ints[i], vollim_calculate,
                                        vlim->args);
         }
@@ -2362,7 +2359,7 @@ static double vollim_calculate(struct userdata *u, int class, mir_node *node,
                          class <  mir_application_class_end)     );
     pa_assert(node);
 
-    vlim = (scripting_vollim *)(data - offset);
+    vlim = (scripting_vollim *)(void*)((char *)data - offset);
 
     pa_assert(u == vlim->userdata);
 
@@ -2437,7 +2434,7 @@ static limit_data_t *limit_data_check(lua_State *L, int idx)
 {
     static double nolimit = 0.0;
 
-    limit_data_t *ld;
+    limit_data_t *ld = NULL;
     double value;
     pa_value *v;
 
@@ -2458,10 +2455,11 @@ static limit_data_t *limit_data_check(lua_State *L, int idx)
         else {
             ld = pa_xnew0(limit_data_t, 1);
             ld->mallocd = false;
-            ld->value = &v->floating;
+            ld->value = &v->value.floating;
         }
         break;
     default:
+        ld = pa_xnew0(limit_data_t, 1);
         ld->mallocd = false;
         ld->value = &nolimit;
         break;
@@ -2494,11 +2492,11 @@ static void limit_data_destroy(limit_data_t *ld)
 
 static intarray_t *intarray_check(lua_State *L, int idx, int min, int max)
 {
-    size_t len;
+    int len;
     size_t size;
     intarray_t *arr;
     int val;
-    size_t i;
+    int i;
 
     idx = (idx < 0) ? lua_gettop(L) + idx + 1 : idx;
 
@@ -2507,10 +2505,10 @@ static intarray_t *intarray_check(lua_State *L, int idx, int min, int max)
     if ((len = luaL_getn(L, idx)) < 1)
         arr = NULL;
     else {
-        size = sizeof(intarray_t) + sizeof(int) * len;
+        size = sizeof(intarray_t) + sizeof(int) * (size_t)len;
         arr  = pa_xmalloc0(sizeof(intarray_t));
 
-        arr->nint = len;
+        arr->nint = (size_t)len;
         arr->ints = pa_xmalloc0(size);
 
         for (i = 0;  i < len;  i++) {
@@ -2538,7 +2536,7 @@ static int intarray_push(lua_State *L, intarray_t *arr)
     if (!arr)
         lua_pushnil(L);
     else {
-        lua_createtable(L, arr->nint, 0);
+        lua_createtable(L, (int)(arr->nint), 0);
 
         for (i = 0;  i < arr->nint;  i++) {
             lua_pushinteger(L, (int)(i+1));
@@ -2604,7 +2602,7 @@ static attribute_t *attributes_check(lua_State *L, int tbl)
     attribute_t *attr, *attrs = NULL;
     size_t nattr = 0;
     mrp_attr_value_t *v;
-    size_t i, len;
+    int i, len;
 
     tbl = (tbl < 0) ? lua_gettop(L) + tbl + 1 : tbl;
 
@@ -2684,10 +2682,9 @@ static map_t *map_check(lua_State *L, int tbl)
     size_t namlen;
     const char *name;
     const char *option;
-    const char *role;
     map_t *m, *map = NULL;
     size_t n = 0;
-    size_t i, len;
+    int i, len;
     int priority;
     pa_nodeset_resdef *rd;
 
@@ -2724,7 +2721,7 @@ static map_t *map_check(lua_State *L, int tbl)
             if ((len = luaL_getn(L, def)) < 1)
                 luaL_error(L, "invalid resource definition '%s'", name);
 
-            for (i = 1;  i <= len;  i++) {
+            for (i = 1;  i < len+1;  i++) {
                 lua_pushnumber(L, (int)i);
                 lua_gettable(L, def);
 
@@ -2736,7 +2733,7 @@ static map_t *map_check(lua_State *L, int tbl)
                                    priority, name);
                     }
 
-                    m->resource.priority = priority;
+                    m->resource.priority = (uint32_t)priority;
                 }
                 else {
                     option = luaL_checkstring(L, -1);
@@ -2793,7 +2790,7 @@ static int map_push(lua_State *L, map_t *map)
             }
             else {
                 lua_newtable(L);
-                lua_pushinteger(L, m->resource.priority);
+                lua_pushinteger(L, (int)(m->resource.priority));
                 if (m->role)
                     lua_pushstring(L, m->role);
                 if (m->resource.flags.rset & RESPROTO_RSETFLAG_AUTORELEASE)
@@ -3024,7 +3021,7 @@ static int make_id(char *buf, size_t len, const char *fmt, ...)
 
     for (p = buf;  (c = *p);  p++) {
         if (isalpha(c))
-            c = tolower(c);
+            c = (char)tolower(c);
         else if (!isdigit(c))
             c = '_';
         *p = c;
@@ -3105,7 +3102,7 @@ static char *comma_separated_list(mrp_lua_strarray_t *arr, char *buf, int len)
     pa_assert(len > 0);
 
     for (i = 0, e = (p = buf) + len;   i < arr->nstring && p < e;    i++)
-        p += snprintf(p, e-p, "%s%s", (p == buf ? "" : ","), arr->strings[i]);
+        p += snprintf(p, (size_t)(e-p), "%s%s", (p == buf ? "" : ","), arr->strings[i]);
 
     return (p < e) ? buf : NULL;
 }

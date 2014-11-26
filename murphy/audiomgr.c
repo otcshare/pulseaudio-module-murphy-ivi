@@ -100,12 +100,14 @@ struct pa_audiomgr {
 };
 
 
+/*
 static bool find_default_route(struct userdata *, mir_node *,
                                am_connect_data *);
+*/
 
 static void *node_hash(mir_direction, uint16_t);
 static void *conn_hash(uint16_t);
-
+static void fill_am_data_and_register(struct userdata *, mir_node *, pa_audiomgr *);
 
 struct pa_audiomgr *pa_audiomgr_init(struct userdata *u)
 {
@@ -204,7 +206,7 @@ void pa_audiomgr_unregister_domain(struct userdata *u, bool send_state)
     pa_log_debug("unregistering domain '%s'", am->domain.name);
 
     while ((node  = pa_hashmap_iterate(am->nodes, &state, &key))) {
-        pa_log_debug("   unregistering '%s' (%p/%p)", node->amname, key,node);
+        pa_log_debug("   unregistering '%s' (%p/%p)", node->amname, (void *)key, (void *)node);
         node->amid = AM_ID_INVALID;
         pa_hashmap_remove(am->nodes, key);
     }
@@ -244,11 +246,11 @@ void fill_am_data_and_register(struct userdata *u, mir_node *node, pa_audiomgr *
 
     if (success) {
         pa_log_debug("initiate registration node '%s' (%p)"
-                     "to audio manager", rd->name, node);
+                     "to audio manager", rd->name, (void *)node);
     }
     else {
         pa_log("%s: failed to register node '%s' (%p)"
-               "to audio manager", __FILE__, rd->name, node);
+               "to audio manager", __FILE__, rd->name, (void *)node);
     }
 
     return;
@@ -266,7 +268,6 @@ void pa_audiomgr_register_node(struct userdata *u, mir_node *node)
     };
 
     pa_audiomgr      *am;
-    bool              success;
     const char       *class_to_register;
     int               i;
 
@@ -297,7 +298,7 @@ void pa_audiomgr_register_node(struct userdata *u, mir_node *node)
     }
 
     pa_log_debug("skip registration of node '%s' (%p): "
-                 "not known by audio manager", node->amname, node);
+                 "not known by audio manager", node->amname, (void *)node);
 }
 
 void pa_audiomgr_node_registered(struct userdata *u,
@@ -308,7 +309,6 @@ void pa_audiomgr_node_registered(struct userdata *u,
     pa_audiomgr     *am;
     mir_node        *node;
     void            *key;
-    am_connect_data  cd;
 
     pa_assert(u);
     pa_assert(rd);
@@ -323,7 +323,7 @@ void pa_audiomgr_node_registered(struct userdata *u,
         key = node_hash(node->direction, id);
 
         pa_log_debug("registering node '%s' (%p/%p)",
-                     node->amname, key, node);
+                     node->amname, (void *)key, (void *)node);
 
         pa_hashmap_put(am->nodes, key, node);
 
@@ -370,11 +370,12 @@ void pa_audiomgr_unregister_node(struct userdata *u, mir_node *node)
                 pa_log("%s: confused with data structures: key mismatch. "
                        "attempted to remove '%s' (%p/%p); "
                        "actually removed '%s' (%p/%p)", __FILE__,
-                       node->amname, key, node, removed->amname,
-                       node_hash(removed->direction, removed->amid), removed);
+                       node->amname, (void *)key, (void *)node, removed->amname,
+                       (void *)node_hash(removed->direction, removed->amid), 
+                       (void *)removed);
             else
                 pa_log("%s: confused with data structures: node %u (%p)"
-                       "is not in the hash table", __FILE__, node->amid, node);
+                       "is not in the hash table", __FILE__, node->amid, (void *)node);
         }
 
 
@@ -388,11 +389,12 @@ void pa_audiomgr_unregister_node(struct userdata *u, mir_node *node)
 
         if (success) {
             pa_log_debug("sucessfully unregistered node '%s' (%p/%p)"
-                         "from audio manager", node->amname, key, node);
+                         "from audio manager", node->amname, 
+                         (void *)key, (void *)node);
         }
         else {
             pa_log("%s: failed to unregister node '%s' (%p)"
-                   "from audio manager", __FILE__, node->amname, node);
+                   "from audio manager", __FILE__, node->amname, (void *)node);
         }
     }
 }
@@ -449,15 +451,15 @@ void pa_audiomgr_add_default_route(struct userdata *u,
         if (defrts->nlink >= defrts->maxlink) {
             defrts->maxlink += 16;
 
-            size = sizeof(link_t) * defrts->maxlink;
+            size = sizeof(link_t) * (size_t)defrts->maxlink;
             defrts->links = realloc(defrts->links, size);
             pa_assert(defrts->links);
         }
 
         link = defrts->links + defrts->nlink++;
 
-        link->fromidx  = from->index;
-        link->toidx    = to->index;
+        link->fromidx  = (uint16_t)from->index;
+        link->toidx    = (uint16_t)to->index;
         link->channels = from->channels < to->channels ?
                          from->channels : to->channels;
     }
@@ -549,7 +551,7 @@ void pa_audiomgr_connect(struct userdata *u, am_connect_data *cd)
                     err = E_NOT_POSSIBLE;
                 else {
                     pa_log_debug("registering connection (%u/%p)",
-                                 cd->connection, conn);
+                                 cd->connection, (void *)conn);
                     pa_hashmap_put(am->conns, conn_hash(cid), conn);
                 }
             }
@@ -563,7 +565,7 @@ void pa_audiomgr_connect(struct userdata *u, am_connect_data *cd)
     memset(&ad, 0, sizeof(ad));
     ad.handle = cd->handle;
     ad.param1 = cd->connection;
-    ad.error  = err;
+    ad.error  = (am_uint16_t)err;
 
     pa_routerif_acknowledge(u, audiomgr_connect_ack, &ad);
 }
@@ -592,11 +594,12 @@ void pa_audiomgr_disconnect(struct userdata *u, am_connect_data *cd)
     memset(&ad, 0, sizeof(ad));
     ad.handle = cd->handle;
     ad.param1 = cd->connection;
-    ad.error  = err;
+    ad.error  = (am_uint16_t)err;
 
     pa_routerif_acknowledge(u, audiomgr_disconnect_ack, &ad);
 }
 
+#if 0
 static bool find_default_route(struct userdata *u,
                                mir_node        *node,
                                am_connect_data *cd)
@@ -636,15 +639,16 @@ static bool find_default_route(struct userdata *u,
 
     return false;
 }
+#endif
 
 static void *node_hash(mir_direction direction, uint16_t amid)
 {
-    return NULL + ((uint32_t)direction << 16 | (uint32_t)amid);
+    return (char *)NULL + ((uint32_t)direction << 16 | (uint32_t)amid);
 }
 
 static void *conn_hash(uint16_t connid)
 {
-    return NULL + (uint32_t)connid;
+    return (char *)NULL + (uint32_t)connid;
 }
 
 

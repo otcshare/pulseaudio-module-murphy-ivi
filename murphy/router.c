@@ -62,13 +62,6 @@ static int volume_class(mir_node *);
 
 static int print_routing_table(pa_hashmap *, const char *, char *, int);
 
-
-static void pa_hashmap_rtgroup_free(void *rtg, void *u)
-{
-    rtgroup_destroy(u, rtg);
-}
-
-
 pa_router *pa_router_init(struct userdata *u)
 {
     size_t num_classes = mir_application_class_end;
@@ -601,12 +594,7 @@ bool mir_router_default_accept(struct userdata *u, mir_rtgroup *rtg,
 bool mir_router_phone_accept(struct userdata *u, mir_rtgroup *rtg,
                                   mir_node *node)
 {
-    pa_core *core;
-    pa_sink *sink;
-    pa_source *source;
-    pa_proplist *pl;
     mir_node_type class;
-    const char *role, *expected_role;
 
     pa_assert(u);
     pa_assert(rtg);
@@ -708,7 +696,7 @@ static int rtgroup_print(mir_rtgroup *rtg, char *buf, int len)
         node = rte->node;
         if (p >= e)
             break;
-        p += snprintf(p, e-p, " '%s'", node->amname);
+        p += snprintf(p, (size_t)(e-p), " '%s'", node->amname);
     }
 
     return p - buf;
@@ -968,7 +956,7 @@ static int node_priority(struct userdata *u, mir_node *node)
 
     class = pa_classify_guess_application_class(node);
 
-    if (class < 0 || class >= router->maplen)
+    if (class < 0 || class >= (int)router->maplen)
         return 0;
 
     return router->priormap[class];
@@ -1015,7 +1003,7 @@ static int print_routing_table(pa_hashmap  *table,
     n = 0;
 
     if (len > 0) {
-        p += snprintf(p, e-p, "%s routing table:\n", type);
+        p += snprintf(p, (size_t)(e-p), "%s routing table:\n", type);
 
         state = NULL;
 
@@ -1024,17 +1012,17 @@ static int print_routing_table(pa_hashmap  *table,
                 n++;
 
                 if (p >= e) break;
-                p += snprintf(p, e-p, "   %s:", rtg->name);
+                p += snprintf(p, (size_t)(e-p), "   %s:", rtg->name);
                 
                 if (p >= e) break;
                 p += rtgroup_print(rtg, p, e-p);
                 
                 if (p >= e) break;
-                p += snprintf(p, e-p, "\n");
+                p += snprintf(p, (size_t)(e-p), "\n");
             }
 
             if (!n && p < e)
-                p += snprintf(p, e-p, "   <empty>\n");
+                p += snprintf(p, (size_t)(e-p), "   <empty>\n");
         }
     }
 

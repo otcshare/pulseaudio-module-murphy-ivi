@@ -30,17 +30,12 @@
 
 #include "zone.h"
 
-
 struct pa_zoneset {
     struct {
         pa_hashmap     *hash;
         mir_zone       *index[MRP_ZONE_MAX];
     } zones;
 };
-
-
-static void free_zone_cb(void *);
-
 
 pa_zoneset *pa_zoneset_init(struct userdata *u)
 {
@@ -148,24 +143,11 @@ void pa_zoneset_update_module_property(struct userdata *u)
     
     PA_HASHMAP_FOREACH(zone, zs->zones.hash, state) {
         if (p >= e) break;
-        p += snprintf(p, e-p, " '%s'", zone->name);
+        p += snprintf(p, (size_t)(e-p), " '%s'", zone->name);
     }
 
     pa_proplist_sets(module->proplist, PA_PROP_ZONES, buf+1);
 }
-
-static void free_zone_cb(void *void_zone)
-{
-    mir_zone  *zone = (mir_zone *)void_zone;
-
-    pa_xfree((void *)zone->name);
-
-    pa_xfree(zone);
-}
-
-
-                                  
-
 
 
 /*

@@ -74,7 +74,7 @@ pa_loopnode *pa_loopback_create(pa_loopback      *loopback,
                                 uint32_t          resource_set_flags,
                                 uint32_t          resource_audio_flags)
 {
-    static char *modnam = "module-loopback";
+    static const char *modnam = "module-loopback";
 
     pa_loopnode       *loop;
     pa_source         *source;
@@ -220,9 +220,9 @@ int pa_loopback_print(pa_loopnode *loop, char *buf, int len)
     e = (p = buf) + len;
 
     if (!loop)
-        p += snprintf(p, e-p, "<not set>");
+        p += snprintf(p, (size_t)(e-p), "<not set>");
     else {
-        p += snprintf(p, e-p, "module %u, sink_input %u",
+        p += snprintf(p, (size_t)(e-p), "module %u, sink_input %u",
                       loop->module_index, loop->sink_input_index);
     }
     

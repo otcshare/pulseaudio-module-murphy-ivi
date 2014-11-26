@@ -26,6 +26,7 @@
 
 #include "userdata.h"
 #include "list.h"
+#include "node.h"
 
 typedef bool (*mir_rtgroup_accept_t)(struct userdata *, mir_rtgroup *,
                                           mir_node *);
@@ -44,7 +45,7 @@ typedef struct {
 
 struct pa_router {
     pa_rtgroup_hash      rtgroups;
-    int                  maplen;   /**< length of the class- and priormap */
+    size_t               maplen;   /**< length of the class- and priormap */
     pa_rtgroup_classmap  classmap; /**< to map device node types to rtgroups */
     int                 *priormap; /**< stream node priorities */
     mir_dlist            nodlist;  /**< priorized list of the stream nodes

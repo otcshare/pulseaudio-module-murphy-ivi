@@ -126,15 +126,15 @@ void mir_volume_add_class_limit(struct userdata  *u,
     if (class < volume->classlen)
         table = volume->classlim + class;
     else {
-        newlen = class + 1;
+        newlen = (size_t)(class + 1);
         size = sizeof(vlim_table) * newlen;
-        diff = sizeof(vlim_table) * (newlen - volume->classlen);
+        diff = sizeof(vlim_table) * (newlen - (size_t)volume->classlen);
 
         pa_assert_se((classlim = realloc(volume->classlim, size)));
         memset(classlim + volume->classlen, 0, diff);
 
 
-        volume->classlen = newlen;
+        volume->classlen = (int)newlen;
         volume->classlim = classlim;
 
         table = classlim + class;
@@ -215,7 +215,6 @@ double mir_volume_apply_limits(struct userdata *u,
     double attenuation = 0.0;
     double devlim, classlim;
     vlim_table *tbl;
-    uint32_t clmask;
     double maxlim;
 
     pa_assert(u);
@@ -238,7 +237,6 @@ double mir_volume_apply_limits(struct userdata *u,
             pa_assert(class <  mir_application_class_end);
 
             maxlim = volume->maxlim[class];
-            clmask = (uint32_t)1 << (class - mir_application_class_begin);
 
             if (class < volume->classlen && (tbl = volume->classlim + class))
                 classlim = apply_table(classlim, tbl, u, class, node, "class");

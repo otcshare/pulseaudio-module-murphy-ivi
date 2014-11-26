@@ -61,7 +61,12 @@ void pa_classify_node_by_card(mir_node        *node,
     pa_assert(node);
     pa_assert(card);
 
-    bus  = pa_utils_get_card_bus(card);
+    bus = pa_utils_get_card_bus(card);
+
+    /* bus might be null */
+    if (!bus)
+        bus = " ";
+
     form = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_FORM_FACTOR);
     /*
     desc = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_DESCRIPTION);
@@ -373,11 +378,12 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
     return map ? map->type : mir_player;
 }
 
-static char *get_tag(pid_t pid, char *tag, char *buf, size_t size)
+static char *get_tag(pid_t pid, const char *tag, char *buf, size_t size)
 {
     char path[PATH_MAX];
     char data[8192], *p, *q;
-    int  fd, n, tlen;
+    int  fd, n;
+    size_t tlen;
 
     fd = -1;
     snprintf(path, sizeof(path), "/proc/%u/status", pid);
@@ -437,7 +443,7 @@ static pid_t get_ppid(pid_t pid)
     pid_t ppid;
 
     if (get_tag(pid, "PPid", buf, sizeof(buf)) != NULL) {
-        ppid = strtoul(buf, &end, 10);
+        ppid = strtol(buf, &end, 10);
 
         if (end && !*end)
             return ppid;
@@ -461,7 +467,7 @@ static int pid2exe(pid_t pid, char *buf, size_t len)
         snprintf(path, sizeof(path), "/proc/%u/cmdline", ppid);
 
         if ((f = fopen(path, "r"))) {
-            if (fgets(buf, len-1, f)) {
+            if (fgets(buf, (int)len-1, f)) {
                 if ((p = strchr(buf, ' ')))
                     *p = '\0';
                 else if ((p = strchr(buf, '\n')))
@@ -470,7 +476,7 @@ static int pid2exe(pid_t pid, char *buf, size_t len)
                     p = buf + strlen(buf);
 
                 if ((q = strrchr(buf, '/')))
-                    memmove(buf, q+1, p-q); 
+                    memmove(buf, q+1, (size_t)(p-q)); 
 
                 st = 0;
             }
@@ -518,7 +524,7 @@ static char *pid2appid(pid_t pid, char *buf, size_t size)
 {
     char binary[PATH_MAX];
     char path[PATH_MAX], *dir, *p, *base;
-    int  len;
+    unsigned int len;
 
     if (!pid || !get_binary(pid, binary, sizeof(binary)))
         return NULL;
@@ -548,7 +554,7 @@ static char *pid2appid(pid_t pid, char *buf, size_t size)
     if ((dir = strprev(p, '/', path)) == NULL || dir == path)
         goto return_base;
 
-    len = p - dir;
+    len = (size_t)(p - dir);
 
     /* fetch 'apps' dir */
     p = dir - 1;

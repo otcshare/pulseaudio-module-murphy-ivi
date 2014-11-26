@@ -57,7 +57,7 @@
 
 #define MIR_VOLUME_MAX_ATTENUATION      -120 /* dB */
 
-typedef enum   pa_value_type            pa_value_type;
+//typedef enum   pa_value_type            pa_value_type;
 typedef struct pa_value                 pa_value;
 typedef struct pa_null_sink             pa_null_sink;
 typedef struct pa_tracker               pa_tracker;
@@ -84,11 +84,11 @@ typedef struct pa_source_output_hooks   pa_source_output_hooks;
 typedef struct pa_extapi                pa_extapi;
 typedef struct pa_murphyif              pa_murphyif;
 
-typedef enum   mir_direction            mir_direction;
-typedef enum   mir_implement            mir_implement;
-typedef enum   mir_location             mir_location;
-typedef enum   mir_node_type            mir_node_type;
-typedef enum   mir_privacy              mir_privacy; 
+//typedef enum   mir_direction            mir_direction;
+//typedef enum   mir_implement            mir_implement;
+//typedef enum   mir_location             mir_location;
+//typedef enum   mir_node_type            mir_node_type;
+//typedef enum   mir_privacy              mir_privacy; 
 typedef struct mir_node                 mir_node;
 typedef struct mir_zone                 mir_zone;
 typedef struct mir_rtgroup              mir_rtgroup;
@@ -107,7 +107,7 @@ typedef struct scripting_rtgroup        scripting_rtgroup;
 typedef struct scripting_apclass        scripting_apclass;
 typedef struct scripting_vollim         scripting_vollim;
 
-typedef enum   am_method                am_method;
+//typedef enum   am_method                am_method;
 typedef struct am_domainreg_data        am_domainreg_data;
 typedef struct am_nodereg_data          am_nodereg_data;
 typedef struct am_nodeunreg_data        am_nodeunreg_data;
@@ -132,21 +132,90 @@ enum pa_value_type {
     pa_value_floating,
 };
 
+typedef union val_t {
+    const char *string;
+    int32_t     integer;
+    uint32_t    unsignd;
+    double      floating;
+    pa_value  **array;
+} val_t;
+
 struct pa_value {
     /* positive values are enumerations of pa_value_type
      * negative values represent array dimensions,
      * eg. -2 menas an array with two element
      */
-    int             type;
-    union {
-        const char *string;
-        int32_t     integer;
-        uint32_t    unsignd;
-        double      floating;
-        pa_value  **array;
-    };
+    int    type;
+    val_t  value;
 };
 
+typedef enum mir_direction {
+    mir_direction_unknown,
+    mir_input,
+    mir_output
+} mir_direction;
+
+typedef enum mir_implement {
+    mir_implementation_unknown = 0,
+    mir_device,
+    mir_stream
+} mir_implement;
+
+typedef enum mir_location {
+    mir_location_unknown = 0,
+    mir_internal,
+    mir_external
+} mir_location;
+
+typedef enum mir_node_type {
+    mir_node_type_unknown = 0,
+
+    /* application classes */
+    mir_application_class_begin,
+    mir_radio = mir_application_class_begin,
+    mir_player,
+    mir_navigator,
+    mir_game,
+    mir_browser,
+    mir_camera,
+    mir_phone,                  /**< telephony voice */
+    mir_alert,                  /**< ringtone, alarm */
+    mir_event,                  /**< notifications */
+    mir_system,                 /**< always audible system notifications, events */
+    mir_application_class_end,
+
+    /* device types */
+    mir_device_class_begin = 128,
+    mir_null = mir_device_class_begin,
+    mir_speakers,
+    mir_front_speakers,
+    mir_rear_speakers,
+    mir_microphone,
+    mir_jack,
+    mir_hdmi,
+    mir_spdif,
+    mir_wired_headset,
+    mir_wired_headphone,
+    mir_usb_headset,
+    mir_usb_headphone,
+    mir_bluetooth_sco,
+    mir_bluetooth_a2dp,
+    mir_bluetooth_carkit,
+    mir_bluetooth_source,
+    mir_bluetooth_sink,
+    mir_gateway_sink,
+    mir_gateway_source,
+    mir_device_class_end,
+
+    /* extensions */
+    mir_user_defined_start = 256
+} mir_node_type;
+
+typedef enum mir_privacy {
+    mir_privacy_unknown = 0,
+    mir_public,
+    mir_private
+} mir_privacy;
 
 struct userdata {
     pa_core       *core;

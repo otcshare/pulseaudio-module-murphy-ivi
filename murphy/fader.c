@@ -36,8 +36,8 @@
 #include "utils.h"
 
 typedef struct {
-    uint32_t fade_out;
-    uint32_t fade_in;
+    long fade_out;
+    long fade_in;
 } transition_time;
 
 
@@ -46,16 +46,16 @@ struct pa_fader {
 };
 
 static void set_stream_volume_limit(struct userdata *, pa_sink_input *,
-                                    pa_volume_t, uint32_t);
+                                    pa_volume_t, long);
 
 pa_fader *pa_fader_init(const char *fade_out_str, const char *fade_in_str)
 {
     pa_fader *fader = pa_xnew0(pa_fader, 1);
 
-    if (!fade_out_str || pa_atou(fade_out_str, &fader->transit.fade_out) < 0)
+    if (!fade_out_str || pa_atol(fade_out_str, &fader->transit.fade_out) < 0)
         fader->transit.fade_out = 100;
 
-    if (!fade_in_str || pa_atou(fade_in_str, &fader->transit.fade_in) < 0)
+    if (!fade_in_str || pa_atol(fade_in_str, &fader->transit.fade_in) < 0)
         fader->transit.fade_in = 1000;
 
     if (fader->transit.fade_out > 10000)
@@ -64,7 +64,7 @@ pa_fader *pa_fader_init(const char *fade_out_str, const char *fade_in_str)
     if (fader->transit.fade_in > 10000)
         fader->transit.fade_in = 10000;
 
-    pa_log_info("fader transition times: out %u ms, in %u ms",
+    pa_log_info("fader transition times: out %ld ms, in %ld ms",
                 fader->transit.fade_out, fader->transit.fade_in);
 
     return fader;
@@ -90,7 +90,7 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
     double           dB;
     pa_volume_t      newvol;
     pa_volume_t      oldvol;
-    uint32_t         time;
+    long             time;
     uint32_t         i,j;
     int              class;
     bool        rampit;
@@ -117,11 +117,11 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
                     if (!(sinp->flags & PA_SINK_INPUT_START_RAMP_MUTED))
                         pa_log_debug("        skipping");
                     else {
-                        sinp->flags &= ~PA_SINK_INPUT_START_RAMP_MUTED;
+                        sinp->flags &= ~((unsigned int)PA_SINK_INPUT_START_RAMP_MUTED);
                         time = transit->fade_in;
                         
                         pa_log_debug("        attenuation 0 dB "
-                                     "transition time %u ms", time);
+                                     "transition time %ld ms", time);
                         set_stream_volume_limit(u, sinp, PA_VOLUME_NORM, time);
                     }
                 }
@@ -149,7 +149,7 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
                         pa_log_debug("         attenuation %.2lf dB",dB);
                     else {
                         pa_log_debug("         attenuation %.2lf dB "
-                                     "transition time %u ms", dB, time);
+                                     "transition time %ld ms", dB, time);
                         set_stream_volume_limit(u, sinp, newvol, time);
                     }
                 }
@@ -162,12 +162,12 @@ void pa_fader_ramp_volume(struct userdata *u,
                           pa_sink_input *sinp,
                           pa_volume_t newvol)
 {
-    transition_time *transit;
-    bool             rampit;
-    pa_volume_t      oldvol;
+    transition_time      *transit;
+    bool                  rampit;
+    pa_volume_t           oldvol;
     pa_cvolume_ramp_int  *ramp;
-    uint32_t         time;
-    pa_cvolume_ramp  rampvol;
+    long                  time;
+    pa_cvolume_ramp       rampvol;
 
     pa_assert(u);
     pa_assert(u->fader);
@@ -232,7 +232,7 @@ pa_volume_t pa_fader_get_volume(struct userdata *u, pa_sink_input *sinp)
 static void set_stream_volume_limit(struct userdata *u,
                                     pa_sink_input   *sinp,
                                     pa_volume_t      vol,
-                                    uint32_t         ramp_time)
+                                    long             ramp_time)
 {
     pa_sink *sink;
     pa_cvolume_ramp rampvol;

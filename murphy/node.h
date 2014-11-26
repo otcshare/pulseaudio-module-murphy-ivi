@@ -30,74 +30,6 @@
 
 #define AM_ID_INVALID   65535
 
-enum mir_direction {
-    mir_direction_unknown,
-    mir_input,
-    mir_output
-};
-
-enum mir_implement {
-    mir_implementation_unknown = 0,
-    mir_device,
-    mir_stream
-};
-
-enum mir_location {
-    mir_location_unknown = 0,
-    mir_internal,
-    mir_external
-};
-
-enum mir_node_type {
-    mir_node_type_unknown = 0,
-
-    /* application classes */
-    mir_application_class_begin,
-    mir_radio = mir_application_class_begin,
-    mir_player,
-    mir_navigator,
-    mir_game,
-    mir_browser,
-    mir_camera,
-    mir_phone,                  /**< telephony voice */
-    mir_alert,                  /**< ringtone, alarm */
-    mir_event,                  /**< notifications */
-    mir_system,                 /**< always audible system notifications, events */
-    mir_application_class_end,
-
-    /* device types */
-    mir_device_class_begin = 128,
-    mir_null = mir_device_class_begin,
-    mir_speakers,
-    mir_front_speakers,
-    mir_rear_speakers,
-    mir_microphone,
-    mir_jack,
-    mir_hdmi,
-    mir_spdif,
-    mir_wired_headset,
-    mir_wired_headphone,
-    mir_usb_headset,
-    mir_usb_headphone,
-    mir_bluetooth_sco,
-    mir_bluetooth_a2dp,
-    mir_bluetooth_carkit,
-    mir_bluetooth_source,
-    mir_bluetooth_sink,
-    mir_gateway_sink,
-    mir_gateway_source,
-    mir_device_class_end,
-
-    /* extensions */
-    mir_user_defined_start = 256
-};
-
-enum mir_privacy {
-    mir_privacy_unknown = 0,
-    mir_public,
-    mir_private
-};
-
 struct pa_nodeset_resdef {
     uint32_t           priority;
     struct {
@@ -144,13 +76,13 @@ struct mir_node {
     bool           available; /**< eg. is the headset connected?  */
     bool           ignore;    /**< do not consider it while routing  */
     bool           localrset; /**< locally generated resource set */
-    char          *amname;    /**< audiomanager name */
-    char          *amdescr;   /**< UI description */
+    const char    *amname;    /**< audiomanager name */
+    const char    *amdescr;   /**< UI description */
     uint16_t       amid;      /**< handle to audiomanager, if any */
-    char          *paname;    /**< sink|source|sink_input|source_output name */
+    const char    *paname;    /**< sink|source|sink_input|source_output name */
     uint32_t       paidx;     /**< sink|source|sink_input|source_output index*/
     pa_node_card   pacard;    /**< pulse card related data, if any  */
-    char          *paport;    /**< sink or source port if applies */
+    const char    *paport;    /**< sink or source port if applies */
     pa_muxnode    *mux;       /**< for multiplexable input streams only */
     pa_loopnode   *loop;      /**< for looped back sources only */
     mir_dlist      rtentries; /**< in device nodes: listhead of nodchain */
