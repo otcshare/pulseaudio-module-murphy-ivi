@@ -53,6 +53,7 @@
 #endif
 
 #include "murphyif.h"
+#include "resource.h"
 #include "node.h"
 #include "stream-state.h"
 #include "utils.h"
@@ -76,11 +77,7 @@
 #define RESCOL_POLICY    5
 #define RESCOL_RSETNAME  6
 
-#define RSET_RELEASE     1
-#define RSET_ACQUIRE     2
 
-#define RSET_INPUT       0
-#define RSET_OUTPUT      1
 
 #define PUSH_VALUE(msg, tag, typ, val) \
     mrp_msg_append(msg, MRP_MSG_TAG_##typ(RESPROTO_##tag, val))
@@ -142,11 +139,6 @@ typedef struct {
         uint32_t request;
         uint32_t reply;
     }                seqno;
-    struct {
-        pa_hashmap *rsetid;
-        pa_hashmap *pid;
-        unsigned    nres[2];
-    }                nodes;
     PA_LLIST_HEAD(resource_attribute, attrs);
     PA_LLIST_HEAD(resource_request, reqs);
 #endif
@@ -161,35 +153,6 @@ struct pa_murphyif {
     resource_interface resource;
 };
 
-#ifdef WITH_RESOURCES
-typedef struct {
-    const char *hashkey;
-    bool        dead;
-    const char *id;
-    bool        autorel;
-    int         state;
-    bool        grant;
-    const char *policy;
-    const char *name;
-    const char *pid;
-} rset_data;
-
-typedef struct {
-    char       *pid;
-    mir_node   *node;
-    rset_data  *rset;
-} pid_hash;
-
-typedef struct {
-    size_t      nnode;
-    mir_node  **nodes;
-    rset_data  *rset;
-    bool        type[2];
-    uint32_t    updid;
-} rset_hash;
-
-#endif
-
 
 #ifdef WITH_DOMCTL
 static void domctl_connect_notify(mrp_domctl_t *,int,int,const char *,void *);
@@ -202,7 +165,6 @@ static void       resource_attribute_destroy(resource_interface *,
                                              resource_attribute *);
 static int        resource_transport_connect(resource_interface *);
 static void       resource_xport_closed_evt(mrp_transport_t *, int, void *);
-
 static mrp_msg_t *resource_create_request(uint32_t, mrp_resproto_request_t);
 static bool       resource_send_message(resource_interface *, mrp_msg_t *,
                                         uint32_t, uint16_t, uint32_t);
@@ -213,7 +175,6 @@ static bool       resource_set_destroy_node(struct userdata *, uint32_t);
 static bool       resource_set_destroy_all(struct userdata *);
 static void       resource_set_notification(struct userdata *, const char *,
                                             int, mrp_domctl_value_t **);
-static void       resource_set_enforce_policy(struct userdata *, rset_hash *);
 
 static bool  resource_push_attributes(mrp_msg_t *, resource_interface *,
                                            pa_proplist *);
@@ -247,28 +208,6 @@ static void connect_attempt(pa_mainloop_api *, pa_time_event *,
 static void schedule_connect(struct userdata *, resource_interface *);
 static void cancel_schedule(struct userdata *, resource_interface *);
 
-static rset_hash *node_put_rset(struct userdata *, mir_node *, rset_data *);
-static void node_enforce_resource_policy(struct userdata *, mir_node *,
-                                         rset_data *);
-static rset_data *rset_data_dup(rset_data *);
-static void rset_data_copy(rset_data *, rset_data *);
-static void rset_data_update(rset_data *, rset_data *);
-static void rset_data_free(rset_data *);
-
-static void        pid_hashmap_free(void *, void *);
-static int         pid_hashmap_put(struct userdata *, const char *,
-                                   mir_node *, rset_data *);
-static mir_node   *pid_hashmap_get_node(struct userdata *, const char *);
-static rset_data  *pid_hashmap_get_rset(struct userdata *, const char *);
-static mir_node   *pid_hashmap_remove_node(struct userdata *, const char *);
-static rset_data  *pid_hashmap_remove_rset(struct userdata *, const char *);
-
-static void       rset_hashmap_free(void *, void *);
-static rset_hash *rset_hashmap_put(struct userdata *, const char *,
-                                   int, mir_node *);
-static rset_hash *rset_hashmap_get(struct userdata *u, const char *rsetid);
-static int        rset_hashmap_remove(struct userdata *,const char *,mir_node*);
-
 #endif
 
 static pa_proplist *get_node_proplist(struct userdata *, mir_node *);
@@ -290,8 +229,6 @@ pa_murphyif *pa_murphyif_init(struct userdata *u,
         return NULL;
     }
 #endif
-#ifdef WITH_RESOURCES
-#endif
 
     murphyif = pa_xnew0(pa_murphyif, 1);
     dif = &murphyif->domctl;
@@ -302,8 +239,6 @@ pa_murphyif *pa_murphyif_init(struct userdata *u,
 #endif
 
     dif->addr = pa_xstrdup(ctl_addr ? ctl_addr:MRP_DEFAULT_DOMCTL_ADDRESS);
-#ifdef WITH_DOMCTL
-#endif
 
     rif->addr = pa_xstrdup(res_addr ? res_addr:RESPROTO_DEFAULT_ADDRESS);
 #ifdef WITH_RESOURCES
@@ -328,10 +263,6 @@ pa_murphyif *pa_murphyif_init(struct userdata *u,
     }
 
     rif->seqno.request = 1;
-    rif->nodes.rsetid = pa_hashmap_new(pa_idxset_string_hash_func,
-                                       pa_idxset_string_compare_func);
-    rif->nodes.pid = pa_hashmap_new(pa_idxset_string_hash_func,
-                                    pa_idxset_string_compare_func);
     PA_LLIST_HEAD_INIT(resource_attribute, rif->attrs);
     PA_LLIST_HEAD_INIT(resource_request, rif->reqs);
 #endif
@@ -348,9 +279,6 @@ void pa_murphyif_done(struct userdata *u)
 #ifdef WITH_RESOURCES
     resource_attribute *attr, *a;
     resource_request *req, *r;
-    void *state;
-    rset_hash *rh;
-    pid_hash *ph;
 #endif
 
     if (u && (murphyif = u->murphyif)) {
@@ -390,25 +318,6 @@ void pa_murphyif_done(struct userdata *u)
         rif = &murphyif->resource;
 
         resource_transport_destroy(murphyif);
-
-        PA_HASHMAP_FOREACH(rh, rif->nodes.rsetid, state) {
-            if (rh) {
-                pa_xfree(rh->nodes);
-                rset_data_free(rh->rset);
-                pa_xfree(rh);
-            }
-        }
-
-        PA_HASHMAP_FOREACH(ph, rif->nodes.pid, state) {
-            if (ph) {
-                pa_xfree((void *)ph->pid);
-                rset_data_free(ph->rset);
-                pa_xfree(ph);
-            }
-        }
-
-        pa_hashmap_free(rif->nodes.rsetid);
-        pa_hashmap_free(rif->nodes.pid);
 
         PA_LLIST_FOREACH_SAFE(attr, a, rif->attrs)
             resource_attribute_destroy(rif, attr);
@@ -631,7 +540,7 @@ void pa_murphyif_create_resource_set(struct userdata *u,
               ( node->loop && node->implement == mir_device)   );
     pa_assert(node->direction == mir_input || node->direction == mir_output);
     pa_assert(node->zone);
-    pa_assert(!node->rsetid);
+    pa_assert(!node->rset.id);
 
     pa_assert_se((core = u->core));
 
@@ -665,22 +574,17 @@ void pa_murphyif_destroy_resource_set(struct userdata *u, mir_node *node)
     pa_assert(node);
     pa_assert_se((murphyif = u->murphyif));
 
-    if (node->localrset && node->rsetid) {
+    if (node->localrset && node->rset.id) {
 
         pa_murphyif_delete_node(u, node);
 
-        rsetid = strtoul(node->rsetid, &e, 10);
+        rsetid = strtoul(node->rset.id, &e, 10);
 
-        if (e == node->rsetid || *e) {
+        if (e == node->rset.id || *e) {
             pa_log("can't destroy resource set: invalid rsetid '%s'",
-                   node->rsetid);
+                   node->rset.id);
         }
         else {
-            if (rset_hashmap_remove(u, node->rsetid, node) < 0) {
-                pa_log_debug("failed to remove resource set %s from hashmap",
-                             node->rsetid);
-            }
-
             if (resource_set_destroy_node(u, rsetid))
                 pa_log_debug("sent resource set %u destruction request", rsetid);
             else {
@@ -688,10 +592,10 @@ void pa_murphyif_destroy_resource_set(struct userdata *u, mir_node *node)
                        rsetid, node->amname);
             }
 
-            pa_xfree(node->rsetid);
+            pa_xfree(node->rset.id);
 
             node->localrset = false;
-            node->rsetid = NULL;
+            node->rset.id = NULL;
         }
     }
 }
@@ -700,65 +604,32 @@ int pa_murphyif_add_node(struct userdata *u, mir_node *node)
 {
 #ifdef WITH_RESOURCES
     pa_murphyif *murphyif;
-    const char *pid;
-    rset_data *rset;
-    rset_hash *rh;
-    int type;
-    char buf[64];
+    char *id;
+    char *name;
 
     pa_assert(u);
     pa_assert(node);
 
     pa_assert_se((murphyif = u->murphyif));
 
-    if (!node->rsetid) {
+    if (!node->rset.id) {
         pa_log("can't register resource set for node %u '%s'.: missing rsetid",
                node->paidx, node->amname);
     }
-    else if (pa_streq(node->rsetid, PA_RESOURCE_SET_ID_PID)) {
-        if (!(pid = get_node_pid(u,node)))
-            pa_log("can't obtain PID for node '%s'", node->amname);
-        else {
-            if (pid_hashmap_put(u, pid, node, NULL) == 0)
-                return 0;
-
-            if ((rset = pid_hashmap_remove_rset(u, pid))) {
-                pa_log_debug("found resource-set %s for node '%s'",
-                             rset->id, node->amname);
-
-                if (node_put_rset(u, node, rset)) {
-                    node_enforce_resource_policy(u, node, rset);
-                    rset_data_free(rset);
-                    return 0;
-                }
-
-                pa_log("can't register resource set for node '%s': "
-                       "failed to set rsetid", node->amname);
-
-                rset_data_free(rset);
-            }
-            else {
-                pa_log("can't register resource set for node '%s': "
-                       "conflicting pid", node->amname);
-            }
-        }
+    else if (pa_streq(node->rset.id, PA_RESOURCE_SET_ID_PID)) {
     }
     else {
-        type = (node->direction == mir_input) ? RSET_INPUT : RSET_OUTPUT;
-
-        if ((rh = rset_hashmap_put(u, node->rsetid, type, node))) {
-            rset = rh->rset;
-
-            pa_log_debug("enforce policies on node %u '%s' hashkey:%s "
-                         "autorel:%s state:%s grant:%s policy:%s",
-                         node->paidx, node->amname,
-                         rset->hashkey, rset->autorel ? "yes":"no",
-                         rset->state == RSET_ACQUIRE ? "acquire":"release",
-                         rset->grant ? "yes":"no", rset->policy);
-
-            node_enforce_resource_policy(u, node, rset);
-            return 0;
+        if (node->rset.id[0] == '#') {
+            name = node->rset.id;
+            id = NULL;
         }
+        else {
+            name = NULL;
+            id = node->rset.id;
+        }
+
+        if (pa_resource_stream_update(u, name, id, node) == 0)
+            return 0;
     }
 
     return -1;
@@ -771,29 +642,17 @@ void pa_murphyif_delete_node(struct userdata *u, mir_node *node)
 {
 #ifdef WITH_RESOURCES
     pa_murphyif *murphyif;
-    const char *pid;
 
     pa_assert(u);
     pa_assert(node);
 
     pa_assert_se((murphyif = u->murphyif));
 
-    if (node->rsetid) {
-        if (pa_streq(node->rsetid, PA_RESOURCE_SET_ID_PID)) {
-            if ((pid = get_node_pid(u, node))) {
-                if (node == pid_hashmap_get_node(u, pid))
-                    pid_hashmap_remove_node(u, pid);
-                else {
-                    pa_log("pid %s seems to have multiple resource sets. "
-                           "Refuse to delete node %u (%s) from hashmap",
-                           pid, node->index, node->amname);
-                }
-            }
+    if (node->rset.id) {
+        if (pa_streq(node->rset.id, PA_RESOURCE_SET_ID_PID)) {
         }
         else {
-            if (rset_hashmap_remove(u, node->rsetid, node) < 0) {
-                pa_log("failed to remove node '%s' from rset hash", node->amname);
-            }
+            pa_resource_stream_remove(u, node);
         }
     }
 #endif
@@ -1019,9 +878,9 @@ static bool resource_send_message(resource_interface *rif,
 }
 
 static bool resource_set_create_node(struct userdata *u,
-                                          mir_node *node,
-                                          pa_nodeset_resdef *resdef,
-                                          bool acquire)
+                                     mir_node *node,
+                                     pa_nodeset_resdef *resdef,
+                                     bool acquire)
 {
     pa_core *core;
     pa_murphyif *murphyif;
@@ -1051,7 +910,7 @@ static bool resource_set_create_node(struct userdata *u,
               ( node->loop && node->implement == mir_device)   );
     pa_assert(node->direction == mir_input || node->direction == mir_output);
     pa_assert(node->zone);
-    pa_assert(!node->rsetid);
+    pa_assert(!node->rset.id);
 
     pa_assert_se((core = u->core));
 
@@ -1148,7 +1007,7 @@ static bool resource_set_create_all(struct userdata *u)
         if ((node->implement == mir_stream && !node->loop) ||
             (node->implement == mir_device &&  node->loop)   )
         {
-            if (!node->rsetid) {
+            if (!node->rset.id) {
                 node->localrset = resource_set_create_node(u, node, NULL, false);
                 success &= node->localrset;
             }
@@ -1211,21 +1070,21 @@ static bool resource_set_destroy_all(struct userdata *u)
         if (node->implement == mir_stream && node->localrset) {
             pa_log_debug("destroying resource set for '%s'", node->amname);
 
-            if (rif->connected && node->rsetid) {
-                rsetid = strtoul(node->rsetid, &e, 10);
+            if (rif->connected && node->rset.id) {
+                rsetid = strtoul(node->rset.id, &e, 10);
 
-                if (e == node->rsetid || *e)
+                if (e == node->rset.id || *e)
                     success = false;
                 else {
-                    rset_hashmap_remove(u, node->rsetid, node);
+                    pa_resource_rset_remove(u, NULL, node->rset.id);
                     success &= resource_set_destroy_node(u, rsetid);
                 }
             }
 
-            pa_xfree(node->rsetid);
+            pa_xfree(node->rset.id);
 
             node->localrset = false;
-            node->rsetid = NULL;
+            node->rset.id = NULL;
         }
     }
 
@@ -1253,10 +1112,8 @@ static void resource_set_notification(struct userdata *u,
     mrp_domctl_value_t *crsetname;
     char rsetid[32];
     char name[256];
-    const char *pid;
     mir_node *node, **nodes;
-    rset_hash *rh;
-    rset_data rset, *rs;
+    pa_resource_rset_data rset;
     size_t i, size;
     unsigned nrset;
     void *it;
@@ -1268,9 +1125,9 @@ static void resource_set_notification(struct userdata *u,
     rif = &murphyif->resource;
 
     if (pa_streq(table, rif->inpres.tblnam))
-        type = RSET_INPUT;
+        type = PA_RESOURCE_INPUT;
     else if (pa_streq(table, rif->outres.tblnam))
-        type = RSET_OUTPUT;
+        type = PA_RESOURCE_OUTPUT;
     else {
         pa_log_debug("ignoring unregistered table '%s'", table);
         return;
@@ -1308,23 +1165,22 @@ static void resource_set_notification(struct userdata *u,
         else
             name[0] = 0;
 
-        pid = cpid->str;
-
         memset(&rset, 0, sizeof(rset));
         rset.id      = rsetid;
         rset.autorel = cautorel->s32;
         rset.state   = cstate->s32;
-        rset.grant   = cgrant->s32;
-        rset.policy  = cpolicy->str;
         rset.name    = name;
-        rset.pid     = pid;
+        rset.pid     = (char *)cpid->str;
+
+        rset.policy[type] = (char *)cpolicy->str;
+        rset.grant[type]  = cgrant->s32;
 
         if (cautorel->s32 < 0 || cautorel->s32 > 1) {
             pa_log_debug("invalid autorel %d in table '%s'",
                          cautorel->s32, table);
             continue;
         }
-        if (rset.state != RSET_RELEASE && rset.state != RSET_ACQUIRE) {
+        if (rset.state != PA_RESOURCE_RELEASE && rset.state != PA_RESOURCE_ACQUIRE) {
             pa_log_debug("invalid state %d in table '%s'", rset.state, table);
             continue;
         }
@@ -1332,121 +1188,26 @@ static void resource_set_notification(struct userdata *u,
             pa_log_debug("invalid grant %d in table '%s'", cgrant->s32, table);
             continue;
         }
-        if (!rset.policy) {
+        if (!rset.policy[type]) {
             pa_log_debug("invalid 'policy' string in table '%s'", table);
             continue;
         }
 
-        if (rset.name[0] == '#') {
-            rset.hashkey = rset.name;
-
-            if (!(rh = rset_hashmap_put(u, rset.hashkey, type, NULL))) {
-                pa_log_debug("can't add to hashmap '%s' resource set",
-                             rset.hashkey);
-                continue;
-            }
-        }
-        else {
-            rset.hashkey = rset.id;
-
-            if (!(rh = rset_hashmap_get(u, rset.hashkey))) {
-                if (!pid) {
-                    pa_log_debug("can't find node for resource set %s "
-                                 "(pid in resource set unknown)", rset.id);
-                    continue;
-                }
-
-                if ((node = pid_hashmap_remove_node(u, pid))) {
-                    pa_log_debug("found node %s for resource-set '%s'",
-                                 node->amname, rset.id);
-
-                    if (!(rh = node_put_rset(u, node, &rset))) {
-                        pa_log("can't register resource set for node '%s': "
-                               "failed to set rsetid", node->amname);
-                        continue;
-                    }
-                }
-                else {
-                    if (pid_hashmap_put(u,pid,NULL,rset_data_dup(&rset)) < 0) {
-                        if (!(rs = pid_hashmap_get_rset(u, pid)))
-                            pa_log("failed to add resource set to pid hash");
-                        else {
-                            if (!pa_streq(rs->id, rset.id)) {
-                                pa_log("process %s appears to have multiple "
-                                       "resource sets (%s and %s)",
-                                       pid, rs->id,rset.id);
-                            }
-                            pa_log_debug("update resource-set %s data in "
-                                         "pid hash (pid %s)", rs->id, pid);
-                            rset_data_copy(rs, &rset);
-                        }
-                    }
-                    else {
-                        pa_log_debug("can't find node for resource set %s. "
-                                     "Beleive the stream will appear later on",
-                                     rset.id);
-                    }
-
-                    continue;
-                }
-            }
-        }
-
-        rset_data_update(rh->rset, &rset);
-
-        rh->updid = updid;
-        nrset++;
-
-        resource_set_enforce_policy(u, rh);
+        pa_resource_rset_update(u, rset.name, rset.id, type, &rset, updid);
 
     } /* for each row */
 
-    if (nrset < rif->nodes.nres[type]) {
-        pa_log_debug("some of the resource sets were not updated => "
-                     "find the %u resource sets that need to be deleted",
-                     pa_hashmap_size(rif->nodes.rsetid) - nrset);
+    if (nrset != pa_resource_get_number_of_resources(u, type))
+        pa_resource_purge(u, updid, type);
 
-        PA_HASHMAP_FOREACH(rh, rif->nodes.rsetid, it) {
-            if (rh->type[type] && rh->updid != updid) {
-                pa_log_debug("'%s' was not updated => assume it's gone "
-                             "and delete it", rh->rset->hashkey);
-
-                rh->rset->dead = true;
-                rh->rset->grant = false;
-
-                resource_set_enforce_policy(u, rh);
-            }
-        }
-    }
+    pa_resource_enforce_policies(u, type);
 }
 
-static void resource_set_enforce_policy(struct userdata *u, rset_hash *rh) {
-    size_t i, size;
-    mir_node *node, **nodes;
-
-    /* we need to make a copy of this as node_enforce_resource_policy()
-       will delete/modify it */
-    size = sizeof(mir_node *) * (rh->nnode + 1);
-    nodes = alloca(size);
-    memcpy(nodes, rh->nodes, size);
-
-    for (i = 0;  (node = nodes[i]);  i++) {
-        pa_log_debug("%u: resource notification for node '%s' hashkey=%s "
-                     "autorel:%s state:%s grant:%s pid:%s policy:%s",
-                     i, node->amname, rh->rset->hashkey,
-                     rh->rset->autorel ? "yes":"no",
-                     rh->rset->state == RSET_ACQUIRE ? "acquire":"release",
-                     rh->rset->grant ? "yes":"no",
-                     rh->rset->pid, rh->rset->policy);
-
-        node_enforce_resource_policy(u, node, rh->rset);
-    }
-}
 
 
 static bool resource_push_attributes(mrp_msg_t *msg,
-                                          resource_interface *rif,
-                                          pa_proplist *proplist)
+                                     resource_interface *rif,
+                                     pa_proplist *proplist)
 {
     resource_attribute *attr;
     union {
@@ -1623,7 +1384,7 @@ static void resource_set_create_response(struct userdata *u, mir_node *node,
         return;
     }
 
-    node->rsetid = pa_sprintf_malloc("%d", rsetid);
+    node->rset.id = pa_sprintf_malloc("%d", rsetid);
 
     if (pa_murphyif_add_node(u, node) == 0) {
         pa_log_debug("resource set was successfully created");
@@ -1902,426 +1663,6 @@ static void cancel_schedule(struct userdata *u, resource_interface *rif)
         mainloop->time_free(tev);
         rif->connect.evt = NULL;
     }
-}
-
-static rset_hash *node_put_rset(struct userdata *u, mir_node *node, rset_data *rset)
-{
-    pa_murphyif *murphyif;
-    pa_proplist *pl;
-    rset_hash *rh;
-    resource_interface *rif;
-    int type;
-
-    pa_assert(u);
-    pa_assert(node);
-    pa_assert(rset);
-    pa_assert(rset->id);
-
-    pa_assert(node->implement == mir_stream);
-    pa_assert(node->direction == mir_input || node->direction == mir_output);
-
-    pa_assert_se((murphyif = u->murphyif));
-
-    rif = &murphyif->resource;
-    type = (node->direction == mir_input) ? RSET_INPUT : RSET_OUTPUT;
-
-    pa_log_debug("setting rsetid %s for node %s", rset->id, node->amname);
-
-    if (node->rsetid) {
-        pa_xfree(node->rsetid);
-    }
-    node->rsetid = pa_xstrdup(rset->id);
-
-    if (!(pl = get_node_proplist(u, node))) {
-        pa_log("can't obtain property list for node %s", node->amname);
-        return NULL;
-    }
-
-    if ((pa_proplist_sets(pl, PA_PROP_RESOURCE_SET_ID, node->rsetid) < 0)) {
-        pa_log("failed to set '" PA_PROP_RESOURCE_SET_ID "' property "
-               "of '%s' node", node->amname);
-        return NULL;
-    }
-
-    if (!(rh = rset_hashmap_put(u, node->rsetid, type, node))) {
-        pa_log("conflicting rsetid %s for %s", node->rsetid, node->amname);
-        return NULL;
-    }
-
-    return rh;
-}
-
-static void node_enforce_resource_policy(struct userdata *u,
-                                         mir_node *node,
-                                         rset_data *rset)
-{
-    int req;
-
-    pa_assert(node);
-    pa_assert(rset);
-    pa_assert(rset->policy);
-
-
-    if (pa_streq(rset->policy, "relaxed"))
-        req = PA_STREAM_RUN;
-    else if (pa_streq(rset->policy, "strict")) {
-        if (rset->state == RSET_RELEASE && rset->autorel)
-            req = PA_STREAM_KILL;
-        else {
-            if (rset->grant)
-                req = PA_STREAM_RUN;
-            else
-                req = PA_STREAM_BLOCK;
-        }
-    }
-    else {
-        req = PA_STREAM_BLOCK;
-    }
-
-    pa_stream_state_change(u, node, req);
-}
-
-static rset_data *rset_data_dup(rset_data *orig)
-{
-    rset_data *dup;
-
-    pa_assert(orig);
-    pa_assert(orig->id);
-    pa_assert(orig->policy);
-
-    dup = pa_xnew0(rset_data, 1);
-
-    dup->id      = pa_xstrdup(orig->id);
-    dup->autorel = orig->autorel;
-    dup->state   = orig->state;
-    dup->grant   = orig->grant;
-    dup->policy  = pa_xstrdup(orig->policy);
-
-    return dup;
-}
-
-static void rset_data_copy(rset_data *dst, rset_data *src)
-{
-    pa_assert(dst);
-    pa_assert(src);
-    pa_assert(src->id);
-    pa_assert(src->policy);
-
-    pa_xfree((void *)dst->id);
-    pa_xfree((void *)dst->policy);
-
-    dst->id      = pa_xstrdup(src->id);
-    dst->autorel = src->autorel;
-    dst->state   = src->state;
-    dst->grant   = src->grant;
-    dst->policy  = pa_xstrdup(src->policy);
-}
-
-
-static void rset_data_update(rset_data *dst, rset_data *src)
-{
-    pa_assert(dst);
-    pa_assert(dst->id);
-    pa_assert(src);
-    pa_assert(src->id);
-    pa_assert(src->policy);
-
-    pa_assert(pa_streq(src->hashkey, dst->hashkey));
-
-    pa_xfree((void *)dst->id);
-    pa_xfree((void *)dst->policy);
-    pa_xfree((void *)dst->name);
-    pa_xfree((void *)dst->pid);
-
-    dst->id      = pa_xstrdup(src->id);
-    dst->autorel = src->autorel;
-    dst->state   = src->state;
-    dst->grant   = src->grant;
-    dst->policy  = pa_xstrdup(src->policy);
-    dst->name    = pa_xstrdup(src->name);
-    dst->pid     = pa_xstrdup(src->pid);
-}
-
-
-static void rset_data_free(rset_data *rset)
-{
-    if (rset) {
-        pa_xfree((void *)rset->hashkey);
-        pa_xfree((void *)rset->id);
-        pa_xfree((void *)rset->policy);
-        pa_xfree((void *)rset->name);
-        pa_xfree(rset);
-    }
-}
-
-static void pid_hashmap_free(void *p, void *userdata)
-{
-    pid_hash *ph = (pid_hash *)p;
-
-    (void)userdata;
-
-    if (ph) {
-        pa_xfree((void *)ph->pid);
-        rset_data_free(ph->rset);
-        pa_xfree(ph);
-    }
-}
-
-static int pid_hashmap_put(struct userdata *u, const char *pid,
-                           mir_node *node, rset_data *rset)
-{
-    pa_murphyif *murphyif;
-    resource_interface *rif;
-    pid_hash *ph;
-
-    pa_assert(u);
-    pa_assert(pid);
-    pa_assert(node || rset);
-    pa_assert_se((murphyif = u->murphyif));
-
-    rif = &murphyif->resource;
-
-    ph = pa_xnew0(pid_hash, 1);
-    ph->pid = pa_xstrdup(pid);
-    ph->node = node;
-    ph->rset = rset;
-
-    if (pa_hashmap_put(rif->nodes.pid, (void *)ph->pid, ph) == 0)
-        return 0;
-    else
-        pid_hashmap_free(ph, NULL);
-
-    return -1;
-}
-
-static mir_node *pid_hashmap_get_node(struct userdata *u, const char *pid)
-{
-    pa_murphyif *murphyif;
-    resource_interface *rif;
-    pid_hash *ph;
-
-    pa_assert(u);
-    pa_assert(pid);
-    pa_assert(murphyif = u->murphyif);
-
-    rif = &murphyif->resource;
-
-    if ((ph = pa_hashmap_get(rif->nodes.pid, pid)))
-        return ph->node;
-
-    return NULL;
-}
-
-static rset_data *pid_hashmap_get_rset(struct userdata *u, const char *pid)
-{
-    pa_murphyif *murphyif;
-    resource_interface *rif;
-    pid_hash *ph;
-
-    pa_assert(u);
-    pa_assert(pid);
-    pa_assert(murphyif = u->murphyif);
-
-    rif = &murphyif->resource;
-
-    if ((ph = pa_hashmap_get(rif->nodes.pid, pid)))
-        return ph->rset;
-
-    return NULL;
-}
-
-static mir_node *pid_hashmap_remove_node(struct userdata *u, const char *pid)
-{
-    pa_murphyif *murphyif;
-    resource_interface *rif;
-    mir_node *node;
-    pid_hash *ph;
-
-    pa_assert(u);
-    pa_assert_se((murphyif = u->murphyif));
-
-    rif = &murphyif->resource;
-
-    if (!(ph = pa_hashmap_remove(rif->nodes.pid, pid)))
-        node = NULL;
-    else if (!(node = ph->node))
-        pa_hashmap_put(rif->nodes.pid, (void *)ph->pid, ph);
-    else
-        pid_hashmap_free(ph, NULL);
-
-    return node;
-}
-
-static rset_data *pid_hashmap_remove_rset(struct userdata *u, const char *pid)
-{
-    pa_murphyif *murphyif;
-    resource_interface *rif;
-    rset_data *rset;
-    pid_hash *ph;
-
-    pa_assert(u);
-    pa_assert(pid);
-
-    pa_assert_se((murphyif = u->murphyif));
-
-    rif = &murphyif->resource;
-
-    if (!(ph = pa_hashmap_remove(rif->nodes.pid, pid)))
-        rset = NULL;
-    else if (!(rset = ph->rset))
-        pa_hashmap_put(rif->nodes.pid, (void *)ph->pid, ph);
-    else {
-        ph->rset = NULL;
-        pid_hashmap_free(ph, NULL);
-    }
-
-    return rset;
-}
-
-
-static void rset_hashmap_free(void *r, void *userdata)
-{
-    rset_hash *rh = (rset_hash *)r;
-
-    (void)userdata;
-
-    if (rh) {
-        pa_xfree(rh->nodes);
-        rset_data_free(rh->rset);
-        pa_xfree(rh);
-    }
-}
-
-static rset_hash *rset_hashmap_put(struct userdata *u,
-                                   const char *rsetid,
-                                   int type,
-                                   mir_node *node)
-{
-    pa_murphyif *murphyif;
-    resource_interface *rif;
-    rset_hash *rh;
-    rset_data *rset;
-    size_t i, size;
-
-    pa_assert(u);
-    pa_assert(rsetid);
-    pa_assert(type == RSET_INPUT || type == RSET_OUTPUT);
-    pa_assert_se((murphyif = u->murphyif));
-
-    rif = &murphyif->resource;
-
-    if ((rh = pa_hashmap_get(rif->nodes.rsetid, rsetid))) {
-        if (rh->rset->dead) {
-            pa_log_debug("attempt to add dead rset '%s' to hashmap",
-                         rh->rset->hashkey);
-            return NULL;
-        }
-
-        if (node) {
-            for (i = 0;  i < rh->nnode;  i++) {
-                if (rh->nodes[i] == node)
-                    return NULL;
-            }
-
-            i = rh->nnode++;
-            size = sizeof(mir_node *) * (rh->nnode + 1);
-            rh->nodes = pa_xrealloc(rh->nodes, size);
-        }
-    }
-    else {
-        rset = pa_xnew0(rset_data, 1);
-
-        rset->hashkey = pa_xstrdup(rsetid);
-        rset->dead    = false;
-        rset->id      = pa_xstrdup("unknown");
-        rset->policy  = pa_xstrdup("unknown");
-        rset->name    = pa_xstrdup("unknown");
-
-        rh = pa_xnew0(rset_hash, 1);
-
-        rh->nnode = node ? 1 : 0;
-        rh->nodes = pa_xnew0(mir_node *, rh->nnode + 1);
-        rh->rset  = rset;
-
-        pa_hashmap_put(rif->nodes.rsetid, (void *)rh->rset->hashkey, rh);
-
-        rif->nodes.nres[type]++;
-
-        i = 0;
-    }
-
-    if (node) {
-        rh->nodes[i+0] = node;
-        rh->nodes[i+1] = NULL;
-    }
-
-    rh->type[type] = true;
-
-    return rh;
-}
-
-static rset_hash *rset_hashmap_get(struct userdata *u, const char *rsetid)
-{
-    pa_murphyif *murphyif;
-    resource_interface *rif;
-    rset_hash *rh;
-
-    pa_assert(u);
-    pa_assert(rsetid);
-    pa_assert(murphyif = u->murphyif);
-
-    rif = &murphyif->resource;
-
-    if ((rh = pa_hashmap_get(rif->nodes.rsetid, rsetid)))
-        return rh;
-
-    return NULL;
-}
-
-static int rset_hashmap_remove(struct userdata *u,
-                               const char *rsetid,
-                               mir_node *node)
-{
-    pa_murphyif *murphyif;
-    resource_interface *rif;
-    rset_hash *rh;
-    rset_data *rset;
-    int type;
-    size_t i,j;
-
-    pa_assert(u);
-    pa_assert_se((murphyif = u->murphyif));
-
-    rif = &murphyif->resource;
-
-    if ((rh = pa_hashmap_get(rif->nodes.rsetid, rsetid))) {
-        pa_assert_se((rset = rh->rset));
-
-        for (i = 0;  i < rh->nnode;  i++) {
-            if (node == rh->nodes[i]) {
-                if (rh->nnode <= 1 && (rset->hashkey[0] != '#' || rset->dead)){
-                    pa_hashmap_remove(rif->nodes.rsetid, rsetid);
-                    rset_hashmap_free(rh, NULL);
-
-                    type = (node->direction == mir_input) ?
-                               RSET_INPUT : RSET_OUTPUT;
-
-                    if (rif->nodes.nres[type] > 0)
-                        rif->nodes.nres[type]--;
-                }
-                else {
-                    for (j = i;  j < rh->nnode;  j++)
-                        rh->nodes[j] = rh->nodes[j+1];
-
-                    rh->nnode--;
-                }
-
-                return 0;
-            }
-        }
-    }
-
-    return -1;
 }
 
 #endif

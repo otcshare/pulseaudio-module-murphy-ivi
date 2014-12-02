@@ -498,6 +498,8 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, bool route)
 
             if (make_rset)
                 pa_murphyif_create_resource_set(u, node, resdef);
+            else
+                node->rset.grant = 1;
         }
 
         if (route) {
@@ -667,6 +669,8 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
 
             if (make_rset)
                 pa_murphyif_create_resource_set(u, node, resdef);
+            else
+                node->rset.grant = 1;
 
             pa_fader_apply_volume_limits(u, node->stamp);
         }
@@ -816,7 +820,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     data.amid      = AM_ID_INVALID;
     data.paname    = (char *)name;
     data.paidx     = sinp->index;
-    data.rsetid    = pa_utils_get_rsetid(pl, idbuf, sizeof(idbuf));
+    data.rset.id   = pa_utils_get_rsetid(pl, idbuf, sizeof(idbuf));
 
     /*
      * here we can't guess whether the application requested an explicit
@@ -1080,7 +1084,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         data.paidx     = sinp->index;
         data.mux       = pa_multiplex_find_by_sink(u->multiplex,
                                                    sinp->sink->index);
-        data.rsetid    = pa_utils_get_rsetid(pl, idbuf, sizeof(idbuf));
+        data.rset.id   = pa_utils_get_rsetid(pl, idbuf, sizeof(idbuf));
         node = create_node(u, &data, &created);
 
         pa_assert(node);
@@ -1091,10 +1095,14 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
             return;
         }
 
-        if (node->rsetid)
+        if (node->rset.id)
             pa_murphyif_add_node(u, node);
-        else if (resdef)
-            pa_murphyif_create_resource_set(u, node, resdef);
+        else {
+            if (resdef)
+                pa_murphyif_create_resource_set(u, node, resdef);
+            else
+                node->rset.grant = 1;
+        }
 
         pa_discover_add_node_to_ptr_hash(u, sinp, node);
 
@@ -1237,7 +1245,7 @@ void pa_discover_register_source_output(struct userdata  *u,
     data.amid      = AM_ID_INVALID;
     data.paname    = (char *)name;
     data.paidx     = sout->index;
-    data.rsetid    = pa_utils_get_rsetid(pl, idbuf, sizeof(idbuf));
+    data.rset.id   = pa_utils_get_rsetid(pl, idbuf, sizeof(idbuf));
 
     /*
      * here we can't guess whether the application requested an explicit
@@ -1427,7 +1435,7 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
         data.amid      = AM_ID_INVALID;
         data.paname    = (char *)name;
         data.paidx     = sout->index;
-        data.rsetid    = pa_utils_get_rsetid(pl, idbuf, sizeof(idbuf));
+        data.rset.id   = pa_utils_get_rsetid(pl, idbuf, sizeof(idbuf));
 
         node = create_node(u, &data, &created);
 
@@ -1439,10 +1447,14 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
             return;
         }
 
-        if (node->rsetid)
+        if (node->rset.id)
             pa_murphyif_add_node(u, node);
-        else if (resdef)
-            pa_murphyif_create_resource_set(u, node, resdef);
+        else {
+            if (resdef)
+                pa_murphyif_create_resource_set(u, node, resdef);
+            else
+                node->rset.grant = 1;
+        }
 
         pa_discover_add_node_to_ptr_hash(u, sout, node);
     }

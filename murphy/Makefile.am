@@ -36,6 +36,7 @@ module_murphy_ivi_la_SOURCES = \
 			utils.c \
 			scripting.c \
 			extapi.c \
+			resource.c \
 			murphyif.c
 
 configdir = $(sysconfdir)/pulse

@@ -31,9 +31,9 @@
 #define AM_ID_INVALID   65535
 
 enum mir_direction {
-    mir_direction_unknown,
+    mir_direction_unknown = 0,
     mir_input,
-    mir_output
+    mir_output,
 };
 
 enum mir_implement {
@@ -119,6 +119,10 @@ struct pa_node_card {
     char     *profile;
 };
 
+struct pa_node_rset {
+    char     *id;               /**< resource set id, if any */
+    uint32_t  grant;            /**< permission to play/render etc */
+};
 
 /**
  * @brief routing endpoint
@@ -159,7 +163,7 @@ struct mir_node {
                                                                    pa_router)*/
     mir_dlist      constrains;/**< listhead of constrains */
     mir_vlim       vlim;      /**< volume limit */
-    char          *rsetid;    /**< resource set id, if any */
+    pa_node_rset   rset;      /**< resource set info if applies */
     uint32_t       stamp;
     scripting_node *scripting;/** scripting data, if any */
 };

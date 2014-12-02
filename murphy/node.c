@@ -314,26 +314,27 @@ mir_node *mir_node_create(struct userdata *u, mir_node *data)
 
     pa_idxset_put(ns->nodes, node, &node->index);
 
-    node->key       = pa_xstrdup(data->key);
-    node->direction = data->direction;
-    node->implement = data->implement;
-    node->channels  = data->channels;
-    node->location  = data->location;
-    node->privacy   = data->privacy;
-    node->type      = data->type;
-    node->zone      = pa_xstrdup(data->zone);
-    node->visible   = data->visible;
-    node->available = data->available;
-    node->amname    = pa_xstrdup(data->amname ? data->amname : data->paname);
-    node->amdescr   = pa_xstrdup(data->amdescr ? data->amdescr : "");
-    node->amid      = data->amid;
-    node->paname    = pa_xstrdup(data->paname);
-    node->paidx     = data->paidx;
-    node->mux       = data->mux;
-    node->loop      = data->loop;
-    node->stamp     = data->stamp;
-    node->rsetid    = data->rsetid ? pa_xstrdup(data->rsetid) : NULL;
-    node->scripting = pa_scripting_node_create(u, node);
+    node->key        = pa_xstrdup(data->key);
+    node->direction  = data->direction;
+    node->implement  = data->implement;
+    node->channels   = data->channels;
+    node->location   = data->location;
+    node->privacy    = data->privacy;
+    node->type       = data->type;
+    node->zone       = pa_xstrdup(data->zone);
+    node->visible    = data->visible;
+    node->available  = data->available;
+    node->amname     = pa_xstrdup(data->amname ? data->amname : data->paname);
+    node->amdescr    = pa_xstrdup(data->amdescr ? data->amdescr : "");
+    node->amid       = data->amid;
+    node->paname     = pa_xstrdup(data->paname);
+    node->paidx      = data->paidx;
+    node->mux        = data->mux;
+    node->loop       = data->loop;
+    node->stamp      = data->stamp;
+    node->rset.id    = data->rset.id ? pa_xstrdup(data->rset.id) : NULL;
+    node->rset.grant = data->rset.grant;
+    node->scripting  = pa_scripting_node_create(u, node);
     MIR_DLIST_INIT(node->rtentries);
     MIR_DLIST_INIT(node->rtprilist);
     MIR_DLIST_INIT(node->constrains);
@@ -378,7 +379,7 @@ void mir_node_destroy(struct userdata *u, mir_node *node)
         pa_xfree(node->paname);
         pa_xfree(node->pacard.profile);
         pa_xfree(node->paport);
-        pa_xfree(node->rsetid);
+        pa_xfree(node->rset.id);
 
         pa_xfree(node);
     }
@@ -442,7 +443,8 @@ int mir_node_print(mir_node *node, char *buf, int len)
     PRINT("   mux           : %s"  ,  mux);
     PRINT("   loop          : %s"  ,  loop);
     PRINT("   constrain     : %s"  ,  constr);
-    PRINT("   rsetid        : '%s'",  node->rsetid ? node->rsetid : "");
+    PRINT("   rset.id       : '%s'",  node->rset.id ? node->rset.id : "");
+    PRINT("   rset.grant    : %u"  ,  node->rset.grant);
     PRINT("   stamp         : %u"  ,  node->stamp);
 
 #undef PRINT
