@@ -63,6 +63,7 @@
 #include "scripting.h"
 #include "extapi.h"
 #include "murphyif.h"
+#include "resource.h"
 #include "classify.h"
 
 #ifndef DEFAULT_CONFIG_DIR
@@ -166,9 +167,9 @@ int pa__init(pa_module *m) {
     char             buf[4096];
     bool             enable_multiplex = true;
 
-    
+
     pa_assert(m);
-    
+
     if (!(ma = pa_modargs_new(m->argument, valid_modargs))) {
         pa_log("Failed to parse module arguments.");
         goto fail;
@@ -223,6 +224,7 @@ int pa__init(pa_module *m) {
     u->config    = pa_mir_config_init(u);
     u->extapi    = pa_extapi_init(u);
     u->murphyif  = pa_murphyif_init(u, ctladdr, resaddr);
+    u->resource  = pa_resource_init(u);
 
     u->state.sink   = PA_IDXSET_INVALID;
     u->state.source = PA_IDXSET_INVALID;
@@ -248,18 +250,18 @@ int pa__init(pa_module *m) {
 
     mir_router_print_rtgroups(u, buf, sizeof(buf));
     pa_log_debug("%s", buf);
-    
+
     pa_modargs_free(ma);
-    
+
     return 0;
-    
+
  fail:
-    
+
     if (ma)
         pa_modargs_free(ma);
-    
+
     pa__done(m);
-    
+
     return -1;
 }
 
@@ -267,8 +269,9 @@ void pa__done(pa_module *m) {
     struct userdata *u;
 
     pa_assert(m);
-    
+
     if ((u = m->userdata)) {
+        pa_resource_done(u);
         pa_murphyif_done(u);
         pa_tracker_done(u);
         pa_discover_done(u);
