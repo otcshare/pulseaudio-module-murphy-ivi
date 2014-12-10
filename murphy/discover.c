@@ -524,6 +524,28 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, bool route)
         data.available = true;
         data.paidx     = sink->index;
 
+        /* XXX: This implements a rule that all tunnel sinks shall be treated
+         * as speaker nodes. That's pretty crappy rule, and even if it was
+         * a good rule, it should probably be defined in some configuration
+         * file. The reason for this quick-and-dirty hack is to make the most
+         * basic playback scenario work with the cascaded PulseAudio setup in
+         * time for the Tizen IVI 3.0 release.
+         *
+         * Note that if the proplist of the remote device changes,
+         * module-tunnel-sink-new will forget the property that we set here.
+         * That shouldn't break anything, though, because the property is only
+         * used during the initial classification of the sink node. */
+        if (module
+                && pa_streq(module->name, "module-tunnel-sink-new")
+                && !pa_proplist_contains(sink->proplist, PA_PROP_NODE_TYPE)) {
+            pa_proplist *proplist;
+
+            proplist = pa_proplist_new();
+            pa_proplist_sets(proplist, PA_PROP_NODE_TYPE, "speakers");
+            pa_sink_update_proplist(sink, PA_UPDATE_REPLACE, proplist);
+            pa_proplist_free(proplist);
+        }
+
         if (sink == pa_utils_get_null_sink(u)) {
             data.visible = false;
             data.type = mir_null;
@@ -609,6 +631,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
 
     pa_core           *core;
     pa_discover       *discover;
+    pa_module         *module;
     mir_node          *node;
     pa_card           *card;
     const char        *key;
@@ -626,6 +649,8 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
     pa_assert(source);
     pa_assert_se((core = u->core));
     pa_assert_se((discover = u->discover));
+
+    module = source->module;
 
     if ((card = source->card)) {
         if (!(key = node_key(u,mir_input,source,ACTIVE_PORT,kbf,sizeof(kbf))))
@@ -682,6 +707,28 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
         data.implement = mir_device;
         data.channels  = source->channel_map.channels;
         data.available = true;
+
+        /* XXX: This implements a rule that all tunnel sources shall be treated
+         * as microphone nodes. That's pretty crappy rule, and even if it was
+         * a good rule, it should probably be defined in some configuration
+         * file. The reason for this quick-and-dirty hack is to make the most
+         * basic recording scenario work with the cascaded PulseAudio setup in
+         * time for the Tizen IVI 3.0 release.
+         *
+         * Note that if the proplist of the remote device changes,
+         * module-tunnel-source-new will forget the property that we set here.
+         * That shouldn't break anything, though, because the property is only
+         * used during the initial classification of the source node. */
+        if (module
+                && pa_streq(module->name, "module-tunnel-source-new")
+                && !pa_proplist_contains(source->proplist, PA_PROP_NODE_TYPE)) {
+            pa_proplist *proplist;
+
+            proplist = pa_proplist_new();
+            pa_proplist_sets(proplist, PA_PROP_NODE_TYPE, "microphone");
+            pa_source_update_proplist(source, PA_UPDATE_REPLACE, proplist);
+            pa_proplist_free(proplist);
+        }
 
         if (source == pa_utils_get_null_source(u)) {
             data.visible = false;
