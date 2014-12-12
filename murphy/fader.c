@@ -84,16 +84,20 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
     pa_core         *core;
     transition_time *transit;
     pa_sink         *sink;
-    pa_sink_input   *sinp;
+    pa_sink_input   *sinp, *origin;
     pa_cvolume_ramp_int  *ramp;
-    mir_node        *node;
+    mir_node        *device_node;
+    mir_node        *stream_node;
     double           dB;
     pa_volume_t      newvol;
     pa_volume_t      oldvol;
     long             time;
     uint32_t         i,j;
     int              class;
-    bool        rampit;
+    bool             rampit;
+    bool             corked;
+    bool             muted;
+    uint32_t         mask;
 
     pa_assert(u);
     pa_assert_se(u->fader);
@@ -105,9 +109,40 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
     pa_log_debug("applying volume limits ...");
 
     PA_IDXSET_FOREACH(sink, core->sinks, i) {
-        if ((node = pa_discover_find_node_by_ptr(u, sink))) {
-            pa_log_debug("   node '%s'", node->amname);
-            
+        if ((device_node = pa_discover_find_node_by_ptr(u, sink))) {
+            pa_log_debug("   node '%s'", device_node->amname);
+
+            mask = 0;
+
+            PA_IDXSET_FOREACH(sinp, sink->inputs, j) {
+                origin = pa_utils_get_stream_origin(u, sinp);
+                stream_node = pa_discover_find_node_by_ptr(u, origin);
+
+                if ((class = pa_utils_get_stream_class(sinp->proplist)) > 0) {
+
+                    corked = stream_node ? !stream_node->rset.grant : false;
+                    muted  = (sinp->muted  || pa_hashmap_get(sinp->volume_factor_items,
+                                                             "internal_mute"));
+                    if (origin != sinp) {
+                        muted |= (origin->muted || pa_hashmap_get(origin->volume_factor_items,
+                                                                  "internal_mute"));
+                    }
+
+                    if (!corked && !muted)
+                        mask |= mir_volume_get_class_mask(class);
+
+                    pa_log_debug("*** stream %u (origin %u) class: %d corked: %s muted: %s "
+                                 "(sinp:%s internal:%s)", sinp->index, origin->index,
+                                 class, corked?"yes":"no ",
+                           muted?"yes":"no", sinp->muted ? "yes":"no",
+                           pa_hashmap_get(sinp->volume_factor_items,"internal_mute")?"yes":"no");
+                }
+                else
+                    pa_log_debug("*** steam %u (origin %u) class: %d", sinp->index, origin->index, class);
+            }
+
+            pa_log_debug("*** mask: 0x%x", mask);
+
             PA_IDXSET_FOREACH(sinp, sink->inputs, j) {
                 class = pa_utils_get_stream_class(sinp->proplist);
 
@@ -119,20 +154,20 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
                     else {
                         sinp->flags &= ~((unsigned int)PA_SINK_INPUT_START_RAMP_MUTED);
                         time = transit->fade_in;
-                        
+
                         pa_log_debug("        attenuation 0 dB "
                                      "transition time %ld ms", time);
                         set_stream_volume_limit(u, sinp, PA_VOLUME_NORM, time);
                     }
                 }
                 else {
-                    dB = mir_volume_apply_limits(u, node, class, stamp);
+                    dB = mir_volume_apply_limits(u, device_node, mask, class, stamp);
                     newvol = pa_sw_volume_from_dB(dB);
 
                     if (rampit) {
                         ramp   = &sinp->ramp;
                         oldvol = ramp->ramps[0].target;
-                        
+
                         if (oldvol > newvol)
                             time = transit->fade_out;
                         else if (oldvol < newvol)
@@ -144,7 +179,7 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
                         oldvol = sinp->volume_factor.values[0];
                         time = 0;
                     }
-                    
+
                     if (oldvol == newvol)
                         pa_log_debug("         attenuation %.2lf dB",dB);
                     else {

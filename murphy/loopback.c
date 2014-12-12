@@ -210,6 +210,23 @@ uint32_t pa_loopback_get_sink_index(pa_core *core, pa_loopnode *loop)
     return PA_IDXSET_INVALID;
 }
 
+uint32_t pa_loopback_get_source_index(pa_core *core, pa_loopnode *loop)
+{
+    pa_source_output *source_output;
+    pa_source *source;
+
+    pa_assert(core);
+    pa_assert(loop);
+
+    source_output = pa_idxset_get_by_index(core->source_outputs,
+                                           loop->source_output_index);
+
+    if (source_output && (source = source_output->source))
+        return source->index;
+
+    return PA_IDXSET_INVALID;
+}
+
 int pa_loopback_print(pa_loopnode *loop, char *buf, int len)
 {
     char *p, *e;

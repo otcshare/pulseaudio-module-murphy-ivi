@@ -33,6 +33,7 @@
 #include "volume.h"
 #include "fader.h"
 #include "node.h"
+#include "resource.h"
 #include "utils.h"
 
 #define VLIM_CLASS_ALLOC_BUCKET  16
@@ -63,7 +64,7 @@ struct pa_mir_volume {
 static void add_to_table(vlim_table *, mir_volume_func_t, void *);
 static void destroy_table(vlim_table *);
 static double apply_table(double, vlim_table *, struct userdata *, int,
-                          mir_node *, const char *);
+                          mir_node *, uint32_t, const char *);
 
 static void reset_volume_limit(struct userdata *, mir_node *, uint32_t);
 static void add_volume_limit(struct userdata *, mir_node *, int);
@@ -208,6 +209,7 @@ void mir_volume_add_limiting_class(struct userdata *u,
 
 double mir_volume_apply_limits(struct userdata *u,
                                mir_node *node,
+                               uint32_t mask,
                                int class,
                                uint32_t stamp)
 {
@@ -225,11 +227,11 @@ double mir_volume_apply_limits(struct userdata *u,
             attenuation = maxlim = MIR_VOLUME_MAX_ATTENUATION;
         else {
             attenuation = apply_table(0.0, &volume->genlim,
-                                      u,class,node, "device");
+                                      u,class,node,mask, "device");
         }
     }
     else {
-        devlim = apply_table(0.0, &volume->genlim, u,class,node, "device");
+        devlim = apply_table(0.0, &volume->genlim, u,class,node,mask, "device");
         classlim = 0.0;
 
         if (class && node) {
@@ -239,7 +241,7 @@ double mir_volume_apply_limits(struct userdata *u,
             maxlim = volume->maxlim[class];
 
             if (class < volume->classlen && (tbl = volume->classlim + class))
-                classlim = apply_table(classlim, tbl, u, class, node, "class");
+                classlim = apply_table(classlim, tbl, u,class,node,mask, "class");
 
             if (classlim <= MIR_VOLUME_MAX_ATTENUATION)
                 classlim = MIR_VOLUME_MAX_ATTENUATION;
@@ -253,9 +255,20 @@ double mir_volume_apply_limits(struct userdata *u,
     return attenuation;
 }
 
+uint32_t mir_volume_get_class_mask(int class)
+{
+    if (class >= mir_application_class_begin &&
+        class <  mir_application_class_end      )
+    {
+        return ((uint32_t)1) << (class - mir_application_class_begin);
+    }
 
-double mir_volume_suppress(struct userdata *u, int class, mir_node *node,
-                           void *arg)
+    return 0;
+}
+
+
+double mir_volume_suppress(struct userdata *u, int class,
+                           mir_node *node, uint32_t mask, void *arg)
 {
     mir_volume_suppress_arg *suppress = arg;
     uint32_t clmask, trigmask;
@@ -267,23 +280,25 @@ double mir_volume_suppress(struct userdata *u, int class, mir_node *node,
     pa_assert(node->direction == mir_output);
     pa_assert(node->implement == mir_device);
 
-    clmask = ((uint32_t)1) << (class - mir_application_class_begin);
+    clmask = mir_volume_get_class_mask(class);
 
     if (suppress && (trigmask = suppress->trigger.clmask)) {
         pa_log_debug("        volume_supress(class=%d, clmask=0x%x, "
-                     "trigmask=0x%x nodemask=0x%x)",
-                     class, clmask, trigmask, node->vlim.clmask);
+                     "trigmask=0x%x nodemask=0x%x streammask=0x%x)",
+                     class, clmask, trigmask, node->vlim.clmask, mask);
 
-        if (!(trigmask & clmask) && (trigmask & node->vlim.clmask))
+        if (!(trigmask & clmask) && (trigmask & mask /* node->vlim.clmask */))
             return *suppress->attenuation;
     }
 
     return 0.0;
 }
 
-double mir_volume_correction(struct userdata *u, int class, mir_node *node,
-                             void *arg)
+double mir_volume_correction(struct userdata *u, int class,
+                             mir_node *node, uint32_t mask, void *arg)
 {
+    (void)mask;
+
     pa_assert(u);
     pa_assert(node);
 
@@ -355,6 +370,7 @@ static double apply_table(double attenuation,
                           struct userdata *u,
                           int class,
                           mir_node *node,
+                          uint32_t mask,
                           const char *type)
 {
     static mir_node fake_node;
@@ -372,7 +388,7 @@ static double apply_table(double attenuation,
 
     for (i = 0;   i < tbl->nentry;  i++) {
         e = tbl->entries + i;
-        a = e->func(u, class, node, e->arg);
+        a = e->func(u, class, node,mask, e->arg);
 
         pa_log_debug("        %s limit = %.2lf", type, a);
 
@@ -435,7 +451,7 @@ static void add_volume_limit(struct userdata *u, mir_node *node, int class)
                      class, node->amname);
     }
     else {
-        mask = ((uint32_t)1) << (class - mir_application_class_begin);
+        mask = mir_volume_get_class_mask(class);
 
         if (class < volume->classlen && volume->classlim[class].nentry > 0) {
             if (!(vlim->clmask & mask)) {

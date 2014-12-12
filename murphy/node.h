@@ -52,7 +52,7 @@ struct pa_node_card {
 
 struct pa_node_rset {
     char     *id;               /**< resource set id, if any */
-    uint32_t  grant;            /**< permission to play/render etc */
+    bool      grant;            /**< permission to play/render etc */
 };
 
 /**

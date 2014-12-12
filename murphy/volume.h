@@ -26,7 +26,8 @@
 #include "list.h"
 
 
-typedef double (*mir_volume_func_t)(struct userdata *, int, mir_node *, void*);
+typedef double (*mir_volume_func_t)(struct userdata *, int, mir_node *,uint32_t,
+                                    void *);
 typedef void (*mir_change_value_t)(struct userdata *, const char *);
 
 struct mir_vlim {
@@ -57,10 +58,12 @@ void mir_volume_add_maximum_limit(struct userdata *, double, size_t, int *);
 void mir_volume_make_limiting(struct userdata *);
 
 void mir_volume_add_limiting_class(struct userdata *,mir_node *,int,uint32_t);
-double mir_volume_apply_limits(struct userdata *, mir_node *, int, uint32_t);
+double mir_volume_apply_limits(struct userdata *, mir_node *,uint32_t, int,uint32_t);
 
-double mir_volume_suppress(struct userdata *, int, mir_node *, void *);
-double mir_volume_correction(struct userdata *, int, mir_node *, void *);
+uint32_t mir_volume_get_class_mask(int);
+
+double mir_volume_suppress(struct userdata *, int, mir_node *, uint32_t, void *);
+double mir_volume_correction(struct userdata *, int, mir_node *, uint32_t, void *);
 
 void mir_volume_change_context(struct userdata *u, const char *volume_class);
 

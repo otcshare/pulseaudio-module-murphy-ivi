@@ -297,7 +297,7 @@ static int  vollim_setfield(lua_State *);
 static int  vollim_tostring(lua_State *);
 static void vollim_destroy(void *);
 
-static double vollim_calculate(struct userdata *, int, mir_node *, void *);
+static double vollim_calculate(struct userdata *, int, mir_node *, uint32_t, void *);
 static bool calculate_bridge(lua_State *, void *, const char *,
                              mrp_funcbridge_value_t *, char *,
                              mrp_funcbridge_value_t *);
@@ -2155,7 +2155,7 @@ static int vollim_create(lua_State *L)
         luaL_error(L, "missing calculate field");
     if (type != vollim_maximum) {
         if (calculate->type == MRP_C_FUNCTION) {
-            if (strcmp(calculate->c.signature, "odo"))
+            if (strcmp(calculate->c.signature, "odod"))
                 luaL_error(L,"invalid calculate field (mismatching signature)");
             if (calculate->c.data == mir_volume_suppress) {
                 if (type != vollim_class)
@@ -2339,15 +2339,15 @@ static void vollim_destroy(void *data)
 }
 
 
-static double vollim_calculate(struct userdata *u, int class, mir_node *node,
-                               void *data)
+static double vollim_calculate(struct userdata *u, int class,
+                               mir_node *node, uint32_t mask, void *data)
 {
     static int offset = ((scripting_vollim *)0)->args - (char *)0;
 
     pa_scripting *scripting;
     lua_State *L;
     scripting_vollim *vlim;
-    mrp_funcbridge_value_t args[3];
+    mrp_funcbridge_value_t args[4];
     char rt;
     mrp_funcbridge_value_t  rv;
     double limit;
@@ -2370,8 +2370,9 @@ static double vollim_calculate(struct userdata *u, int class, mir_node *node,
         args[0].pointer = vlim;
         args[1].integer = class;
         args[2].pointer = node->scripting;
+        args[3].integer = (int32_t)mask;
 
-        if (!mrp_funcbridge_call_from_c(L,vlim->calculate,"odo",args,&rt,&rv))
+        if (!mrp_funcbridge_call_from_c(L,vlim->calculate,"odod",args,&rt,&rv))
             pa_log("failed to call calculate function");
         else {
             if (rt != MRP_FUNCBRIDGE_FLOATING)
@@ -2394,6 +2395,7 @@ static bool calculate_bridge(lua_State *L, void *data, const char *signature,
     struct userdata *u;
     int class;
     mir_node *node;
+    uint32_t mask;
     bool success;
 
     (void)L;
@@ -2405,7 +2407,7 @@ static bool calculate_bridge(lua_State *L, void *data, const char *signature,
 
     pa_assert_se((calculate = (mir_volume_func_t)data));
 
-    if (strcmp(signature, "odo"))
+    if (strcmp(signature, "odod"))
         success = false;
     else {
         pa_assert_se((vlim = args[0].pointer));
@@ -2413,6 +2415,7 @@ static bool calculate_bridge(lua_State *L, void *data, const char *signature,
         pa_assert_se((ns = args[2].pointer));
 
         class = args[1].integer;
+        mask = (uint32_t)args[3].integer;
 
         pa_assert(!class || (class >= mir_application_class_begin &&
                              class <  mir_application_class_end));
@@ -2423,7 +2426,7 @@ static bool calculate_bridge(lua_State *L, void *data, const char *signature,
             success = true;
             *ret_type = MRP_FUNCBRIDGE_FLOATING;
             /* TODO: check the vollim type vs. c function */
-            ret_val->floating = calculate(u, class, node, vlim->args);
+            ret_val->floating = calculate(u, class, node, mask, vlim->args);
         }
     }
 
@@ -3215,16 +3218,16 @@ static bool define_constants(lua_State *L)
 static bool register_methods(lua_State *L)
 {
     static funcbridge_def_t funcbridge_defs[] = {
-        {"make_routes"    ,"o"  , update_bridge   ,mir_router_make_routing   },
-        {"make_volumes"   ,"o"  , update_bridge   ,mir_volume_make_limiting  },
-        {"accept_default" ,"oo" , accept_bridge   ,mir_router_default_accept },
-        {"compare_default","ooo", compare_bridge  ,mir_router_default_compare},
-        {"accept_phone"   ,"oo" , accept_bridge   ,mir_router_phone_accept   },
-        {"compare_phone"  ,"ooo", compare_bridge  ,mir_router_phone_compare  },
-        {"volume_supress" ,"odo", calculate_bridge,mir_volume_suppress       },
-        {"volume_correct" ,"odo", calculate_bridge,mir_volume_correction     },
-        {"change_volume_context","o",change_bridge,mir_volume_change_context},
-        {       NULL      , NULL,      NULL       ,         NULL             }
+        {"make_routes"    ,"o"   , update_bridge   ,mir_router_make_routing   },
+        {"make_volumes"   ,"o"   , update_bridge   ,mir_volume_make_limiting  },
+        {"accept_default" ,"oo"  , accept_bridge   ,mir_router_default_accept },
+        {"compare_default","ooo" , compare_bridge  ,mir_router_default_compare},
+        {"accept_phone"   ,"oo"  , accept_bridge   ,mir_router_phone_accept   },
+        {"compare_phone"  ,"ooo" , compare_bridge  ,mir_router_phone_compare  },
+        {"volume_supress" ,"odod", calculate_bridge,mir_volume_suppress       },
+        {"volume_correct" ,"odod", calculate_bridge,mir_volume_correction     },
+        {"change_volume_context","o",change_bridge, mir_volume_change_context },
+        {       NULL      , NULL,      NULL       ,         NULL              }
     };
 
     funcbridge_def_t *d;

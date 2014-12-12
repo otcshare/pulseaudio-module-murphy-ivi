@@ -322,6 +322,8 @@ int pa_utils_get_stream_class(pa_proplist *pl)
     return (int)clid;
 }
 
+
+
 char *pa_utils_get_rsetid(pa_proplist *pl, char *buf, int length)
 {
     const char *prop;
@@ -448,6 +450,32 @@ void pa_utils_set_port_properties(pa_device_port *port, mir_node *node)
 
     pa_proplist_sets(port->proplist, propnam, nodeidx);
 }
+
+
+pa_sink_input *pa_utils_get_stream_origin(struct userdata *u, pa_sink_input *sinp)
+{
+    pa_sink_input *origin = sinp;
+    pa_core *core;
+    pa_module *module;
+    pa_sink *sink;
+    pa_muxnode *mux;
+
+    pa_assert(u);
+    pa_assert(sinp);
+    pa_assert_se((core = u->core) == sinp->core);
+
+    if ((module = sinp->module) && !strcmp(module->name, "module-combine-sink")) {
+        if (!(mux = pa_multiplex_find_by_module(u->multiplex, module)) ||
+            !(sink = pa_idxset_get_by_index(core->sinks, mux->sink_index)) ||
+            !(origin = pa_idxset_first(sink->inputs, NULL)))
+        {
+            pa_log("failed to find origin for sink-input %u", sinp->index);
+        }
+    }
+
+    return origin;
+}
+
 
 mir_node *pa_utils_get_node_from_port(struct userdata *u,
                                       pa_device_port *port,

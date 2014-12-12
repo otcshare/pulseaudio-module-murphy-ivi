@@ -55,8 +55,8 @@ bool pa_utils_set_resource_properties(pa_proplist *, pa_nodeset_resdef *);
 bool pa_utils_unset_resource_properties(pa_proplist *);
 pa_nodeset_resdef *pa_utils_get_resource_properties(pa_proplist *,
                                                     pa_nodeset_resdef *);
-
 void      pa_utils_set_port_properties(pa_device_port *, mir_node *);
+pa_sink_input *pa_utils_get_stream_origin(struct userdata *, pa_sink_input *);
 mir_node *pa_utils_get_node_from_port(struct userdata *, pa_device_port *, void **);
 mir_node *pa_utils_get_node_from_stream(struct userdata *,mir_direction,void*);
 mir_node *pa_utils_get_node_from_data(struct userdata *, mir_direction,void *);

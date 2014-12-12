@@ -167,7 +167,7 @@ void pa_resource_purge(struct userdata *u, uint32_t updid, int type)
     pa_assert_se((resource = u->resource));
     pa_assert(type == PA_RESOURCE_RECORDING || type == PA_RESOURCE_PLAYBACK);
 
-    pa_log("purging rsets ...");
+    pa_log_debug("purging rsets ...");
 
     PA_HASHMAP_FOREACH(re, resource->rsets.id, state) {
         if (re->type[type] && re->updid != updid)
@@ -202,8 +202,10 @@ int pa_resource_enforce_policies(struct userdata *u, int type)
             pa_assert_se((re = se->rsets[0]));
             pa_assert(re->rset);
 
-            if (se->nrset == 1)
+            if (se->nrset == 1) {
+                pa_log_debug("rset_entry %p grant[%d]=%s", re, type, re->rset->grant[type]?"yes":"no");
                 enforce_policy(u, node, re->rset, type);
+            }
             else {
                 grant  = &rset.grant[type];
                 policy = &rset.policy[type];
@@ -215,7 +217,9 @@ int pa_resource_enforce_policies(struct userdata *u, int type)
                     re = se->rsets[i];
 
                     if (!pa_streq(re->rset->policy[type], *policy))
-		      *policy = pa_xstrdup("strict");
+                        *policy = pa_xstrdup("strict");
+
+                    pa_log_debug("rset_entry %p grant[%d]=%s", re, type, re->rset->grant[type]?"yes":"no");
 
                     *grant |= re->rset->grant[type];
                 }
@@ -348,7 +352,7 @@ int pa_resource_rset_update(struct userdata *u,
                 return -1;
             }
 
-            pa_log("complete rset entry and add it to id hash (id='%s' name='%s')",
+            pa_log_debug("complete rset entry and add it to id hash (id='%s' name='%s')",
                    re->id, re->name ? re->name : "<unknown>");
         }
         else {
@@ -361,25 +365,25 @@ int pa_resource_rset_update(struct userdata *u,
                 pa_assert(se->nrset > 0);
 
                 if (!(re = rset_entry_new(resource, NULL, id))) {
-                    pa_log("failed to create rset (id='%s' name='%s'): "
-                           "invalid rset id or duplicate rset",
-                           id ? id : "<unknown>", name ? name : "<unknown>");
+                    pa_log_debug("failed to create rset (id='%s' name='%s'): "
+                                 "invalid rset id or duplicate rset",
+                                 id ? id : "<unknown>", name ? name : "<unknown>");
                     return -1;
                 }
 
-                pa_log("stream controlled by multiple rsets => created new "
-                       "rset entry (id='%s' unused name='%s')",
-                       id ? id : "<unknown>", name ? name : "<unknown>");
+                pa_log_debug("stream controlled by multiple rsets => created new "
+                             "rset entry (id='%s' unused name='%s')",
+                             id ? id : "<unknown>", name ? name : "<unknown>");
 
                 if (has_name) {
-                    pa_log("removing rset (name='%s') from name hash", name);
+                    pa_log_debug("removing rset (name='%s') from name hash", name);
                     if ((de = pa_hashmap_remove(resource->rsets.name, name))) {
                         pa_xfree(de->name);
                         de->name = NULL;
 
-                        pa_log("stream controlled by multiple rsets => removing "
-                               "first rset entry from name hash (id='%s' name='%s')",
-                           de->id ? de->id : "<unknown>", name);
+                        pa_log_debug("stream controlled by multiple rsets => removing "
+                                     "first rset entry from name hash (id='%s' name='%s')",
+                                     de->id ? de->id : "<unknown>", name);
                     }
                 }
             }
@@ -388,25 +392,25 @@ int pa_resource_rset_update(struct userdata *u,
                    the rset was created first*/
 
                 if (!(re = rset_entry_new(resource, name, id))) {
-                    pa_log("failed to create rset (id='%s' name='%s'): "
-                           "invalid rset name/id or duplicate rset",
-                           id ? id : "<unknown>", name ? name : "<unknown>");
+                    pa_log_debug("failed to create rset (id='%s' name='%s'): "
+                                 "invalid rset name/id or duplicate rset",
+                                 id ? id : "<unknown>", name ? name : "<unknown>");
                     return -1;
                 }
 
-                pa_log("new rset entry (id='%s' name='%s')",
-                       id ? id : "<unknown>", name ? name : "<unknown>");
+                pa_log_debug("new rset entry (id='%s' name='%s')",
+                             id ? id : "<unknown>", name ? name : "<unknown>");
 
                 if (!(se = stream_entry_new(resource, name, id, NULL))) {
-                    pa_log("failed to link rset (id='%s' name='%s') to stream: "
-                           "invalid stream id/name or duplicate stream",
-                           id ? id : "<null>", name ? name : "<null>");
+                    pa_log_debug("failed to link rset (id='%s' name='%s') to stream: "
+                                 "invalid stream id/name or duplicate stream",
+                                 id ? id : "<null>", name ? name : "<null>");
                     rset_entry_free(resource, re);
                     return -1;
                 }
 
-                pa_log("created incomplete stream entry (id='%s' name='%s')",
-                       id ? id : "<unknown>", name ? name : "<unknown>");
+                pa_log_debug("created incomplete stream entry (id='%s' name='%s')",
+                             id ? id : "<unknown>", name ? name : "<unknown>");
             }
 
             pa_assert(se);
@@ -428,6 +432,8 @@ int pa_resource_rset_update(struct userdata *u,
 
     rset_data_copy(re->rset, rset, type);
     re->updid = updid;
+
+    pa_log_debug("rset_entry %p grant %s, %s", re, re->rset->grant[0]?"yes":"no", re->rset->grant[1]?"yes":"no");
 
     return 0;
 }
@@ -646,8 +652,8 @@ int pa_resource_stream_update(struct userdata *u,
                 return -1;
             }
 
-            pa_log("complete rset entry and add it to node hash (id='%s' name='%s')",
-                   se->id ? se->id : "<unknown>", se->name ? se->name : "<unknown>");
+            pa_log_debug("complete rset entry and add it to node hash (id='%s' name='%s')",
+                         se->id ? se->id : "<unknown>", se->name ? se->name : "<unknown>");
 
         }
         else {
@@ -660,36 +666,36 @@ int pa_resource_stream_update(struct userdata *u,
                 pa_assert(re->nstream > 0);
 
                 if (!(se = stream_entry_new(resource, NULL, NULL, node))) {
-                    pa_log("failed to create stream (id='%s' name='%s'): "
-                           "duplicate stream node",
-                           id ? id : "<unknown>", name ? name : "<unknown>");
+                    pa_log_debug("failed to create stream (id='%s' name='%s'): "
+                                 "duplicate stream node",
+                                 id ? id : "<unknown>", name ? name : "<unknown>");
                     return -1;
                 }
 
-                pa_log("rset controls multiple streams => created new "
-                       "stream entry (unused id='%s' unused name='%s') "
-                       "and added to node hash only",
-                       id ? id : "<unknown>", name ? name : "<unknown>");
+                pa_log_debug("rset controls multiple streams => created new "
+                             "stream entry (unused id='%s' unused name='%s') "
+                             "and added to node hash only",
+                             id ? id : "<unknown>", name ? name : "<unknown>");
 
                 if (has_id) {
-                    pa_log("removing stream (id='%s') form id hash", id);
+                    pa_log_debug("removing stream (id='%s') form id hash", id);
                     if ((de = pa_hashmap_remove(resource->streams.id, id))) {
                         pa_xfree(de->id);
                         de->id = NULL;
                     }
 
-                    pa_log("rset controls multiple streams => removing first "
+                    pa_log_debug("rset controls multiple streams => removing first "
                            "stream entry from id hash (id='%s')", id);
                 }
 
                 if (has_name) {
-                    pa_log("removing stream (name='%s') form name hash", name);
+                    pa_log_debug("removing stream (name='%s') form name hash", name);
                     if ((de = pa_hashmap_remove(resource->streams.name, name))) {
                         pa_xfree(de->name);
                         de->name = NULL;
 
-                        pa_log("rset controls multiple streams => removing first "
-                               "stream entry from name hash (name='%s')", name);
+                        pa_log_debug("rset controls multiple streams => removing first "
+                                     "stream entry from name hash (name='%s')", name);
                     }
                 }
             }
@@ -698,25 +704,25 @@ int pa_resource_stream_update(struct userdata *u,
                    the stream was created first */
 
                 if (!(se = stream_entry_new(resource, name, id, node))) {
-                    pa_log("failed to create stream (id='%s' name='%s'): "
-                           "invalid stream id/name or duplicate stream",
-                           id ? id : "<unknown>", name ? name : "<unknown>");
+                    pa_log_debug("failed to create stream (id='%s' name='%s'): "
+                                 "invalid stream id/name or duplicate stream",
+                                 id ? id : "<unknown>", name ? name : "<unknown>");
                     return -1;
                 }
 
-                pa_log("new stream entry (id='%s' name='%s')",
+                pa_log_debug("new stream entry (id='%s' name='%s')",
                        id ? id : "<unknown>", name ? name : "<unknown>");
 
                 if (!(re = rset_entry_new(resource, name, id))) {
-                    pa_log("failed to link stream (id='%s' name='%s') to rset: "
-                           "invalid rset id/name or duplicate rset",
-                           id ? id : "<null>", name ? name : "<null>");
+                    pa_log_debug("failed to link stream (id='%s' name='%s') to rset: "
+                                 "invalid rset id/name or duplicate rset",
+                                 id ? id : "<null>", name ? name : "<null>");
                     stream_entry_free(resource, se);
                     return -1;
                 }
 
-                pa_log("created incomplete rset entry (id='%s' name='%s')",
-                       id ? id : "<unknown>", name ? name : "<unknown>");
+                pa_log_debug("created incomplete rset entry (id='%s' name='%s')",
+                             id ? id : "<unknown>", name ? name : "<unknown>");
             }
 
             pa_assert(re);
@@ -743,15 +749,15 @@ int pa_resource_stream_remove(struct userdata *u, mir_node *node)
     pa_assert(node);
 
     if (!(se = pa_hashmap_remove(resource->streams.node, node))) {
-        pa_log("failed to remove stream (name='%s'): can't find it",
-               node->amname ? node->amname : "<unknown>");
+        pa_log_debug("failed to remove stream (name='%s'): can't find it",
+                     node->amname ? node->amname : "<unknown>");
         return -1;
     }
 
     se->node = NULL;
 
-    pa_log("stream removed from node hash (id='%s' name='%s')",
-           se->id ? se->id : "<unknown>", se->name ? se->name : "<unknown>");
+    pa_log_debug("stream removed from node hash (id='%s' name='%s')",
+                 se->id ? se->id : "<unknown>", se->name ? se->name : "<unknown>");
 
 
     pa_assert(se->nrset > 0);
@@ -766,19 +772,19 @@ int pa_resource_stream_remove(struct userdata *u, mir_node *node)
             pa_assert(re->streams[0] == se);
 
             if (re->dead) {
-                pa_log("stream is dead => free both "
-                       "rset (id='%s') & stream (name='%s')",
-                       re->id ? re->id : "<unknown>",
-                       se->name ? se->name : "<unknown>");
+                pa_log_debug("stream is dead => free both "
+                             "rset (id='%s') & stream (name='%s')",
+                             re->id ? re->id : "<unknown>",
+                             se->name ? se->name : "<unknown>");
 
                 stream_entry_free(resource, se);
                 rset_entry_free(resource, re);
             }
             else {
-                pa_log("preserve incomplete stream as it is the last "
-                       "stream entry for rset (id='%s' name='%s')",
-                       re->id ? re->id : "<unknown>",
-                       re->name ? re->name : "<unknown>");
+                pa_log_debug("preserve incomplete stream as it is the last "
+                             "stream entry for rset (id='%s' name='%s')",
+                             re->id ? re->id : "<unknown>",
+                             re->name ? re->name : "<unknown>");
             }
         }
         else {
@@ -786,10 +792,10 @@ int pa_resource_stream_remove(struct userdata *u, mir_node *node)
                so it is safe to destroy this stream as the rset does not
                become streamless */
 
-            pa_log("rset controls multiple streams => destroy stream "
-                   "(id='%s' name='%s') as the reset does not become "
-                   "'streamless'", se->id ? se->id : "<unknown>",
-                   se->name ? se->name : "<unknown>");
+            pa_log_debug("rset controls multiple streams => destroy stream "
+                         "(id='%s' name='%s') as the reset does not become "
+                         "'streamless'", se->id ? se->id : "<unknown>",
+                         se->name ? se->name : "<unknown>");
 
             rset_entry_remove_stream_link(re, se);
             stream_entry_remove_rset_link(se, re);
@@ -942,12 +948,16 @@ static void enforce_policy(struct userdata *u,
 {
     int req;
     char *policy;
+    bool grant;
 
     pa_assert(u);
     pa_assert(node);
     pa_assert(rset);
     pa_assert(type == PA_RESOURCE_RECORDING || PA_RESOURCE_PLAYBACK);
     pa_assert_se((policy = rset->policy[type]));
+
+    grant = rset->grant[type];
+    node->rset.grant = grant;
 
 
     if (pa_streq(policy, "relaxed"))
@@ -956,7 +966,7 @@ static void enforce_policy(struct userdata *u,
         if (rset->state == PA_RESOURCE_RELEASE && rset->autorel)
             req = PA_STREAM_KILL;
         else {
-            if (rset->grant[type])
+            if (grant)
                 req = PA_STREAM_RUN;
             else
                 req = PA_STREAM_BLOCK;

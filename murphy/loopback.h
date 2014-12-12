@@ -56,6 +56,7 @@ pa_loopnode *pa_loopback_create(pa_loopback *, pa_core *, pa_loopback_type,
 void pa_loopback_destroy(pa_loopback *, pa_core *, pa_loopnode *);
 
 uint32_t pa_loopback_get_sink_index(pa_core *, pa_loopnode *);
+uint32_t pa_loopback_get_source_index(pa_core *, pa_loopnode *);
 
 int pa_loopback_print(pa_loopnode *, char *, int);
 

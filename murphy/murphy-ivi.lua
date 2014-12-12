@@ -222,7 +222,7 @@ volume_limit {
     type = volume_limit.class,
     limit = -90,
     node_type = { node.player, node.game },
-    calculate = function(self, class, device)
+    calculate = function(self, class, device, mask)
 --      print("*** limit "..self.name.." class:"..class.." stream:"..device.name)
         position = mdb.import.amb_gear_position[1].value
         if (position and position == 128) then

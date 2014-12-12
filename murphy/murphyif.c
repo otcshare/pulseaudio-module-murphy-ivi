@@ -56,6 +56,7 @@
 #include "resource.h"
 #include "node.h"
 #include "stream-state.h"
+#include "fader.h"
 #include "utils.h"
 
 #ifdef WITH_RESOURCES
@@ -241,7 +242,7 @@ pa_murphyif *pa_murphyif_init(struct userdata *u,
     rif->alen = mrp_transport_resolve(NULL, rif->addr, &rif->saddr,
                                       sizeof(rif->saddr), &rif->atype);
     if (rif->alen <= 0) {
-        pa_log("can't resolve resource transport address '%s'", rif->addr);
+        pa_log_debug("can't resolve resource transport address '%s'", rif->addr);
     }
     else {
         rif->inpres.tblidx = -1;
@@ -249,7 +250,7 @@ pa_murphyif *pa_murphyif_init(struct userdata *u,
         rif->connect.period = 1 * PA_USEC_PER_SEC;
 
         if (!resource_transport_create(u, murphyif)) {
-            pa_log("failed to create resource transport");
+            pa_log_debug("failed to create resource transport");
             schedule_connect(u, rif);
         }
         else {
@@ -414,12 +415,12 @@ void pa_murphyif_setup_domainctl(struct userdata *u, pa_murphyif_watch_cb wcb)
                                      domctl_connect_notify,
                                      domctl_watch_notify, u);
         if (!dif->ctl) {
-            pa_log("failed to create '%s' domain controller", name);
+            pa_log_debug("failed to create '%s' domain controller", name);
             return;
         }
 
         if (!mrp_domctl_connect(dif->ctl, dif->addr, 0)) {
-            pa_log("failed to conect to murphyd");
+            pa_log_debug("failed to conect to murphyd");
             return;
         }
 
@@ -452,13 +453,13 @@ void  pa_murphyif_add_audio_resource(struct userdata *u,
 
     if (dir == mir_input) {
         if (rif->inpres.name)
-            pa_log("attempt to register playback resource multiple time");
+            pa_log_debug("attempt to register playback resource multiple time");
         else
             res = &rif->inpres;
     }
     else {
         if (rif->outres.name)
-            pa_log("attempt to register recording resource multiple time");
+            pa_log_debug("attempt to register recording resource multiple time");
         else
             res = &rif->outres;
     }
@@ -577,15 +578,15 @@ void pa_murphyif_destroy_resource_set(struct userdata *u, mir_node *node)
         rsetid = strtoul(node->rset.id, &e, 10);
 
         if (e == node->rset.id || *e) {
-            pa_log("can't destroy resource set: invalid rsetid '%s'",
-                   node->rset.id);
+            pa_log_debug("can't destroy resource set: invalid rsetid '%s'",
+                         node->rset.id);
         }
         else {
             if (resource_set_destroy_node(u, rsetid))
                 pa_log_debug("sent resource set %u destruction request", rsetid);
             else {
-                pa_log("failed to destroy resourse set %u for node '%s'",
-                       rsetid, node->amname);
+                pa_log_debug("failed to destroy resourse set %u for node '%s'",
+                             rsetid, node->amname);
             }
 
             pa_xfree(node->rset.id);
@@ -610,8 +611,8 @@ int pa_murphyif_add_node(struct userdata *u, mir_node *node)
     pa_assert_se((murphyif = u->murphyif));
 
     if (!node->rset.id) {
-        pa_log("can't register resource set for node %u '%s'.: missing rsetid",
-               node->paidx, node->amname);
+        pa_log_debug("can't register resource set for node %u '%s'.: missing rsetid",
+                     node->paidx, node->amname);
     }
     else if (pa_streq(node->rset.id, PA_RESOURCE_SET_ID_PID)) {
     }
@@ -730,7 +731,7 @@ static void domctl_dump_data(mrp_domctl_data_t *table)
     int                 l;
 
     pa_log_debug("Table #%d: %d rows x %d columns", table->id,
-           table->nrow, table->ncolumn);
+                 table->nrow, table->ncolumn);
 
     for (i = 0; i < table->nrow; i++) {
         row = table->rows[i];
@@ -826,10 +827,10 @@ static void resource_xport_closed_evt(mrp_transport_t *transp, int error,
     rif = &murphyif->resource;
 
     if (!error)
-        pa_log("Resource transport connection closed by peer");
+        pa_log_debug("Resource transport connection closed by peer");
     else {
-        pa_log("Resource transport connection closed with error %d (%s)",
-               error, strerror(error));
+        pa_log_debug("Resource transport connection closed with error %d (%s)",
+                     error, strerror(error));
     }
 
     resource_transport_destroy(murphyif);
@@ -848,7 +849,7 @@ static mrp_msg_t *resource_create_request(uint32_t seqno,
                          RESPROTO_MESSAGE_END                               );
 
     if (!msg)
-        pa_log("can't to create new resource message");
+        pa_log_debug("can't to create new resource message");
 
     return msg;
 }
@@ -863,7 +864,7 @@ static bool resource_send_message(resource_interface *rif,
     bool success = true;
 
     if (!mrp_transport_send(rif->transp, msg)) {
-        pa_log("failed to send resource message");
+        pa_log_debug("failed to send resource message");
         success = false;
     }
     else {
@@ -1153,9 +1154,9 @@ static void resource_set_notification(struct userdata *u,
             cpolicy->type   != MRP_DOMCTL_STRING   ||
             crsetname->type != MRP_DOMCTL_STRING    )
         {
-            pa_log("invalid field type in '%s' (%d|%d|%d|%d|%d|%d)", table,
-                   crsetid->type, cautorel->type, cstate->type,
-                   cgrant->type, cpid->type, cpolicy->type);
+            pa_log_debug("invalid field type in '%s' (%d|%d|%d|%d|%d|%d)", table,
+                         crsetid->type, cautorel->type, cstate->type,
+                         cgrant->type, cpid->type, cpolicy->type);
             continue;
         }
 
@@ -1174,6 +1175,9 @@ static void resource_set_notification(struct userdata *u,
 
         rset.policy[type] = (char *)cpolicy->str;
         rset.grant[type]  = cgrant->s32;
+
+        pa_log_debug("cgrant is %d and grant type is %s",
+                     cgrant->s32, rset.grant[type] ? "yes" : "no");
 
         if (cautorel->s32 < 0 || cautorel->s32 > 1) {
             pa_log_debug("invalid autorel %d in table '%s'",
@@ -1197,13 +1201,14 @@ static void resource_set_notification(struct userdata *u,
 
     } /* for each row */
 
-    pa_log("*** nrset=%u pa_resource_get_number_of_resources()=%u",
-           nrset, pa_resource_get_number_of_resources(u, type));
+    pa_log_debug("*** nrset=%u pa_resource_get_number_of_resources()=%u",
+                 nrset, pa_resource_get_number_of_resources(u, type));
 
     // if (nrset != pa_resource_get_number_of_resources(u, type))
         pa_resource_purge(u, updid, type);
 
     pa_resource_enforce_policies(u, type);
+    pa_fader_apply_volume_limits(u, pa_utils_get_stamp());
 }
 
 
@@ -1316,7 +1321,7 @@ static void resource_recvfrom_msg(mrp_transport_t *transp, mrp_msg_t *msg,
     if (!resource_fetch_seqno   (msg, &curs, &seqno) ||
         !resource_fetch_request (msg, &curs, &reqid)   )
     {
-        pa_log("ignoring malformed message");
+        pa_log_debug("ignoring malformed message");
         return;
     }
 
@@ -1331,14 +1336,14 @@ static void resource_recvfrom_msg(mrp_transport_t *transp, mrp_msg_t *msg,
 
             if (!(node = mir_node_find_by_index(u, nodidx))) {
                 if (reqid != RESPROTO_DESTROY_RESOURCE_SET) {
-                    pa_log("got response (reqid:%u seqno:%u) but can't "
-                           "find the corresponding node", reqid, seqno);
+                    pa_log_debug("got response (reqid:%u seqno:%u) but can't "
+                                 "find the corresponding node", reqid, seqno);
                     resource_set_create_response_abort(u, msg, &curs);
                 }
             }
             else {
                 if (req->seqno < seqno) {
-                    pa_log("unanswered request %d", req->seqno);
+                    pa_log_debug("unanswered request %d", req->seqno);
                 }
                 else {
                     pa_log_debug("got response (reqid:%u seqno:%u "
@@ -1352,8 +1357,8 @@ static void resource_recvfrom_msg(mrp_transport_t *transp, mrp_msg_t *msg,
                     case RESPROTO_DESTROY_RESOURCE_SET:
                         break;
                     default:
-                        pa_log("ignoring unsupported resource request "
-                               "type %u", reqid);
+                        pa_log_debug("ignoring unsupported resource request "
+                                     "type %u", reqid);
                         break;
                     }
                 }
@@ -1378,12 +1383,12 @@ static void resource_set_create_response(struct userdata *u, mir_node *node,
     if (!resource_fetch_status(msg, pcursor, &status) || (status == 0 &&
         !resource_fetch_rset_id(msg, pcursor, &rsetid)))
     {
-        pa_log("ignoring malformed response to resource set creation");
+        pa_log_debug("ignoring malformed response to resource set creation");
         return;
     }
 
     if (status) {
-        pa_log("creation of resource set failed. error code %u", status);
+        pa_log_debug("creation of resource set failed. error code %u", status);
         return;
     }
 
@@ -1395,8 +1400,8 @@ static void resource_set_create_response(struct userdata *u, mir_node *node,
         pa_log_debug("modified node:\n%s", buf);
     }
     else {
-        pa_log("failed to create resource set: "
-                   "conflicting resource set id");
+        pa_log_debug("failed to create resource set: "
+                     "conflicting resource set id");
     }
 }
 
@@ -1413,19 +1418,19 @@ static void resource_set_create_response_abort(struct userdata *u,
     if (!resource_fetch_status(msg, pcursor, &status) || (status == 0 &&
         !resource_fetch_rset_id(msg, pcursor, &rsetid)))
     {
-        pa_log("ignoring malformed response to resource set creation");
+        pa_log_debug("ignoring malformed response to resource set creation");
         return;
     }
 
     if (status) {
-        pa_log("creation of resource set failed. error code %u", status);
+        pa_log_debug("creation of resource set failed. error code %u", status);
         return;
     }
 
     if (resource_set_destroy_node(u, rsetid))
         pa_log_debug("destroying resource set %u", rsetid);
     else
-        pa_log("attempt to destroy resource set %u failed", rsetid);
+        pa_log_debug("attempt to destroy resource set %u failed", rsetid);
 }
 
 
