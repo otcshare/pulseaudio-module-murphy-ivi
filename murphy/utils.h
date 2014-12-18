@@ -39,7 +39,7 @@ const char *pa_utils_get_sink_input_name_from_data(pa_sink_input_new_data *);
 const char *pa_utils_get_source_output_name(pa_source_output *);
 const char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data *);
 
-char *pa_utils_get_zone(pa_proplist *);
+char *pa_utils_get_zone(pa_proplist *, pa_proplist *);
 const char *pa_utils_get_appid(pa_proplist *);
 
 bool pa_utils_set_stream_routing_properties(pa_proplist *, int, void *);

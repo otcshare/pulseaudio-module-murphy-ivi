@@ -215,17 +215,20 @@ const char *pa_utils_get_source_output_name_from_data(pa_source_output_new_data*
     return "<unknown>";
 }
 
-char *pa_utils_get_zone(pa_proplist *pl)
+char *pa_utils_get_zone(pa_proplist *pl, pa_proplist *client_props)
 {
     const char *zone;
 
     pa_assert(pl);
 
-    if (!(zone = pa_proplist_gets(pl, PA_PROP_ZONE_NAME)))
-        zone = PA_ZONE_NAME_DEFAULT;
+    if (!(zone = pa_proplist_gets(pl, PA_PROP_ZONE_NAME))) {
+        if (!client_props || !(zone = pa_proplist_gets(client_props, PA_PROP_ENV_ZONE)))
+            zone = PA_ZONE_NAME_DEFAULT;
+    }
 
     return (char *)zone;
 }
+
 
 const char *pa_utils_get_appid(pa_proplist *pl)
 {

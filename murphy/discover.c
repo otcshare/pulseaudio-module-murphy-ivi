@@ -809,7 +809,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
 {
     pa_core           *core;
     pa_discover       *discover;
-    pa_proplist       *pl;
+    pa_proplist       *pl, *client_proplist;
     const char        *name;
     const char        *media;
     mir_node_type      type;
@@ -840,6 +840,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     }
 
     name = pa_utils_get_sink_input_name(sinp);
+    client_proplist = sinp->client ? sinp->client->proplist : NULL;
 
     pa_log_debug("registering input stream '%s'", name);
 
@@ -859,7 +860,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
     data.implement = mir_stream;
     data.channels  = sinp->channel_map.channels;
     data.type      = type;
-    data.zone      = pa_utils_get_zone(sinp->proplist);
+    data.zone      = pa_utils_get_zone(sinp->proplist, client_proplist);
     data.visible   = true;
     data.available = true;
     data.amname    = get_stream_amname(type, name, pl);
@@ -900,6 +901,7 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
     pa_core           *core;
     pa_module         *m;
     pa_proplist       *pl;
+    pa_proplist       *client_proplist;
     pa_discover       *discover;
     pa_multiplex      *multiplex;
     mir_node           fake;
@@ -973,6 +975,8 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
         pa_utils_set_stream_routing_properties(pl, type, data->sink);
     }
 
+    client_proplist = data->client ? data->client->proplist : NULL;
+
     memset(&fake, 0, sizeof(fake));
     fake.direction = mir_input;
     fake.implement = mir_stream;
@@ -980,7 +984,7 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
 
     if (!data->sink) {
         fake.channels  = data->channel_map.channels;
-        fake.zone      = pa_utils_get_zone(data->proplist);
+        fake.zone      = pa_utils_get_zone(data->proplist, client_proplist);
         fake.visible   = true;
         fake.available = true;
         fake.amname    = "<preroute sink-input>";
@@ -1034,6 +1038,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
     pa_sink           *s;
     pa_sink_input     *csinp;
     pa_proplist       *pl;
+    pa_proplist       *client_proplist;
     pa_discover       *discover;
     pa_multiplex      *multiplex;
     mir_node           data;
@@ -1111,6 +1116,8 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
             /* if needed, make some post-routing here */
         }
 
+        client_proplist = sinp->client ? sinp->client->proplist : NULL;
+
         /* we need to add this to main hashmap as that is used for loop
            through on all nodes. */
         snprintf(key, sizeof(key), "stream_input.%d", sinp->index);
@@ -1121,7 +1128,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         data.implement = mir_stream;
         data.channels  = sinp->channel_map.channels;
         data.type      = type;
-        data.zone      = pa_utils_get_zone(pl);
+        data.zone      = pa_utils_get_zone(pl, client_proplist);
         data.visible   = true;
         data.available = true;
         data.amname    = get_stream_amname(type, name, pl);
@@ -1239,6 +1246,7 @@ void pa_discover_register_source_output(struct userdata  *u,
     pa_core           *core;
     pa_discover       *discover;
     pa_proplist       *pl;
+    pa_proplist       *client_proplist;
     const char        *name;
     const char        *media;
     mir_node_type      type;
@@ -1276,6 +1284,8 @@ void pa_discover_register_source_output(struct userdata  *u,
 
     pa_utils_set_stream_routing_properties(pl, type, NULL);
 
+    client_proplist = sout->client ? sout->client->proplist : NULL;
+
     snprintf(key, sizeof(key), "stream_output.%d", sout->index);
 
     memset(&data, 0, sizeof(data));
@@ -1284,7 +1294,7 @@ void pa_discover_register_source_output(struct userdata  *u,
     data.implement = mir_stream;
     data.channels  = sout->channel_map.channels;
     data.type      = type;
-    data.zone      = pa_utils_get_zone(sout->proplist);
+    data.zone      = pa_utils_get_zone(sout->proplist, client_proplist);
     data.visible   = true;
     data.available = true;
     data.amname    = name;
@@ -1328,6 +1338,7 @@ bool pa_discover_preroute_source_output(struct userdata *u,
     pa_core           *core;
     pa_module         *m;
     pa_proplist       *pl;
+    pa_proplist       *client_proplist;
     pa_discover       *discover;
     mir_node           fake;
     pa_source         *source;
@@ -1371,12 +1382,14 @@ bool pa_discover_preroute_source_output(struct userdata *u,
     pa_utils_set_stream_routing_properties(pl, type, data->source);
 
     if (!data->source) {
+        client_proplist = data->client ? data->client->proplist : NULL;
+
         memset(&fake, 0, sizeof(fake));
         fake.direction = mir_output;
         fake.implement = mir_stream;
         fake.channels  = data->channel_map.channels;
         fake.type      = type;
-        fake.zone      = pa_utils_get_zone(data->proplist);
+        fake.zone      = pa_utils_get_zone(data->proplist, client_proplist);
         fake.visible   = true;
         fake.available = true;
         fake.amname    = "<preroute source-output>";
@@ -1405,6 +1418,7 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
     pa_core           *core;
     pa_source         *s;
     pa_proplist       *pl;
+    pa_proplist       *client_proplist;
     pa_discover       *discover;
     mir_node           data;
     mir_node          *node;
@@ -1464,6 +1478,8 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
             /* if needed, make some post-routing here */
         }
 
+        client_proplist = sout->client ? sout->client->proplist : NULL;
+
         /* we need to add this to main hashmap as that is used for loop
            through on all nodes. */
         snprintf(key, sizeof(key), "stream_output.%d", sout->index);
@@ -1474,7 +1490,7 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
         data.implement = mir_stream;
         data.channels  = sout->channel_map.channels;
         data.type      = type;
-        data.zone      = pa_utils_get_zone(pl);
+        data.zone      = pa_utils_get_zone(pl, client_proplist);
         data.visible   = true;
         data.available = true;
         data.amname    = name;
@@ -1624,7 +1640,7 @@ static void handle_alsa_card(struct userdata *u, pa_card *card)
     const char *cid;
 
     memset(&data, 0, sizeof(data));
-    data.zone = pa_utils_get_zone(card->proplist);
+    data.zone = pa_utils_get_zone(card->proplist, NULL);
     data.visible = true;
     data.amid = AM_ID_INVALID;
     data.implement = mir_device;
@@ -1768,7 +1784,7 @@ static void handle_bluetooth_card(struct userdata *u, pa_card *card)
 
     memset(&data, 0, sizeof(data));
     data.key = key;
-    data.zone = pa_utils_get_zone(card->proplist);
+    data.zone = pa_utils_get_zone(card->proplist, NULL);
     data.visible = true;
     data.amid = AM_ID_INVALID;
     data.implement = mir_device;
