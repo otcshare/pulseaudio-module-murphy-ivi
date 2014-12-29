@@ -118,7 +118,10 @@ void pa_fader_apply_volume_limits(struct userdata *u, uint32_t stamp)
                 origin = pa_utils_get_stream_origin(u, sinp);
                 stream_node = pa_discover_find_node_by_ptr(u, origin);
 
-                if ((class = pa_utils_get_stream_class(sinp->proplist)) > 0) {
+                if (origin == NULL) {
+                    pa_log_debug("could not find origin for sink-input %d", sinp->index);
+                }
+                else if ((class = pa_utils_get_stream_class(sinp->proplist)) > 0) {
 
                     corked = stream_node ? !stream_node->rset.grant : false;
                     muted  = (sinp->muted  || pa_hashmap_get(sinp->volume_factor_items,
