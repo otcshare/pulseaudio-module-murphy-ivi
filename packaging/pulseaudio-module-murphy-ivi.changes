@@ -1,3 +1,6 @@
+* Tue Dec 30 11:21:15 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.35
+- fix bt issues TC-2297
+
 * Thu Dec 18 11:21:14 EEST 2014 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.34
 - fix xwalk resource issues TC-1731 (volume limit also)
 - take zone info from pulse client if exists
