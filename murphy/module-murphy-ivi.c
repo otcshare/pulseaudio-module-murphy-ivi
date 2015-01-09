@@ -200,7 +200,7 @@ int pa__init(pa_module *m) {
 #endif
     nsnam    = pa_modargs_get_value(ma, "null_sink_name", NULL);
 
-    u = pa_xnew0(struct userdata, 1);
+    u = m->userdata = pa_xnew0(struct userdata, 1);
     u->core      = m->core;
     u->module    = m;
     u->nullsink  = pa_utils_create_null_sink(u, nsnam);
@@ -235,8 +235,6 @@ int pa__init(pa_module *m) {
         u->audiomgr == NULL || u->discover == NULL  ||
         u->murphyif == NULL)
         goto fail;
-
-    m->userdata = u;
 
     /* register ext api callback */
     u->protocol = pa_native_protocol_get(m->core);
