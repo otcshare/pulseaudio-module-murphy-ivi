@@ -582,6 +582,9 @@ void pa_discover_add_sink(struct userdata *u, pa_sink *sink, bool route)
 
         if (add_to_hash)
             pa_discover_add_node_to_ptr_hash(u, sink, node);
+
+        if (route)
+            mir_router_make_routing(u);
     }
 }
 
@@ -644,6 +647,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
     uint32_t           sink_index;
     pa_sink           *ns;
     mir_node           data;
+    bool               add_to_hash;
 
     pa_assert(u);
     pa_assert(source);
@@ -701,6 +705,8 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
         }
     }
     else {
+        add_to_hash = false;
+
         memset(&data, 0, sizeof(data));
         data.key = pa_xstrdup(source->name);
         data.direction = mir_input;
@@ -753,6 +759,8 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
                 data.amid   = AM_ID_INVALID;
                 data.paname = source->name;
             }
+
+            add_to_hash = true;
         }
         else {
             pa_xfree(data.key); /* for now */
@@ -761,7 +769,12 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
             return;
         }
 
-        create_node(u, &data, NULL);
+        node = create_node(u, &data, NULL);
+
+        if (add_to_hash)
+            pa_discover_add_node_to_ptr_hash(u, source, node);
+
+        mir_router_make_routing(u);
     }
 }
 
