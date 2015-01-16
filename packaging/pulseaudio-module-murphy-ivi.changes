@@ -1,3 +1,6 @@
+* Mon Jan 16 11:23:11 EEST 2015 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.37
+- Fix modello navi, so make all speech roles behave as navi
+
 * Mon Jan 5 11:22:10 EEST 2015 Jaska Uimonen <jaska.uimonen@intel.com> - 0.9.36
 - fix ico issues TC-2294
 
