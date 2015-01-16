@@ -43,8 +43,7 @@ application_class {
     route = {
         output = { driver = routing_group.default_driver_output }
     },
-    roles = { event  = no_resource,
-              speech = no_resource }
+    roles = { event  = no_resource }
 }
 
 application_class {
@@ -75,7 +74,7 @@ application_class {
         output = { driver = routing_group.default_driver_output,
                passanger1 = routing_group.default_passanger1_output }
     },
-    roles = { navigator = {0, "autorelease", "mandatory", "shared"} },
+    roles = { navigator = {0, "autorelease", "mandatory", "shared"}, speech = no_resource },
     binaries = { ['net.zmap.navi'] = { 0, "autorelease", "mandatory", "shared" } }
 }
 
