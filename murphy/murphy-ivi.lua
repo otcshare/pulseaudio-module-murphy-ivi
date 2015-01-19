@@ -14,6 +14,15 @@ routing_group {
 }
 
 routing_group {
+    name = "default_driver",
+    node_type = node.input,
+    accept = function(self, n)
+        return (n.type == node.microphone)
+    end,
+    compare = builtin.method.compare_default
+}
+
+routing_group {
     name = "default_passanger1",
     node_type = node.output,
     accept = function(self, n)
