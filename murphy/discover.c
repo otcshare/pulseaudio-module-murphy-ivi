@@ -713,6 +713,7 @@ void pa_discover_add_source(struct userdata *u, pa_source *source)
         data.implement = mir_device;
         data.channels  = source->channel_map.channels;
         data.available = true;
+        data.paidx     = source->index;
 
         /* XXX: This implements a rule that all tunnel sources shall be treated
          * as microphone nodes. That's pretty crappy rule, and even if it was
