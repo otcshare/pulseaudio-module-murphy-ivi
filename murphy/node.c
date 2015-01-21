@@ -482,34 +482,43 @@ const char *mir_location_str(mir_location location)
 const char *mir_node_type_str(mir_node_type type)
 {
     switch (type) {
-    case mir_node_type_unknown:   return "Unknown";
-    case mir_radio:               return "Radio";
-    case mir_player:              return "Player";
-    case mir_navigator:           return "Navigator";
-    case mir_game:                return "Game";
-    case mir_browser:             return "Browser";
-    case mir_camera:              return "Camera";
-    case mir_phone:               return "Phone";
-    case mir_alert:               return "Alert";
-    case mir_event:               return "Event";
-    case mir_system:              return "System";
-    case mir_speakers:            return "Speakers";
-    case mir_microphone:          return "Microphone";
-    case mir_jack:                return "Line";
-    case mir_spdif:               return "SPDIF";
-    case mir_hdmi:                return "HDMI";
-    case mir_wired_headset:       return "Wired Headset";
-    case mir_wired_headphone:     return "Wired Headphone";
-    case mir_usb_headset:         return "USB Headset";
-    case mir_bluetooth_sco:       return "Bluetooth Mono Handsfree";
-    case mir_bluetooth_carkit:    return "Car Kit";
-    case mir_bluetooth_a2dp:      return "Bluetooth Stereo Headphone";
-    case mir_bluetooth_source:    return "Bluetooth Source";
-    case mir_bluetooth_sink:      return "Bluetooth Sink";
-    case mir_gateway_sink:        return "Gateway Sink";
-    case mir_gateway_source:      return "Gateway Source";
-    default:                      return "<user defined>";
+    case mir_node_type_unknown:         return "Unknown";
+    case mir_radio:                     return "Radio";
+    case mir_player:                    return "Player";
+    case mir_navigator:                 return "Navigator";
+    case mir_game:                      return "Game";
+    case mir_browser:                   return "Browser";
+    case mir_camera:                    return "Camera";
+    case mir_phone:                     return "Phone";
+    case mir_alert:                     return "Alert";
+    case mir_event:                     return "Event";
+    case mir_system:                    return "System";
+    case mir_application_class_end:     pa_assert_not_reached();
+    case mir_null:                      return "Null";
+    case mir_speakers:                  return "Speakers";
+    case mir_front_speakers:            return "Front Speakers";
+    case mir_rear_speakers:             return "Rear Speakers";
+    case mir_microphone:                return "Microphone";
+    case mir_jack:                      return "Line";
+    case mir_spdif:                     return "SPDIF";
+    case mir_hdmi:                      return "HDMI";
+    case mir_wired_headset:             return "Wired Headset";
+    case mir_wired_headphone:           return "Wired Headphone";
+    case mir_usb_headset:               return "USB Headset";
+    case mir_usb_headphone:             return "USB Headphone";
+    case mir_bluetooth_sco:             return "Bluetooth Mono Handsfree";
+    case mir_bluetooth_carkit:          return "Car Kit";
+    case mir_bluetooth_a2dp:            return "Bluetooth Stereo Headphone";
+    case mir_bluetooth_source:          return "Bluetooth Source";
+    case mir_bluetooth_sink:            return "Bluetooth Sink";
+    case mir_gateway_sink:              return "Gateway Sink";
+    case mir_gateway_source:            return "Gateway Source";
+    case mir_device_class_end:          pa_assert_not_reached();
+    case mir_user_defined_start:        break;
     }
+
+    pa_assert(type >= mir_user_defined_start);
+    return "<user defined>";
 }
 
 
