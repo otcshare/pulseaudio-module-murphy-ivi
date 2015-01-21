@@ -297,62 +297,34 @@ void mir_router_register_node(struct userdata *u, mir_node *node)
     pa_assert(u);
     pa_assert(node);
     pa_assert_se((router = u->router));
-    
-    if (node->direction == mir_output) {
-        if (node->implement == mir_device) {
-            PA_HASHMAP_FOREACH(rtg, router->rtgroups.output, state) {
+
+    if (node->implement == mir_device) {
+        if (node->direction == mir_output) {
+            PA_HASHMAP_FOREACH(rtg, router->rtgroups.output, state)
                 add_rtentry(u, mir_output, rtg, node);
-            }
 
             return;
-        }
 
-        priority = node_priority(u, node);
-
-        MIR_DLIST_FOR_EACH(mir_node, rtprilist, before, &router->nodlist) {
-            if (priority < node_priority(u, before)) {
-                MIR_DLIST_INSERT_BEFORE(mir_node, rtprilist, node,
-                                        &before->rtprilist);
-                return;
-            }
-        }
-
-        MIR_DLIST_APPEND(mir_node, rtprilist, node, &router->nodlist);
-
-        return;
-    }
-
-    
-    if (node->direction == mir_input) {
-#if 0
-        if (node->implement == mir_device) &&
-            !pa_classify_loopback_stream(node))
-            return;
-#endif
-
-        if (node->implement == mir_device) {
-            PA_HASHMAP_FOREACH(rtg, router->rtgroups.input, state) {
+        } else {
+            PA_HASHMAP_FOREACH(rtg, router->rtgroups.input, state)
                 add_rtentry(u, mir_input, rtg, node);
-            }
 
             if (!pa_classify_loopback_stream(node))
                 return;
         }
-
-        priority = node_priority(u, node);
-            
-        MIR_DLIST_FOR_EACH(mir_node, rtprilist, before, &router->nodlist) {
-            if (priority < node_priority(u, before)) {
-                MIR_DLIST_INSERT_BEFORE(mir_node, rtprilist, node,
-                                        &before->rtprilist);
-                return;
-            }
-        }
-            
-        MIR_DLIST_APPEND(mir_node, rtprilist, node, &router->nodlist);
-
-        return;
     }
+
+    priority = node_priority(u, node);
+
+    MIR_DLIST_FOR_EACH(mir_node, rtprilist, before, &router->nodlist) {
+        if (priority < node_priority(u, before)) {
+            MIR_DLIST_INSERT_BEFORE(mir_node, rtprilist, node,
+                                    &before->rtprilist);
+            return;
+        }
+    }
+
+    MIR_DLIST_APPEND(mir_node, rtprilist, node, &router->nodlist);
 }
 
 void mir_router_unregister_node(struct userdata *u, mir_node *node)
