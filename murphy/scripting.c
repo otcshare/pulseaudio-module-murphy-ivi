@@ -1781,8 +1781,6 @@ static int apclass_create(lua_State *L)
         luaL_error(L, "missing or invalid priority field");
     if (!route)
         luaL_error(L, "missing or invalid route field");
-    if (!roles && !binaries)
-        luaL_error(L, "missing roles or binaries");
 
     make_id(name, sizeof(name), "%s", mir_node_type_str(type));
 
