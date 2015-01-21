@@ -93,15 +93,16 @@ static rtgroup_def  rtgroups[] = {
 };
 
 static classmap_def classmap[] = {
-    {mir_phone    , 0, mir_input , "phone"  },
-    {mir_radio    , 0, mir_output, "default"},
-    {mir_player   , 0, mir_output, "default"},
-    {mir_navigator, 0, mir_output, "default"},
-    {mir_game     , 0, mir_output, "default"},
-    {mir_browser  , 0, mir_output, "default"},
-    {mir_phone    , 0, mir_output, "phone"  },
-    {mir_event    , 0, mir_output, "default"},
-    {mir_node_type_unknown, 0, mir_direction_unknown, NULL}
+    {mir_phone                    , 0, mir_input,  "phone"  },
+    {mir_unspecified_output_stream, 0, mir_input,  "default"},
+    {mir_radio                    , 0, mir_output, "default"},
+    {mir_player                   , 0, mir_output, "default"},
+    {mir_navigator                , 0, mir_output, "default"},
+    {mir_game                     , 0, mir_output, "default"},
+    {mir_browser                  , 0, mir_output, "default"},
+    {mir_phone                    , 0, mir_output, "phone"  },
+    {mir_event                    , 0, mir_output, "default"},
+    {mir_node_type_unknown        , 0, mir_direction_unknown, NULL}
 };
 
 static typemap_def rolemap[] = {

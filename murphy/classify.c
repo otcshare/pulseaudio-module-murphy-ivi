@@ -295,6 +295,7 @@ void pa_classify_guess_device_node_type_and_name(mir_node   *node,
 
 mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
                                                  pa_proplist *pl,
+                                                 mir_direction direction,
                                                  pa_nodeset_resdef **resdef)
 {
     pa_nodeset_map *map = NULL;
@@ -365,7 +366,14 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
         if (resdef)
             *resdef = NULL;
 
-        return role ? mir_node_type_unknown : mir_player;
+        if (role)
+            return mir_node_type_unknown;
+        else {
+            if (direction == mir_output)
+                return mir_unspecified_output_stream;
+            else
+                return mir_player;
+        }
 
     } while (0);
 
@@ -375,7 +383,14 @@ mir_node_type pa_classify_guess_stream_node_type(struct userdata *u,
     if (resdef)
         *resdef = map ? map->resdef : NULL;
 
-    return map ? map->type : mir_player;
+    if (map)
+        return map->type;
+    else {
+        if (direction == mir_output)
+            return mir_unspecified_output_stream;
+        else
+            return mir_player;
+    }
 }
 
 static char *get_tag(pid_t pid, const char *tag, char *buf, size_t size)

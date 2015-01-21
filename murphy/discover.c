@@ -858,7 +858,7 @@ void pa_discover_register_sink_input(struct userdata *u, pa_sink_input *sinp)
 
     pa_log_debug("registering input stream '%s'", name);
 
-    if (!(type = pa_classify_guess_stream_node_type(u, pl, &resdef))) {
+    if (!(type = pa_classify_guess_stream_node_type(u, pl, mir_input, &resdef))) {
         pa_log_debug("cant find stream class for '%s'. "
                      "Leaving it alone", name);
         return;
@@ -973,11 +973,11 @@ bool pa_discover_preroute_sink_input(struct userdata *u,
 
             data->sink = NULL;
 
-            type = pa_classify_guess_stream_node_type(u, pl, NULL);
+            type = pa_classify_guess_stream_node_type(u, pl, mir_input, NULL);
         }
         else {
             remap = pa_streq(mnam, "module-remap-sink");
-            type = pa_classify_guess_stream_node_type(u, pl, &resdef);
+            type = pa_classify_guess_stream_node_type(u, pl, mir_input, &resdef);
 
             pa_utils_set_resource_properties(pl, resdef);
 
@@ -1119,7 +1119,7 @@ void pa_discover_add_sink_input(struct userdata *u, pa_sink_input *sinp)
         if ((type = get_stream_routing_class(pl)))
             resdef = pa_utils_get_resource_properties(pl, &rdbuf);
         else {
-            if (!(type = pa_classify_guess_stream_node_type(u, pl, &resdef))) {
+            if (!(type = pa_classify_guess_stream_node_type(u, pl, mir_input, &resdef))) {
                 pa_log_debug("cant find stream class for '%s'. "
                              "Leaving it alone", name);
                 return;
@@ -1290,7 +1290,7 @@ void pa_discover_register_source_output(struct userdata  *u,
 
     pa_log_debug("registering output stream '%s'", name);
 
-    if (!(type = pa_classify_guess_stream_node_type(u, pl, &resdef))) {
+    if (!(type = pa_classify_guess_stream_node_type(u, pl, mir_output, &resdef))) {
         pa_log_debug("cant find stream class for '%s'. "
                      "Leaving it alone", name);
         return;
@@ -1385,10 +1385,10 @@ bool pa_discover_preroute_source_output(struct userdata *u,
 
         data->source = NULL;
 
-        type = pa_classify_guess_stream_node_type(u, pl, NULL);
+        type = pa_classify_guess_stream_node_type(u, pl, mir_output, NULL);
     }
     else {
-        type = pa_classify_guess_stream_node_type(u, pl, &resdef);
+        type = pa_classify_guess_stream_node_type(u, pl, mir_output, &resdef);
 
         pa_utils_set_resource_properties(pl, resdef);
     }
@@ -1481,7 +1481,7 @@ void pa_discover_add_source_output(struct userdata *u, pa_source_output *sout)
         if ((type = get_stream_routing_class(pl)))
             resdef = pa_utils_get_resource_properties(pl, &rdbuf);
         else {
-            if (!(type = pa_classify_guess_stream_node_type(u, pl, &resdef))) {
+            if (!(type = pa_classify_guess_stream_node_type(u, pl, mir_output, &resdef))) {
                 pa_log_debug("cant find stream class for '%s'. "
                              "Leaving it alone", name);
                 return;

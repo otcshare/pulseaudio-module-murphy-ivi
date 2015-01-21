@@ -493,6 +493,7 @@ const char *mir_node_type_str(mir_node_type type)
     case mir_alert:                     return "Alert";
     case mir_event:                     return "Event";
     case mir_system:                    return "System";
+    case mir_unspecified_output_stream: return "Unspecified Output Stream";
     case mir_application_class_end:     pa_assert_not_reached();
     case mir_null:                      return "Null";
     case mir_speakers:                  return "Speakers";

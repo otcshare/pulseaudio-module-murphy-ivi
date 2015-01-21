@@ -48,7 +48,7 @@ routing_group {
 application_class {
     class = "event",
     node_type = node.event,
-    priority = 6,
+    priority = 7,
     route = {
         output = { driver = routing_group.default_driver_output }
     },
@@ -58,7 +58,7 @@ application_class {
 application_class {
     class = "phone",
     node_type = node.phone,
-    priority = 5,
+    priority = 6,
     route = {
         input  = { driver = routing_group.phone_input },
         output = {driver = routing_group.phone_output }
@@ -68,7 +68,7 @@ application_class {
 
 application_class {
     node_type = node.alert,
-    priority = 4,
+    priority = 5,
     route = {
         output = { driver = routing_group.default_driver_output },
     },
@@ -78,7 +78,7 @@ application_class {
 application_class {
     class = "navigator",
     node_type = node.navigator,
-    priority = 3,
+    priority = 4,
     route = {
         output = { driver = routing_group.default_driver_output,
                passanger1 = routing_group.default_passanger1_output }
@@ -90,7 +90,7 @@ application_class {
 application_class {
     class = "game",
     node_type = node.game,
-    priority = 2,
+    priority = 3,
     route = {
         output = { driver = routing_group.default_driver_output,
                passanger1 = routing_group.default_passanger1_output }
@@ -101,7 +101,7 @@ application_class {
 application_class {
     class = "player",
     node_type = node.radio,
-    priority = 1,
+    priority = 2,
     route = {
         output = { driver = routing_group.default_driver_output }
     },
@@ -111,7 +111,7 @@ application_class {
 application_class {
     class = "player",
     node_type = node.player,
-    priority = 1,
+    priority = 2,
     route = {
         output = { driver = routing_group.default_driver_output,
                    passanger1 = routing_group.default_passanger1_output }
@@ -128,7 +128,7 @@ application_class {
 application_class {
     class = "player",
     node_type = node.browser,
-    priority = 1,
+    priority = 2,
     route = {
         output = { driver = routing_group.default_driver_output,
                passanger1 = routing_group.default_passanger1_output }
@@ -136,6 +136,14 @@ application_class {
     roles = { browser = {0, "mandatory", "shared"} }
 }
 
+application_class {
+    class = "unspecified_output_stream",
+    node_type = node.unspecified_output_stream,
+    priority = 1,
+    route = {
+        input = { driver = routing_group.default_driver_input }
+    }
+}
 
 
 audio_resource {

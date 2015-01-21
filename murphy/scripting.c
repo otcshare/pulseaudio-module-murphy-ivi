@@ -3112,52 +3112,53 @@ static char *comma_separated_list(mrp_lua_strarray_t *arr, char *buf, int len)
 static bool define_constants(lua_State *L)
 {
     static const_def_t mdb_const[] = {
-        { "string"           , mqi_string           },
-        { "integer"          , mqi_integer          },
-        { "unsigned"         , mqi_unsignd          },
-        { "floating"         , mqi_floating         },
-        {       NULL         ,         0            }
+        { "string"                    , mqi_string                    },
+        { "integer"                   , mqi_integer                   },
+        { "unsigned"                  , mqi_unsignd                   },
+        { "floating"                  , mqi_floating                  },
+        {       NULL                  ,         0                     }
     };
 
     static const_def_t node_const[] = {
-        { "input"            , mir_input            },
-        { "output"           , mir_output           },
-        { "device"           , mir_device           },
-        { "stream"           , mir_stream           },
-        { "internal"         , mir_internal         },
-        { "external"         , mir_external         },
-        { "radio"            , mir_radio            },
-        { "player"           , mir_player           },
-        { "navigator"        , mir_navigator        },
-        { "game"             , mir_game             },
-        { "browser"          , mir_browser          },
-        { "camera"           , mir_camera           },
-        { "phone"            , mir_phone            },
-        { "alert"            , mir_alert            },
-        { "event"            , mir_event            },
-        { "system"           , mir_system           },
-        { "speakers"         , mir_speakers         },
-        { "microphone"       , mir_microphone       },
-        { "jack"             , mir_jack             },
-        { "spdif"            , mir_spdif            },
-        { "hdmi"             , mir_hdmi             },
-        { "wired_headset"    , mir_wired_headset    },
-        { "wired_headphone"  , mir_wired_headphone  },
-        { "usb_headset"      , mir_usb_headset      },
-        { "usb_headphone"    , mir_usb_headphone    },
-        { "bluetooth_sco"    , mir_bluetooth_sco    },
-        { "bluetooth_a2dp"   , mir_bluetooth_a2dp   },
-        { "bluetooth_carkit" , mir_bluetooth_carkit },
-        { "bluetooth_source" , mir_bluetooth_source },
-        { "bluetooth_sink"   , mir_bluetooth_sink   },
-        {       NULL         ,         0            }
+        { "input"                     , mir_input                     },
+        { "output"                    , mir_output                    },
+        { "device"                    , mir_device                    },
+        { "stream"                    , mir_stream                    },
+        { "internal"                  , mir_internal                  },
+        { "external"                  , mir_external                  },
+        { "radio"                     , mir_radio                     },
+        { "player"                    , mir_player                    },
+        { "navigator"                 , mir_navigator                 },
+        { "game"                      , mir_game                      },
+        { "browser"                   , mir_browser                   },
+        { "camera"                    , mir_camera                    },
+        { "phone"                     , mir_phone                     },
+        { "alert"                     , mir_alert                     },
+        { "event"                     , mir_event                     },
+        { "system"                    , mir_system                    },
+        { "unspecified_output_stream" , mir_unspecified_output_stream },
+        { "speakers"                  , mir_speakers                  },
+        { "microphone"                , mir_microphone                },
+        { "jack"                      , mir_jack                      },
+        { "spdif"                     , mir_spdif                     },
+        { "hdmi"                      , mir_hdmi                      },
+        { "wired_headset"             , mir_wired_headset             },
+        { "wired_headphone"           , mir_wired_headphone           },
+        { "usb_headset"               , mir_usb_headset               },
+        { "usb_headphone"             , mir_usb_headphone             },
+        { "bluetooth_sco"             , mir_bluetooth_sco             },
+        { "bluetooth_a2dp"            , mir_bluetooth_a2dp            },
+        { "bluetooth_carkit"          , mir_bluetooth_carkit          },
+        { "bluetooth_source"          , mir_bluetooth_source          },
+        { "bluetooth_sink"            , mir_bluetooth_sink            },
+        {       NULL                  ,         0                     }
     };
 
     static const_def_t vollim_const[] = {
-        { "class"            , vollim_class         },
-        { "generic"          , vollim_generic       },
-        { "maximum"          , vollim_maximum       },
-        {       NULL         ,         0            }
+        { "class"                     , vollim_class                  },
+        { "generic"                   , vollim_generic                },
+        { "maximum"                   , vollim_maximum                },
+        {       NULL                  ,         0                     }
     };
 
     const_def_t *cd;

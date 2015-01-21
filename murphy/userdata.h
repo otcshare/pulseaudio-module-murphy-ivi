@@ -187,10 +187,11 @@ typedef enum mir_node_type {
     mir_game,
     mir_browser,
     mir_camera,
-    mir_phone,                  /**< telephony voice */
-    mir_alert,                  /**< ringtone, alarm */
-    mir_event,                  /**< notifications */
-    mir_system,                 /**< always audible system notifications, events */
+    mir_phone,                     /**< telephony voice */
+    mir_alert,                     /**< ringtone, alarm */
+    mir_event,                     /**< notifications */
+    mir_system,                    /**< always audible system notifications, events */
+    mir_unspecified_output_stream, /**< fallback for unrecognized source outputs */
     mir_application_class_end,
 
     /* device types */
