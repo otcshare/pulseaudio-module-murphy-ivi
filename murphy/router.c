@@ -303,7 +303,22 @@ void mir_router_register_node(struct userdata *u, mir_node *node)
             PA_HASHMAP_FOREACH(rtg, router->rtgroups.output, state) {
                 add_rtentry(u, mir_output, rtg, node);
             }
+
+            return;
         }
+
+        priority = node_priority(u, node);
+
+        MIR_DLIST_FOR_EACH(mir_node, rtprilist, before, &router->nodlist) {
+            if (priority < node_priority(u, before)) {
+                MIR_DLIST_INSERT_BEFORE(mir_node, rtprilist, node,
+                                        &before->rtprilist);
+                return;
+            }
+        }
+
+        MIR_DLIST_APPEND(mir_node, rtprilist, node, &router->nodlist);
+
         return;
     }
 
