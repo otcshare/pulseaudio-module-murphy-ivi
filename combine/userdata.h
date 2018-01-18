@@ -8,9 +8,27 @@ struct output {
     pa_sink_input *sink_input;
     bool ignore_state_change;
 
-    pa_asyncmsgq *inq,    /* Message queue from the sink thread to this sink input */
-                 *outq;   /* Message queue from this sink input to the sink thread */
-    pa_rtpoll_item *inq_rtpoll_item_read, *inq_rtpoll_item_write;
+    /* This message queue is only for POST messages, i.e. the messages that
+     * carry audio data from the sink thread to the output thread. The POST
+     * messages need to be handled in a separate queue, because the queue is
+     * processed not only in the output thread mainloop, but also inside the
+     * sink input pop() callback. Processing other messages (such as
+     * SET_REQUESTED_LATENCY) is not safe inside the pop() callback; at least
+     * one reason why it's not safe is that messages that generate rewind
+     * requests (such as SET_REQUESTED_LATENCY) cause crashes when processed
+     * in the pop() callback. */
+    pa_asyncmsgq *audio_inq;
+
+    /* This message queue is for all other messages than POST from the sink
+     * thread to the output thread (currently "all other messages" means just
+     * the SET_REQUESTED_LATENCY message). */
+    pa_asyncmsgq *control_inq;
+
+    /* Message queue from the output thread to the sink thread. */
+    pa_asyncmsgq *outq;
+
+    pa_rtpoll_item *audio_inq_rtpoll_item_read, *audio_inq_rtpoll_item_write;
+    pa_rtpoll_item *control_inq_rtpoll_item_read, *control_inq_rtpoll_item_write;
     pa_rtpoll_item *outq_rtpoll_item_read, *outq_rtpoll_item_write;
 
     pa_memblockq *memblockq;
@@ -20,7 +38,8 @@ struct output {
 
     /* For communication of the stream parameters to the sink thread */
     pa_atomic_t max_request;
-    pa_atomic_t requested_latency;
+    pa_atomic_t max_latency;
+    pa_atomic_t min_latency;
 
     PA_LLIST_FIELDS(struct output);
 };
@@ -39,7 +58,6 @@ struct userdata {
 
     bool automatic;
     bool auto_desc;
-    bool no_reattach;
 
     pa_strlist *unlinked_slaves;
 
@@ -48,6 +66,8 @@ struct userdata {
     pa_resample_method_t resample_method;
 
     pa_usec_t block_usec;
+    pa_usec_t default_min_latency;
+    pa_usec_t default_max_latency;
 
     pa_idxset* outputs; /* managed in main context */
 
@@ -64,6 +84,5 @@ struct userdata {
     void             (*remove_slave)(struct userdata *, pa_sink_input *, pa_sink *);
     int              (*move_slave)(struct userdata *, pa_sink_input *, pa_sink *);
 };
-
 
 #endif

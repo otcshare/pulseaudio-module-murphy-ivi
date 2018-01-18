@@ -14,9 +14,7 @@
   General Public License for more details.
 
   You should have received a copy of the GNU Lesser General Public License
-  along with PulseAudio; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
-  USA.
+  along with PulseAudio; if not, see <http://www.gnu.org/licenses/>.
 ***/
 
 #include <pulsecore/pulsecore-config.h>
@@ -91,11 +89,12 @@ enum {
     SINK_MESSAGE_NEED,
     SINK_MESSAGE_UPDATE_LATENCY,
     SINK_MESSAGE_UPDATE_MAX_REQUEST,
-    SINK_MESSAGE_UPDATE_REQUESTED_LATENCY
+    SINK_MESSAGE_UPDATE_LATENCY_RANGE
 };
 
 enum {
     SINK_INPUT_MESSAGE_POST = PA_SINK_INPUT_MESSAGE_MAX,
+    SINK_INPUT_MESSAGE_SET_REQUESTED_LATENCY
 };
 
 static void output_disable(struct output *o);
@@ -140,7 +139,7 @@ static void adjust_rates(struct userdata *u) {
         avg_total_latency += o->total_latency;
         n++;
 
-        /* pa_log_debug("[%s] total=%0.2fms sink=%0.2fms ", o->sink->name, (double) o->total_latency / PA_USEC_PER_MSEC, (double) sink_latency / PA_USEC_PER_MSEC); */
+        pa_log_debug("[%s] total=%0.2fms sink=%0.2fms ", o->sink->name, (double) o->total_latency / PA_USEC_PER_MSEC, (double) sink_latency / PA_USEC_PER_MSEC);
 
         if (o->total_latency > 10*PA_USEC_PER_SEC)
             pa_log_warn("[%s] Total latency of output is very high (%0.2fms), most likely the audio timing in one of your drivers is broken.", o->sink->name, (double) o->total_latency / PA_USEC_PER_MSEC);
@@ -153,10 +152,8 @@ static void adjust_rates(struct userdata *u) {
 
     target_latency = max_sink_latency > min_total_latency ? max_sink_latency : min_total_latency;
 
-    /*
     pa_log_info("[%s] avg total latency is %0.2f msec.", u->sink->name, (double) avg_total_latency / PA_USEC_PER_MSEC);
     pa_log_info("[%s] target latency is %0.2f msec.", u->sink->name, (double) target_latency / PA_USEC_PER_MSEC);
-    */
 
     base_rate = u->sink->sample_spec.rate;
 
@@ -167,7 +164,7 @@ static void adjust_rates(struct userdata *u) {
         if (!o->sink_input || !PA_SINK_IS_OPENED(pa_sink_get_state(o->sink)))
             continue;
 
-	current_rate = o->sink_input->sample_spec.rate;
+        current_rate = o->sink_input->sample_spec.rate;
 
         if (o->total_latency != target_latency)
             new_rate += (uint32_t) (((double) o->total_latency - (double) target_latency) / (double) u->adjust_time * (double) new_rate);
@@ -180,7 +177,7 @@ static void adjust_rates(struct userdata *u) {
               new_rate = base_rate;
             /* Do the adjustment in small steps; 2‰ can be considered inaudible */
             if (new_rate < (uint32_t) (current_rate*0.998) || new_rate > (uint32_t) (current_rate*1.002)) {
-                /* pa_log_info("[%s] new rate of %u Hz not within 2‰ of %u Hz, forcing smaller adjustment", o->sink_input->sink->name, new_rate, current_rate); */
+                pa_log_info("[%s] new rate of %u Hz not within 2‰ of %u Hz, forcing smaller adjustment", o->sink_input->sink->name, new_rate, current_rate);
                 new_rate = PA_CLAMP(new_rate, (uint32_t) (current_rate*0.998), (uint32_t) (current_rate*1.002));
             }
             pa_log_info("[%s] new rate is %u Hz; ratio is %0.3f; latency is %0.2f msec.", o->sink_input->sink->name, new_rate, (double) new_rate / base_rate, (double) o->total_latency / PA_USEC_PER_MSEC);
@@ -200,16 +197,18 @@ static void time_callback(pa_mainloop_api *a, pa_time_event *e, const struct tim
 
     adjust_rates(u);
 
-    pa_core_rttime_restart(u->core, e, pa_rtclock_now() + u->adjust_time);
+    if (pa_sink_get_state(u->sink) == PA_SINK_SUSPENDED) {
+        u->core->mainloop->time_free(e);
+        u->time_event = NULL;
+    } else
+        pa_core_rttime_restart(u->core, e, pa_rtclock_now() + u->adjust_time);
 }
 
 static void process_render_null(struct userdata *u, pa_usec_t now) {
     size_t ate = 0;
-    pa_assert(u);
 
-    /* If we are not running, we cannot produce any data */
-    if (!pa_atomic_load(&u->thread_info.running))
-        return;
+    pa_assert(u);
+    pa_assert(u->sink->thread_info.state == PA_SINK_RUNNING);
 
     if (u->thread_info.in_null_mode)
         u->thread_info.timestamp = now;
@@ -255,12 +254,11 @@ static void thread_func(void *userdata) {
     for (;;) {
         int ret;
 
-        if (PA_SINK_IS_OPENED(u->sink->thread_info.state))
-            if (u->sink->thread_info.rewind_requested)
-                pa_sink_process_rewind(u->sink, 0);
+        if (PA_UNLIKELY(u->sink->thread_info.rewind_requested))
+            pa_sink_process_rewind(u->sink, 0);
 
         /* If no outputs are connected, render some data and drop it immediately. */
-        if (PA_SINK_IS_OPENED(u->sink->thread_info.state) && !u->thread_info.active_outputs) {
+        if (u->sink->thread_info.state == PA_SINK_RUNNING && !u->thread_info.active_outputs) {
             pa_usec_t now;
 
             now = pa_rtclock_now();
@@ -276,7 +274,7 @@ static void thread_func(void *userdata) {
         }
 
         /* Hmm, nothing to do. Let's sleep */
-        if ((ret = pa_rtpoll_run(u->rtpoll, true)) < 0) {
+        if ((ret = pa_rtpoll_run(u->rtpoll)) < 0) {
             pa_log_info("pa_rtpoll_run() = %i", ret);
             goto fail;
         }
@@ -295,7 +293,7 @@ finish:
     pa_log_debug("Thread shutting down");
 }
 
-/* Called from I/O thread context */
+/* Called from combine sink I/O thread context */
 static void render_memblock(struct userdata *u, struct output *o, size_t length) {
     pa_assert(u);
     pa_assert(o);
@@ -310,7 +308,7 @@ static void render_memblock(struct userdata *u, struct output *o, size_t length)
 
     /* Maybe there's some data in the requesting output's queue
      * now? */
-    while (pa_asyncmsgq_process_one(o->inq) > 0)
+    while (pa_asyncmsgq_process_one(o->audio_inq) > 0)
         ;
 
     /* Ok, now let's prepare some data if we really have to */
@@ -328,7 +326,7 @@ static void render_memblock(struct userdata *u, struct output *o, size_t length)
             if (j == o)
                 continue;
 
-            pa_asyncmsgq_post(j->inq, PA_MSGOBJECT(j->sink_input), SINK_INPUT_MESSAGE_POST, NULL, 0, &chunk, NULL);
+            pa_asyncmsgq_post(j->audio_inq, PA_MSGOBJECT(j->sink_input), SINK_INPUT_MESSAGE_POST, NULL, 0, &chunk, NULL);
         }
 
         /* And place it directly into the requesting output's queue */
@@ -346,7 +344,7 @@ static void request_memblock(struct output *o, size_t length) {
     /* If another thread already prepared some data we received
      * the data over the asyncmsgq, hence let's first process
      * it. */
-    while (pa_asyncmsgq_process_one(o->inq) > 0)
+    while (pa_asyncmsgq_process_one(o->audio_inq) > 0)
         ;
 
     /* Check whether we're now readable */
@@ -414,46 +412,62 @@ static void sink_input_update_max_request_cb(pa_sink_input *i, size_t nbytes) {
         return;
 
     pa_atomic_store(&o->max_request, (int) nbytes);
+    pa_log_debug("Sink input update max request %lu", (unsigned long) nbytes);
     pa_asyncmsgq_post(o->outq, PA_MSGOBJECT(o->userdata->sink), SINK_MESSAGE_UPDATE_MAX_REQUEST, NULL, 0, NULL, NULL);
 }
 
 /* Called from thread context */
-static void sink_input_update_sink_requested_latency_cb(pa_sink_input *i) {
+static void sink_input_update_sink_latency_range_cb(pa_sink_input *i) {
     struct output *o;
-    pa_usec_t c;
+    pa_usec_t min, max, fix;
 
     pa_assert(i);
 
     pa_sink_input_assert_ref(i);
     pa_assert_se(o = i->userdata);
 
-    c = pa_sink_get_requested_latency_within_thread(i->sink);
+    fix = i->sink->thread_info.fixed_latency;
+    if (fix > 0) {
+        min = fix;
+        max = fix;
+    } else {
+        min = i->sink->thread_info.min_latency;
+        max = i->sink->thread_info.max_latency;
+    }
 
-    if (c == (pa_usec_t) -1)
-        c = i->sink->thread_info.max_latency;
-
-    if (pa_atomic_load(&o->requested_latency) == (int) c)
+    if ((pa_atomic_load(&o->min_latency) == (int) min) &&
+        (pa_atomic_load(&o->max_latency) == (int) max))
         return;
 
-    pa_atomic_store(&o->requested_latency, (int) c);
-    pa_asyncmsgq_post(o->outq, PA_MSGOBJECT(o->userdata->sink), SINK_MESSAGE_UPDATE_REQUESTED_LATENCY, NULL, 0, NULL, NULL);
+    pa_atomic_store(&o->min_latency, (int) min);
+    pa_atomic_store(&o->max_latency, (int) max);
+    pa_log_debug("Sink input update latency range %lu %lu", (unsigned long) min, (unsigned long) max);
+    pa_asyncmsgq_post(o->outq, PA_MSGOBJECT(o->userdata->sink), SINK_MESSAGE_UPDATE_LATENCY_RANGE, NULL, 0, NULL, NULL);
 }
 
 /* Called from I/O thread context */
 static void sink_input_attach_cb(pa_sink_input *i) {
     struct output *o;
-    pa_usec_t c;
+    pa_usec_t fix, min, max;
+    size_t nbytes;
 
     pa_sink_input_assert_ref(i);
     pa_assert_se(o = i->userdata);
 
     /* Set up the queue from the sink thread to us */
-    pa_assert(!o->inq_rtpoll_item_read && !o->outq_rtpoll_item_write);
+    pa_assert(!o->audio_inq_rtpoll_item_read);
+    pa_assert(!o->control_inq_rtpoll_item_read);
+    pa_assert(!o->outq_rtpoll_item_write);
 
-    o->inq_rtpoll_item_read = pa_rtpoll_item_new_asyncmsgq_read(
+    o->audio_inq_rtpoll_item_read = pa_rtpoll_item_new_asyncmsgq_read(
             i->sink->thread_info.rtpoll,
             PA_RTPOLL_LATE,  /* This one is not that important, since we check for data in _peek() anyway. */
-            o->inq);
+            o->audio_inq);
+
+    o->control_inq_rtpoll_item_read = pa_rtpoll_item_new_asyncmsgq_read(
+            i->sink->thread_info.rtpoll,
+            PA_RTPOLL_NORMAL,
+            o->control_inq);
 
     o->outq_rtpoll_item_write = pa_rtpoll_item_new_asyncmsgq_write(
             i->sink->thread_info.rtpoll,
@@ -462,13 +476,24 @@ static void sink_input_attach_cb(pa_sink_input *i) {
 
     pa_sink_input_request_rewind(i, 0, false, true, true);
 
-    pa_atomic_store(&o->max_request, (int) pa_sink_input_get_max_request(i));
+    nbytes = pa_sink_input_get_max_request(i);
+    pa_atomic_store(&o->max_request, (int) nbytes);
+    pa_log_debug("attach max request %lu", (unsigned long) nbytes);
 
-    c = pa_sink_get_requested_latency_within_thread(i->sink);
-    pa_atomic_store(&o->requested_latency, (int) (c == (pa_usec_t) -1 ? 0 : c));
+    fix = i->sink->thread_info.fixed_latency;
+    if (fix > 0) {
+        min = max = fix;
+    } else {
+        min = i->sink->thread_info.min_latency;
+        max = i->sink->thread_info.max_latency;
+    }
+    pa_atomic_store(&o->min_latency, (int) min);
+    pa_atomic_store(&o->max_latency, (int) max);
+    pa_log_debug("attach latency range %lu %lu", (unsigned long) min, (unsigned long) max);
 
-    pa_asyncmsgq_post(o->outq, PA_MSGOBJECT(o->userdata->sink), SINK_MESSAGE_UPDATE_MAX_REQUEST, NULL, 0, NULL, NULL);
-    pa_asyncmsgq_post(o->outq, PA_MSGOBJECT(o->userdata->sink), SINK_MESSAGE_UPDATE_REQUESTED_LATENCY, NULL, 0, NULL, NULL);
+    /* We register the output. That means that the sink will start to pass data to
+     * this output. */
+    pa_asyncmsgq_send(o->userdata->sink->asyncmsgq, PA_MSGOBJECT(o->userdata->sink), SINK_MESSAGE_ADD_OUTPUT, o, 0, NULL);
 }
 
 /* Called from I/O thread context */
@@ -478,15 +503,25 @@ static void sink_input_detach_cb(pa_sink_input *i) {
     pa_sink_input_assert_ref(i);
     pa_assert_se(o = i->userdata);
 
-    if (o->inq_rtpoll_item_read) {
-        pa_rtpoll_item_free(o->inq_rtpoll_item_read);
-        o->inq_rtpoll_item_read = NULL;
+    /* We unregister the output. That means that the sink doesn't
+     * pass any further data to this output */
+    pa_asyncmsgq_send(o->userdata->sink->asyncmsgq, PA_MSGOBJECT(o->userdata->sink), SINK_MESSAGE_REMOVE_OUTPUT, o, 0, NULL);
+
+    if (o->audio_inq_rtpoll_item_read) {
+        pa_rtpoll_item_free(o->audio_inq_rtpoll_item_read);
+        o->audio_inq_rtpoll_item_read = NULL;
+    }
+
+    if (o->control_inq_rtpoll_item_read) {
+        pa_rtpoll_item_free(o->control_inq_rtpoll_item_read);
+        o->control_inq_rtpoll_item_read = NULL;
     }
 
     if (o->outq_rtpoll_item_write) {
         pa_rtpoll_item_free(o->outq_rtpoll_item_write);
         o->outq_rtpoll_item_write = NULL;
     }
+
 }
 
 /* Called from main context */
@@ -497,6 +532,7 @@ static void sink_input_kill_cb(pa_sink_input *i) {
     pa_assert_se(o = i->userdata);
 
     pa_module_unload_request(o->userdata->module, true);
+    pa_idxset_remove_by_data(o->userdata->outputs, o, NULL);
     output_free(o);
 }
 
@@ -524,6 +560,14 @@ static int sink_input_process_msg(pa_msgobject *obj, int code, void *data, int64
                 pa_memblockq_flush_write(o->memblockq, true);
 
             return 0;
+
+        case SINK_INPUT_MESSAGE_SET_REQUESTED_LATENCY: {
+            pa_usec_t latency = (pa_usec_t) offset;
+
+            pa_sink_input_set_requested_latency_within_thread(o->sink_input, latency);
+
+            return 0;
+        }
     }
 
     return pa_sink_input_process_msg(obj, code, data, offset, chunk);
@@ -553,6 +597,9 @@ static void unsuspend(struct userdata *u) {
     /* Let's resume */
     PA_IDXSET_FOREACH(o, u->outputs, idx)
         output_enable(o);
+
+    if (!u->time_event && u->adjust_time > 0)
+        u->time_event = pa_core_rttime_new(u->core, pa_rtclock_now() + u->adjust_time, time_callback, u);
 
     pa_log_info("Resumed successfully...");
 }
@@ -612,31 +659,47 @@ static void update_max_request(struct userdata *u) {
     if (max_request <= 0)
         max_request = pa_usec_to_bytes(u->block_usec, &u->sink->sample_spec);
 
+    pa_log_debug("Sink update max request %lu", (unsigned long) max_request);
     pa_sink_set_max_request_within_thread(u->sink, max_request);
 }
 
 /* Called from IO context */
-static void update_fixed_latency(struct userdata *u) {
-    pa_usec_t fixed_latency = 0;
+static void update_latency_range(struct userdata *u) {
+    pa_usec_t min_latency = 0, max_latency = (pa_usec_t) -1;
     struct output *o;
 
     pa_assert(u);
     pa_sink_assert_io_context(u->sink);
 
-    /* Collects the requested_latency values of all streams and sets
-     * the largest one as fixed_latency locally */
-
+    /* Collects the latency_range values of all streams and sets
+     * the max of min and min of max locally */
     PA_LLIST_FOREACH(o, u->thread_info.active_outputs) {
-        pa_usec_t rl = (size_t) pa_atomic_load(&o->requested_latency);
+        pa_usec_t min = (size_t) pa_atomic_load(&o->min_latency);
+        pa_usec_t max = (size_t) pa_atomic_load(&o->max_latency);
 
-        if (rl > fixed_latency)
-            fixed_latency = rl;
+        if (min > min_latency)
+            min_latency = min;
+        if (max_latency == (pa_usec_t) -1 || max < max_latency)
+            max_latency = max;
+    }
+    if (max_latency == (pa_usec_t) -1) {
+        /* No outputs, use default limits. */
+        min_latency = u->default_min_latency;
+        max_latency = u->default_max_latency;
     }
 
-    if (fixed_latency <= 0)
-        fixed_latency = u->block_usec;
+    /* As long as we don't support rewinding, we should limit the max latency
+     * to a conservative value. */
+    if (max_latency > u->default_max_latency)
+        max_latency = u->default_max_latency;
 
-    pa_sink_set_fixed_latency_within_thread(u->sink, fixed_latency);
+    /* Never ever try to set lower max latency than min latency, it just
+     * doesn't make sense. */
+    if (max_latency < min_latency)
+        max_latency = min_latency;
+
+    pa_log_debug("Sink update latency range %" PRIu64 " %" PRIu64, min_latency, max_latency);
+    pa_sink_set_latency_range_within_thread(u->sink, min_latency, max_latency);
 }
 
 /* Called from thread context of the io thread */
@@ -646,16 +709,22 @@ static void output_add_within_thread(struct output *o) {
 
     PA_LLIST_PREPEND(struct output, o->userdata->thread_info.active_outputs, o);
 
-    pa_assert(!o->outq_rtpoll_item_read && !o->inq_rtpoll_item_write);
+    pa_assert(!o->outq_rtpoll_item_read);
+    pa_assert(!o->audio_inq_rtpoll_item_write);
+    pa_assert(!o->control_inq_rtpoll_item_write);
 
     o->outq_rtpoll_item_read = pa_rtpoll_item_new_asyncmsgq_read(
             o->userdata->rtpoll,
             PA_RTPOLL_EARLY-1,  /* This item is very important */
             o->outq);
-    o->inq_rtpoll_item_write = pa_rtpoll_item_new_asyncmsgq_write(
+    o->audio_inq_rtpoll_item_write = pa_rtpoll_item_new_asyncmsgq_write(
             o->userdata->rtpoll,
             PA_RTPOLL_EARLY,
-            o->inq);
+            o->audio_inq);
+    o->control_inq_rtpoll_item_write = pa_rtpoll_item_new_asyncmsgq_write(
+            o->userdata->rtpoll,
+            PA_RTPOLL_NORMAL,
+            o->control_inq);
 }
 
 /* Called from thread context of the io thread */
@@ -670,11 +739,39 @@ static void output_remove_within_thread(struct output *o) {
         o->outq_rtpoll_item_read = NULL;
     }
 
-    if (o->inq_rtpoll_item_write) {
-        pa_rtpoll_item_free(o->inq_rtpoll_item_write);
-        o->inq_rtpoll_item_write = NULL;
+    if (o->audio_inq_rtpoll_item_write) {
+        pa_rtpoll_item_free(o->audio_inq_rtpoll_item_write);
+        o->audio_inq_rtpoll_item_write = NULL;
+    }
+
+    if (o->control_inq_rtpoll_item_write) {
+        pa_rtpoll_item_free(o->control_inq_rtpoll_item_write);
+        o->control_inq_rtpoll_item_write = NULL;
     }
 }
+
+/* Called from sink I/O thread context */
+static void sink_update_requested_latency(pa_sink *s) {
+    struct userdata *u;
+    struct output *o;
+
+    pa_sink_assert_ref(s);
+    pa_assert_se(u = s->userdata);
+
+    u->block_usec = pa_sink_get_requested_latency_within_thread(s);
+
+    if (u->block_usec == (pa_usec_t) -1)
+        u->block_usec = s->thread_info.max_latency;
+
+    pa_log_debug("Sink update requested latency %0.2f", (double) u->block_usec / PA_USEC_PER_MSEC);
+
+    /* Just hand this one over to all sink_inputs */
+    PA_LLIST_FOREACH(o, u->thread_info.active_outputs) {
+        pa_asyncmsgq_post(o->control_inq, PA_MSGOBJECT(o->sink_input), SINK_INPUT_MESSAGE_SET_REQUESTED_LATENCY, NULL,
+                          u->block_usec, NULL, NULL);
+    }
+}
+
 
 /* Called from thread context of the io thread */
 static int sink_process_msg(pa_msgobject *o, int code, void *data, int64_t offset, pa_memchunk *chunk) {
@@ -714,13 +811,13 @@ static int sink_process_msg(pa_msgobject *o, int code, void *data, int64_t offse
         case SINK_MESSAGE_ADD_OUTPUT:
             output_add_within_thread(data);
             update_max_request(u);
-            update_fixed_latency(u);
+            update_latency_range(u);
             return 0;
 
         case SINK_MESSAGE_REMOVE_OUTPUT:
             output_remove_within_thread(data);
             update_max_request(u);
-            update_fixed_latency(u);
+            update_latency_range(u);
             return 0;
 
         case SINK_MESSAGE_NEED:
@@ -746,9 +843,10 @@ static int sink_process_msg(pa_msgobject *o, int code, void *data, int64_t offse
             update_max_request(u);
             break;
 
-        case SINK_MESSAGE_UPDATE_REQUESTED_LATENCY:
-            update_fixed_latency(u);
+        case SINK_MESSAGE_UPDATE_LATENCY_RANGE:
+            update_latency_range(u);
             break;
+
 }
 
     return pa_sink_process_msg(o, code, data, offset, chunk);
@@ -790,6 +888,7 @@ static void update_description(struct userdata *u) {
 }
 
 static int output_create_sink_input(struct output *o) {
+    struct userdata *u;
     pa_sink_input_new_data data;
 
     pa_assert(o);
@@ -797,18 +896,20 @@ static int output_create_sink_input(struct output *o) {
     if (o->sink_input)
         return 0;
 
+    u = o->userdata;
+
     pa_sink_input_new_data_init(&data);
     pa_sink_input_new_data_set_sink(&data, o->sink, false);
     data.driver = __FILE__;
     pa_proplist_setf(data.proplist, PA_PROP_MEDIA_NAME, "Simultaneous output on %s", pa_strnull(pa_proplist_gets(o->sink->proplist, PA_PROP_DEVICE_DESCRIPTION)));
     pa_proplist_sets(data.proplist, PA_PROP_MEDIA_ROLE, "filter");
-    pa_sink_input_new_data_set_sample_spec(&data, &o->userdata->sink->sample_spec);
-    pa_sink_input_new_data_set_channel_map(&data, &o->userdata->sink->channel_map);
-    data.module = o->userdata->module;
-    data.resample_method = o->userdata->resample_method;
+    pa_sink_input_new_data_set_sample_spec(&data, &u->sink->sample_spec);
+    pa_sink_input_new_data_set_channel_map(&data, &u->sink->channel_map);
+    data.module = u->module;
+    data.resample_method = u->resample_method;
     data.flags = PA_SINK_INPUT_VARIABLE_RATE|PA_SINK_INPUT_DONT_MOVE|PA_SINK_INPUT_NO_CREATE_ON_SUSPEND;
 
-    pa_sink_input_new(&o->sink_input, o->userdata->core, &data);
+    pa_sink_input_new(&o->sink_input, u->core, &data);
 
     pa_sink_input_new_data_done(&data);
 
@@ -820,13 +921,13 @@ static int output_create_sink_input(struct output *o) {
     o->sink_input->process_rewind = sink_input_process_rewind_cb;
     o->sink_input->update_max_rewind = sink_input_update_max_rewind_cb;
     o->sink_input->update_max_request = sink_input_update_max_request_cb;
-    o->sink_input->update_sink_requested_latency = sink_input_update_sink_requested_latency_cb;
+    o->sink_input->update_sink_latency_range = sink_input_update_sink_latency_range_cb;
     o->sink_input->attach = sink_input_attach_cb;
     o->sink_input->detach = sink_input_detach_cb;
     o->sink_input->kill = sink_input_kill_cb;
     o->sink_input->userdata = o;
 
-    pa_sink_input_set_requested_latency(o->sink_input, BLOCK_USEC);
+    pa_sink_input_set_requested_latency(o->sink_input, pa_sink_get_requested_latency(u->sink));
 
     return 0;
 }
@@ -841,8 +942,25 @@ static struct output *output_new(struct userdata *u, pa_sink *sink) {
 
     o = pa_xnew0(struct output, 1);
     o->userdata = u;
-    o->inq = pa_asyncmsgq_new(0);
+
+    o->audio_inq = pa_asyncmsgq_new(0);
+    if (!o->audio_inq) {
+        pa_log("pa_asyncmsgq_new() failed.");
+        goto fail;
+    }
+
+    o->control_inq = pa_asyncmsgq_new(0);
+    if (!o->control_inq) {
+        pa_log("pa_asyncmsgq_new() failed.");
+        goto fail;
+    }
+
     o->outq = pa_asyncmsgq_new(0);
+    if (!o->outq) {
+        pa_log("pa_asyncmsgq_new() failed.");
+        goto fail;
+    }
+
     o->sink = sink;
     o->memblockq = pa_memblockq_new(
             "module-combine-sink output memblockq",
@@ -859,6 +977,11 @@ static struct output *output_new(struct userdata *u, pa_sink *sink) {
     update_description(u);
 
     return o;
+
+fail:
+    output_free(o);
+
+    return NULL;
 }
 
 /* Called from main context */
@@ -866,22 +989,28 @@ static void output_free(struct output *o) {
     pa_assert(o);
 
     output_disable(o);
-
-    pa_assert_se(pa_idxset_remove_by_data(o->userdata->outputs, o, NULL));
     update_description(o->userdata);
 
-    if (o->inq_rtpoll_item_read)
-        pa_rtpoll_item_free(o->inq_rtpoll_item_read);
-    if (o->inq_rtpoll_item_write)
-        pa_rtpoll_item_free(o->inq_rtpoll_item_write);
+    if (o->audio_inq_rtpoll_item_read)
+        pa_rtpoll_item_free(o->audio_inq_rtpoll_item_read);
+    if (o->audio_inq_rtpoll_item_write)
+        pa_rtpoll_item_free(o->audio_inq_rtpoll_item_write);
+
+    if (o->control_inq_rtpoll_item_read)
+        pa_rtpoll_item_free(o->control_inq_rtpoll_item_read);
+    if (o->control_inq_rtpoll_item_write)
+        pa_rtpoll_item_free(o->control_inq_rtpoll_item_write);
 
     if (o->outq_rtpoll_item_read)
         pa_rtpoll_item_free(o->outq_rtpoll_item_read);
     if (o->outq_rtpoll_item_write)
         pa_rtpoll_item_free(o->outq_rtpoll_item_write);
 
-    if (o->inq)
-        pa_asyncmsgq_unref(o->inq);
+    if (o->audio_inq)
+        pa_asyncmsgq_unref(o->audio_inq);
+
+    if (o->control_inq)
+        pa_asyncmsgq_unref(o->control_inq);
 
     if (o->outq)
         pa_asyncmsgq_unref(o->outq);
@@ -908,18 +1037,10 @@ static void output_enable(struct output *o) {
     if (output_create_sink_input(o) >= 0) {
 
         if (pa_sink_get_state(o->sink) != PA_SINK_INIT) {
-
-            /* First we register the output. That means that the sink
-             * will start to pass data to this output. */
-            pa_asyncmsgq_send(o->userdata->sink->asyncmsgq, PA_MSGOBJECT(o->userdata->sink), SINK_MESSAGE_ADD_OUTPUT, o, 0, NULL);
-
-            /* Then we enable the sink input. That means that the sink
+            /* Enable the sink input. That means that the sink
              * is now asked for new data. */
             pa_sink_input_put(o->sink_input);
-
-        } else
-            /* Hmm the sink is not yet started, do things right here */
-            output_add_within_thread(o);
+        }
     }
 
     o->ignore_state_change = false;
@@ -932,13 +1053,9 @@ static void output_disable(struct output *o) {
     if (!o->sink_input)
         return;
 
-    /* First we disable the sink input. That means that the sink is
+    /* We disable the sink input. That means that the sink is
      * not asked for new data anymore  */
     pa_sink_input_unlink(o->sink_input);
-
-    /* Then we unregister the output. That means that the sink doesn't
-     * pass any further data to this output */
-    pa_asyncmsgq_send(o->userdata->sink->asyncmsgq, PA_MSGOBJECT(o->userdata->sink), SINK_MESSAGE_REMOVE_OUTPUT, o, 0, NULL);
 
     /* Now deallocate the stream */
     pa_sink_input_unref(o->sink_input);
@@ -946,7 +1063,8 @@ static void output_disable(struct output *o) {
 
     /* Finally, drop all queued data */
     pa_memblockq_flush_write(o->memblockq, true);
-    pa_asyncmsgq_flush(o->inq, false);
+    pa_asyncmsgq_flush(o->audio_inq, false);
+    pa_asyncmsgq_flush(o->control_inq, false);
     pa_asyncmsgq_flush(o->outq, false);
 }
 
@@ -1000,10 +1118,8 @@ static pa_hook_result_t sink_put_hook_cb(pa_core *c, pa_sink *s, struct userdata
         while (l && !pa_streq(pa_strlist_data(l), s->name))
             l = pa_strlist_next(l);
 
-        if (!l) {
-	    pa_log_debug("This sink is not previously unlinked, so returning from sink put cb");
+        if (!l)
             return PA_HOOK_OK;
-	}
 
         u->unlinked_slaves = pa_strlist_remove(u->unlinked_slaves, s->name);
     }
@@ -1050,11 +1166,10 @@ static pa_hook_result_t sink_unlink_hook_cb(pa_core *c, pa_sink *s, struct userd
 
     pa_log_info("Unconfiguring sink: %s", s->name);
 
-    if (!u->automatic && !u->no_reattach) {
+    if (!u->automatic)
         u->unlinked_slaves = pa_strlist_prepend(u->unlinked_slaves, s->name);
-	pa_log_debug("Adding sink %s to the combine modules unlinked slaves list", s->name);
-    }
 
+    pa_idxset_remove_by_data(u->outputs, o, NULL);
     output_free(o);
 
     return PA_HOOK_OK;
@@ -1089,6 +1204,7 @@ int pa__init(pa_module*m) {
     uint32_t idx;
     pa_sink_new_data data;
     uint32_t adjust_time_sec;
+    size_t nbytes;
 
     pa_assert(m);
 
@@ -1108,7 +1224,12 @@ int pa__init(pa_module*m) {
     u->core = m->core;
     u->module = m;
     u->rtpoll = pa_rtpoll_new();
-    pa_thread_mq_init(&u->thread_mq, m->core->mainloop, u->rtpoll);
+
+    if (pa_thread_mq_init(&u->thread_mq, m->core->mainloop, u->rtpoll) < 0) {
+        pa_log("pa_thread_mq_init() failed.");
+        goto fail;
+    }
+
     u->resample_method = resample_method;
     u->outputs = pa_idxset_new(NULL, NULL);
     u->thread_info.smoother = pa_smoother_new(
@@ -1221,7 +1342,7 @@ int pa__init(pa_module*m) {
         pa_proplist_sets(data.proplist, PA_PROP_DEVICE_DESCRIPTION, "Simultaneous Output");
     }
 
-    u->sink = pa_sink_new(m->core, &data, PA_SINK_LATENCY);
+    u->sink = pa_sink_new(m->core, &data, PA_SINK_LATENCY|PA_SINK_DYNAMIC_LATENCY);
     pa_sink_new_data_done(&data);
 
     if (!u->sink) {
@@ -1231,13 +1352,20 @@ int pa__init(pa_module*m) {
 
     u->sink->parent.process_msg = sink_process_msg;
     u->sink->set_state = sink_set_state;
+    u->sink->update_requested_latency = sink_update_requested_latency;
     u->sink->userdata = u;
 
     pa_sink_set_rtpoll(u->sink, u->rtpoll);
     pa_sink_set_asyncmsgq(u->sink, u->thread_mq.inq);
 
-    u->block_usec = BLOCK_USEC;
-    pa_sink_set_max_request(u->sink, pa_usec_to_bytes(u->block_usec, &u->sink->sample_spec));
+    nbytes = pa_usec_to_bytes(BLOCK_USEC, &u->sink->sample_spec);
+    pa_sink_set_max_request(u->sink, nbytes);
+    pa_sink_set_latency_range(u->sink, 0, BLOCK_USEC);
+    /* pulse clamps the range, get the real values */
+    u->default_min_latency = u->sink->thread_info.min_latency;
+    u->default_max_latency = u->sink->thread_info.max_latency;
+    u->block_usec = u->sink->thread_info.max_latency;
+
 
     if (!u->automatic) {
         const char*split_state;
@@ -1264,7 +1392,7 @@ int pa__init(pa_module*m) {
             }
         }
 
-        if (pa_idxset_size(u->outputs) < 1)
+        if (pa_idxset_size(u->outputs) <= 1)
             pa_log_warn("No slave sinks specified.");
 
         u->sink_put_slot = NULL;
@@ -1320,7 +1448,6 @@ fail:
 
 void pa__done(pa_module*m) {
     struct userdata *u;
-    struct output *o;
 
     pa_assert(m);
 
@@ -1338,12 +1465,8 @@ void pa__done(pa_module*m) {
     if (u->sink_state_changed_slot)
         pa_hook_slot_free(u->sink_state_changed_slot);
 
-    if (u->outputs) {
-        while ((o = pa_idxset_first(u->outputs, NULL)))
-            output_free(o);
-
-        pa_idxset_free(u->outputs, NULL);
-    }
+    if (u->outputs)
+        pa_idxset_free(u->outputs, (pa_free_cb_t) output_free);
 
     if (u->sink)
         pa_sink_unlink(u->sink);

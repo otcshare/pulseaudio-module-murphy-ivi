@@ -5,7 +5,7 @@ AC_PREREQ(2.61)
 
 AC_INIT([pulseaudio-murphy-ivi],[PAVER],[janos.kovacs@intel.com])
 
-AC_CONFIG_SRCDIR([murphy/module-murphy-ivi.c])
+AC_CONFIG_SRCDIR([module-murphy-ivi/module-murphy-ivi.c])
 AC_CONFIG_HEADER([foo.h])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([foreign 1.8.5 -Wall])
@@ -66,72 +66,28 @@ PKG_CHECK_MODULES(LIBPULSE, [libpulse])
 AC_SUBST(LIBPULSE_CFLAGS)
 AC_SUBST(LIBPULSE_LIBS)
 
-
 PKG_CHECK_MODULES(PULSEDEVEL, [pulseaudio-module-devel])
 AC_SUBST(PULSEDEVEL_CFLAGS)
 AC_SUBST(PULSEDEVEL_LIBS)
 PKG_CHECK_VAR([modlibexecdir], [pulseaudio-module-devel], [modlibexecdir])
 AC_SUBST([modlibexecdir])
 
-PKG_CHECK_MODULES(MURPHYCOMMON, [murphy-common])
-AC_SUBST(MURPHYCOMMON_CFLAGS)
-AC_SUBST(MURPHYCOMMON_LIBS)
+#### murphy policy module (optional) ####
+AC_ARG_ENABLE([murphy],
+    AS_HELP_STRING([--enable-murphy], [Enable optional murphy policy module]), [enable_murphy=yes], [enable_murphy=no])
 
-PKG_CHECK_MODULES(LUAUTILS, [murphy-lua-utils])
-AC_SUBST(LUAUTILS_CFLAGS)
-AC_SUBST(LUAUTILS_LIBS)
+AS_IF([test x$enable_murphy != xno],
+    [PKG_CHECK_MODULES(MURPHY, [murphy-domain-controller murphy-pulse, murphy-common murphy-lua-utils lua >= 5.1.1 json-c], HAVE_MURPHY=1, HAVE_MURPHY=0)],
+    HAVE_MURPHY=0)
 
+AS_IF([test x$enable_murphy = xyes && test x$HAVE_MURPHY = "x0"],
+    [AC_MSG_ERROR([*** Murphy support not found])])
 
-PKG_CHECK_MODULES(LUA, lua >= 5.1.1)
-AC_SUBST(LUA_CFLAGS)
-AC_SUBST(LUA_LIBS)
-
-PKG_CHECK_MODULES(AUL, aul, [have_aul=yes], [have_aul=no])
-if test "$have_aul" = "no" -a "$enable_aul" = "yes"; then
-   AC_MSG_ERROR([AUL development headers not found.])
-fi
-AC_SUBST(AUL_CFLAGS)
-AC_SUBST(AUL_LIBS)
-
-AM_CONDITIONAL(HAVE_AUL,  [ test x$have_aul = "xyes" ])
-
-# D-Bus
-AC_ARG_WITH([dbus],
-            [ AS_HELP_STRING([--with-dbus],
-                             [Use D-Bus towards with Murphy and AudioManager])
-            ],
-            [ build_with_dbus="yes" ;
-              PKG_CHECK_MODULES(DBUS, [dbus-1])
-              AC_SUBST(DBUS_CFLAGS)
-              AC_SUBST(DBUS_LIBS)
-            ],
-            [ build_with_dbus="no" ]
-)
-
-AM_CONDITIONAL(BUILD_WITH_DBUS,  [ test "x$build_with_dbus" = "xyes" ])
-
-# murphy interface
-AC_ARG_WITH([murphyif],
-            [ AS_HELP_STRING([--with-murphyif],
-                             [Enable murphy domain-controller interface])
-            ],
-            [ build_with_murphyif="yes" ;
-              PKG_CHECK_MODULES(MURPHYIF,
-                                [murphy-domain-controller murphy-pulse])
-              AC_SUBST(MURPHYIF_CFLAGS)
-              AC_SUBST(MURPHYIF_LIBS)
-              AC_DEFINE([WITH_MURPHYIF], 1, [Enable Murphy interface ?])
-            ],
-            [ build_with_murphyif="no" ]
-)
-
-AM_CONDITIONAL(BUILD_WITH_MURPHYIF,  [ test "x$build_with_murphyif" = "xyes" ])
-
-
-
-PKG_CHECK_MODULES(MURPHYDOMCTL, [murphy-domain-controller murphy-pulse])
-AC_SUBST(MURPHYDOMCTL_CFLAGS)
-AC_SUBST(MURPHYDOMCTL_LIBS)
+AC_SUBST(HAVE_MURPHY)
+AC_SUBST(MURPHY_CFLAGS)
+AC_SUBST(MURPHY_LIBS)
+AM_CONDITIONAL(HAVE_MURPHY, [test "x$HAVE_MURPHY" = x1])
+AS_IF([test "x$HAVE_MURPHY" = "x1"], AC_DEFINE([HAVE_MURPHY], 1, [Have Murphy policy module]))
 
 # documentation
 AC_ARG_WITH([documentation],
@@ -178,7 +134,7 @@ AM_CONDITIONAL(BUILD_DOCUMENTATION,  [ test x$has_doc_tools = "xyes" ])
 AM_CONDITIONAL(BUILD_PDF_DOCUMENTS,  [ test x$can_make_pdfs = "xyes" ])
 AM_CONDITIONAL(BUILD_HTML_DOCUMENTS, [ test x$can_make_html = "xyes" ])
 
-AC_SUBST(PA_DOCDIR, [`pwd`/doc])
+AC_SUBST(PA_DOCDIR, [$top_srcdir/doc])
 AC_SUBST(PA_FIGDIR, [$PA_DOCDIR/common/figures])
 AC_SUBST(PA_MAKE_DOCRULES, [$PA_DOCDIR/Makefile.rules])
 AC_SUBST(PA_DOCSCRIPT_DIR, [$PA_DOCDIR/scripts])
@@ -194,7 +150,7 @@ AC_CONFIG_FILES([
         build-aux/shave
         build-aux/shave-libtool
 	Makefile
-	murphy/Makefile
+	module-murphy-ivi/Makefile
         combine/Makefile
         augment/Makefile
         doc/Makefile
@@ -215,24 +171,10 @@ echo "
     LIBDIR:               ${LIBDIR}
     LIBPULSE_CFLAGS:      ${LIBPULSE_CFLAGS}
     LIBPULSE_LIBS:        ${LIBPULSE_LIBS}
-    LIBPULSECORE_CFLAGS:  ${LIBPULSECORE_CFLAGS}
-    LIBPULSECORE_LIBS:    ${LIBPULSECORE_LIBS}
     PULSEDEVEL_CFLAGS     ${PULSEDEVEL_CFLAGS}
     PULSEDEVEL_LIBS       ${PULSEDEVEL_LIBS}
     MAJORMINOR:           ${PA_MAJORMINOR}
-    DBUS_CFLAGS:          ${DBUS_CFLAGS}
-    DBUS_LIBS:            ${DBUS_LIBS}
-    MURPHYCOMMON_CFLAGS   ${MURPHYCOMMON_CFLAGS}
-    MURPHYCOMMON_LIBS     ${MURPHYCOMMON_LIBS}
-    LUAUTILS_CFLAGS       ${LUAUTILS_CFLAGS}
-    LUAUTILS_LIBS         ${LUAUTILS_LIBS}
-    LUAUTILS_CFLAGS       ${LUAUTILS_CFLAGS}
-    LUAUTILS_LIBS         ${LUAUTILS_LIBS}
-    LUA_CFLAGS:           ${LUA_CFLAGS}
-    LUA_LIBS:             ${LUA_LIBS}
-    AUL_CFLAGS            ${AUL_CFLAGS}
-    AUL_LIBS              ${AUL_LIBS}
-    murphyif enabled:     $build_with_murphyif
-    MURPHYIF_CFLAGS       ${MURPHYIF_CFLAGS}
-    MURPHYIF_LIBS         ${MURPHYIF_LIBS}
+    MURPHY_CFLAGS         ${MURPHY_CFLAGS}
+    MURPHY_LIBS           ${MURPHY_LIBS}
+    murphy enabled:       $enable_murphy
 "

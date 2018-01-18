@@ -230,7 +230,7 @@ static void parse_file(struct rule *r, const char *fn, pa_config_item *table, bo
     table[0].data = &r->application_name;
     table[1].data = &r->icon_name;
 
-    if (pa_config_parse(fn, NULL, table, NULL, r) < 0)
+    if (pa_config_parse(fn, NULL, table, NULL, false, r) < 0)
         pa_log_warn("Failed to parse file %s.", fn);
 
     if (!first) {
@@ -727,7 +727,7 @@ static pa_hashmap *update_sink_input_rules() {
             rf->rules = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
             rf->fn = pa_sprintf_malloc(SINK_INPUT_RULE_DIR PA_PATH_SEP "%s", file->d_name);
 
-            if (pa_config_parse(rf->fn, NULL, table, NULL, rf) >= 0) {
+            if (pa_config_parse(rf->fn, NULL, table, NULL, false, rf) >= 0) {
 
                 pa_log_info("Successfully parsed sink input conf file %s", file->d_name);
 
